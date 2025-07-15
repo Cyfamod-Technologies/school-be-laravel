@@ -11,33 +11,33 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Class Subject
+ * Class Class
  *
  * @property string $id
  * @property string $school_id
  * @property string $name
- * @property string|null $code
+ * @property string $slug
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
  * @property School $school
  * @property Collection|AnalyticsDatum[] $analytics_data
- * @property Collection|Result[] $results
- * @property Collection|Class[] $classes
- * @property Collection|SubjectTeacherAssignment[] $subject_teacher_assignments
+ * @property Collection|ClassArm[] $class_arms
+ * @property Collection|Student[] $students
+ * @property Collection|Subject[] $subjects
  *
  * @package App\Models
  */
-class Subject extends Model
+class Class extends Model
 {
-	protected $table = 'subjects';
+	protected $table = 'classes';
 	public $incrementing = false;
 
 	protected $fillable = [
 		'school_id',
 		'name',
-		'code',
+		'slug',
 		'description'
 	];
 
@@ -51,20 +51,20 @@ class Subject extends Model
 		return $this->hasMany(AnalyticsDatum::class);
 	}
 
-	public function results()
+	public function class_arms()
 	{
-		return $this->hasMany(Result::class);
+		return $this->hasMany(ClassArm::class);
 	}
 
-	public function classes()
+	public function students()
 	{
-		return $this->belongsToMany(Class::class, 'subject_class_assignments')
+		return $this->hasMany(Student::class);
+	}
+
+	public function subjects()
+	{
+		return $this->belongsToMany(Subject::class, 'subject_class_assignments')
 					->withPivot('id')
 					->withTimestamps();
-	}
-
-	public function subject_teacher_assignments()
-	{
-		return $this->hasMany(SubjectTeacherAssignment::class);
 	}
 }

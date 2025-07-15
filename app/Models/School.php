@@ -26,10 +26,11 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
+ * @property Collection|AnalyticsDatum[] $analytics_data
  * @property Collection|AssessmentComponent[] $assessment_components
  * @property Collection|Class[] $classes
- * @property Collection|Classes[] $classes
- * @property Collection|Parents[] $parents
+ * @property Collection|GradingScale[] $grading_scales
+ * @property Collection|Parent[] $parents
  * @property Collection|SkillType[] $skill_types
  * @property Collection|User[] $users
  * @property Collection|Session[] $sessions
@@ -62,6 +63,11 @@ class School extends Model
 		'status'
 	];
 
+	public function analytics_data()
+	{
+		return $this->hasMany(AnalyticsDatum::class);
+	}
+
 	public function assessment_components()
 	{
 		return $this->hasMany(AssessmentComponent::class);
@@ -69,7 +75,7 @@ class School extends Model
 
 	public function classes()
 	{
-		return $this->hasMany(Classes::class);
+		return $this->hasMany(Class::class);
 	}
 
 	public function grading_scales()
@@ -79,7 +85,7 @@ class School extends Model
 
 	public function parents()
 	{
-		return $this->hasMany(Parents::class);
+		return $this->hasMany(Parent::class);
 	}
 
 	public function skill_types()
@@ -90,7 +96,8 @@ class School extends Model
 	public function users()
 	{
 		return $this->belongsToMany(User::class, 'school_user_assignments')
-					->withPivot('id', 'user_type', 'meta');
+					->withPivot('id')
+					->withTimestamps();
 	}
 
 	public function sessions()

@@ -41,7 +41,7 @@ class ClassArm extends Model
 
 	public function class()
 	{
-		return $this->belongsTo(Classes::class);
+		return $this->belongsTo(Class::class);
 	}
 
 	public function class_sections()

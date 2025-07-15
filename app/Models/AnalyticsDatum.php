@@ -10,32 +10,46 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Class SubjectClassAssignment
+ * Class AnalyticsDatum
  *
  * @property string $id
- * @property string $subject_id
+ * @property string $school_id
  * @property string $class_id
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property string $subject_id
+ * @property float $average_score
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  *
  * @property Class $class
+ * @property School $school
  * @property Subject $subject
  *
  * @package App\Models
  */
-class SubjectClassAssignment extends Model
+class AnalyticsDatum extends Model
 {
-	protected $table = 'subject_class_assignments';
+	protected $table = 'analytics_data';
 	public $incrementing = false;
 
+	protected $casts = [
+		'average_score' => 'float'
+	];
+
 	protected $fillable = [
+		'school_id',
+		'class_id',
 		'subject_id',
-		'class_id'
+		'average_score'
 	];
 
 	public function class()
 	{
 		return $this->belongsTo(Class::class);
+	}
+
+	public function school()
+	{
+		return $this->belongsTo(School::class);
 	}
 
 	public function subject()

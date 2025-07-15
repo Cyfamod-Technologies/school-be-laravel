@@ -47,6 +47,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property Term $term
  * @property Collection|Attendance[] $attendances
  * @property Collection|FeePayment[] $fee_payments
+ * @property Collection|PerformanceReport[] $performance_reports
  * @property Collection|ResultPin[] $result_pins
  * @property Collection|Result[] $results
  * @property Collection|SkillRating[] $skill_ratings
@@ -106,7 +107,7 @@ class Student extends Model
 
 	public function parent()
 	{
-		return $this->belongsTo(Parents::class);
+		return $this->belongsTo(Parent::class);
 	}
 
 	public function school()
@@ -132,6 +133,11 @@ class Student extends Model
 	public function fee_payments()
 	{
 		return $this->hasMany(FeePayment::class);
+	}
+
+	public function performance_reports()
+	{
+		return $this->hasMany(PerformanceReport::class);
 	}
 
 	public function result_pins()

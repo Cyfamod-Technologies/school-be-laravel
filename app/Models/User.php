@@ -24,9 +24,10 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
+ * @property Collection|AuditLog[] $audit_logs
  * @property Collection|MessageThread[] $message_threads
  * @property Collection|Message[] $messages
- * @property Collection|Parents[] $parents
+ * @property Collection|Parent[] $parents
  * @property Collection|School[] $schools
  * @property Collection|Staff[] $staff
  *
@@ -56,6 +57,11 @@ class User extends Model
 		'email_verified_at'
 	];
 
+	public function audit_logs()
+	{
+		return $this->hasMany(AuditLog::class);
+	}
+
 	public function message_threads()
 	{
 		return $this->hasMany(MessageThread::class, 'sender_id');
@@ -68,13 +74,14 @@ class User extends Model
 
 	public function parents()
 	{
-		return $this->hasMany(Parents::class);
+		return $this->hasMany(Parent::class);
 	}
 
 	public function schools()
 	{
 		return $this->belongsToMany(School::class, 'school_user_assignments')
-					->withPivot('id', 'user_type', 'meta');
+					->withPivot('id')
+					->withTimestamps();
 	}
 
 	public function staff()
