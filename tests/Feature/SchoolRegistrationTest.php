@@ -21,6 +21,7 @@ class SchoolRegistrationTest extends TestCase
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
+            'subdomain' => 'test-school',
         ]);
 
         $response->assertStatus(201)

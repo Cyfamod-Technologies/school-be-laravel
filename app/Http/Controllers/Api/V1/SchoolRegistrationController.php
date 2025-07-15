@@ -79,12 +79,13 @@ class SchoolRegistrationController extends Controller
             'address' => 'required|string',
             'email' => 'required|string|email|max:255|unique:schools',
             'password' => 'required|string|min:8|confirmed',
+            'subdomain' => 'required|string|max:255|unique:schools',
         ]);
 
         $school = School::create([
             'name' => $validatedData['name'],
             'slug' => Str::slug($validatedData['name']),
-            'subdomain' => Str::slug($validatedData['name']),
+            'subdomain' => $validatedData['subdomain'],
             'address' => $validatedData['address'],
             'email' => $validatedData['email'],
         ]);
@@ -97,8 +98,10 @@ class SchoolRegistrationController extends Controller
             'school_id' => $school->id,
         ]);
 
+        $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
+
         return response()->json([
-            'message' => 'School registered successfully',
+            'message' => 'School registered successfully. Login via ' . $loginUrl,
             'school' => $school,
             'user' => $user,
         ], 201);
