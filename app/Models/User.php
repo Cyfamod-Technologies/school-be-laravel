@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property Collection|MessageThread[] $message_threads
  * @property Collection|Message[] $messages
- * @property Collection|Parent[] $parents
+ * @property Collection|Parents[] $parents
  * @property Collection|School[] $schools
  * @property Collection|Staff[] $staff
  *
@@ -68,14 +68,13 @@ class User extends Model
 
 	public function parents()
 	{
-		return $this->hasMany(Parent::class);
+		return $this->hasMany(Parents::class);
 	}
 
 	public function schools()
 	{
 		return $this->belongsToMany(School::class, 'school_user_assignments')
-					->withPivot('id')
-					->withTimestamps();
+					->withPivot('id', 'user_type', 'meta');
 	}
 
 	public function staff()

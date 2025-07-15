@@ -28,8 +28,8 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property Collection|AssessmentComponent[] $assessment_components
  * @property Collection|Class[] $classes
- * @property Collection|GradingScale[] $grading_scales
- * @property Collection|Parent[] $parents
+ * @property Collection|Classes[] $classes
+ * @property Collection|Parents[] $parents
  * @property Collection|SkillType[] $skill_types
  * @property Collection|User[] $users
  * @property Collection|Session[] $sessions
@@ -69,7 +69,7 @@ class School extends Model
 
 	public function classes()
 	{
-		return $this->hasMany(Class::class);
+		return $this->hasMany(Classes::class);
 	}
 
 	public function grading_scales()
@@ -79,7 +79,7 @@ class School extends Model
 
 	public function parents()
 	{
-		return $this->hasMany(Parent::class);
+		return $this->hasMany(Parents::class);
 	}
 
 	public function skill_types()
@@ -90,8 +90,7 @@ class School extends Model
 	public function users()
 	{
 		return $this->belongsToMany(User::class, 'school_user_assignments')
-					->withPivot('id')
-					->withTimestamps();
+					->withPivot('id', 'user_type', 'meta');
 	}
 
 	public function sessions()

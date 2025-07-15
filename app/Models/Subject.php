@@ -52,7 +52,7 @@ class Subject extends Model
 
 	public function classes()
 	{
-		return $this->belongsToMany(Class::class, 'subject_class_assignments')
+		return $this->belongsToMany(Classes::class, 'subject_class_assignments')
 					->withPivot('id')
 					->withTimestamps();
 	}

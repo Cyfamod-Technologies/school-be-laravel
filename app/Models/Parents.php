@@ -34,7 +34,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @package App\Models
  */
-class Parent extends Model
+class Parents extends Model
 {
 	protected $table = 'parents';
 	public $incrementing = false;
