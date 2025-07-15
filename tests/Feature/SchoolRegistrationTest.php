@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use App\Models\School;
 use App\Models\User;
@@ -12,7 +13,7 @@ class SchoolRegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function a_school_can_be_registered()
     {
         $response = $this->postJson('/api/register-school', [
@@ -21,6 +22,7 @@ class SchoolRegistrationTest extends TestCase
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
+            'subdomain' => 'test-school',
         ]);
 
         $response->assertStatus(201)

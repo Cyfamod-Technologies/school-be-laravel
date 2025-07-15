@@ -32,7 +32,8 @@ class SchoolRegistrationController extends Controller
      *              @OA\Property(property="address", type="string", example="123 Main St"),
      *              @OA\Property(property="email", type="string", format="email", example="school@example.com"),
      *              @OA\Property(property="password", type="string", format="password", example="password"),
-     *              @OA\Property(property="password_confirmation", type="string", format="password", example="password")
+     *              @OA\Property(property="password_confirmation", type="string", format="password", example="password"),
+     *              @OA\Property(property="subdomain", type="string", example="my-school")
      *          )
      *      ),
      *      @OA\Response(
@@ -79,11 +80,13 @@ class SchoolRegistrationController extends Controller
             'address' => 'required|string',
             'email' => 'required|string|email|max:255|unique:schools',
             'password' => 'required|string|min:8|confirmed',
+            'subdomain' => 'required|string|max:255|unique:schools',
         ]);
 
         $school = School::create([
             'name' => $validatedData['name'],
             'slug' => Str::slug($validatedData['name']),
+            'subdomain' => $validatedData['subdomain'],
             'address' => $validatedData['address'],
             'email' => $validatedData['email'],
         ]);
@@ -96,8 +99,10 @@ class SchoolRegistrationController extends Controller
             'school_id' => $school->id,
         ]);
 
+        $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
+
         return response()->json([
-            'message' => 'School registered successfully',
+            'message' => 'School registered successfully. Login via ' . $loginUrl,
             'school' => $school,
             'user' => $user,
         ], 201);

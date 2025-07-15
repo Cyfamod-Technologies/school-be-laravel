@@ -83,12 +83,3 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   KEY `audit_logs_user_id_foreign` (`user_id`),
   CONSTRAINT `audit_logs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
-
--- update user table with school_id
-ALTER TABLE users
-ADD COLUMN school_id CHAR(36) NULL AFTER id,
-ADD CONSTRAINT fk_users_school
-    FOREIGN KEY (school_id) REFERENCES schools(id)
-    ON DELETE CASCADE;

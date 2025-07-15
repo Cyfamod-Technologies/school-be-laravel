@@ -84,6 +84,7 @@ class School extends Model
 	protected $fillable = [
 		'name',
 		'slug',
+		'subdomain',
 		'address',
 		'email',
 		'phone',

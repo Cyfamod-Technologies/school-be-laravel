@@ -12,7 +12,7 @@
                     "School"
                 ],
                 "summary": "Register a new school",
-                "operationId": "c12c5089956396889d64592d3fcee38f",
+                "operationId": "699d5f8e0912fda08c153e8b90be7725",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -48,6 +48,10 @@
                                         "type": "string",
                                         "format": "password",
                                         "example": "password"
+                                    },
+                                    "subdomain": {
+                                        "type": "string",
+                                        "example": "my-school"
                                     }
                                 },
                                 "type": "object"
