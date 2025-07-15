@@ -1,48 +1,85 @@
 <?php
 
+/**
+ * Created by Reliese Model.
+ */
+
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 
-class User extends Authenticatable
+/**
+ * Class User
+ *
+ * @property string $id
+ * @property string $name
+ * @property string $email
+ * @property string $password
+ * @property string $role
+ * @property string $status
+ * @property Carbon|null $last_login
+ * @property Carbon|null $email_verified_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ *
+ * @property Collection|MessageThread[] $message_threads
+ * @property Collection|Message[] $messages
+ * @property Collection|Parent[] $parents
+ * @property Collection|School[] $schools
+ * @property Collection|Staff[] $staff
+ *
+ * @package App\Models
+ */
+class User extends Model
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+	protected $table = 'users';
+	public $incrementing = false;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-    ];
+	protected $casts = [
+		'last_login' => 'datetime',
+		'email_verified_at' => 'datetime'
+	];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+	protected $hidden = [
+		'password'
+	];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
-    }
+	protected $fillable = [
+		'name',
+		'email',
+		'password',
+		'role',
+		'status',
+		'last_login',
+		'email_verified_at'
+	];
+
+	public function message_threads()
+	{
+		return $this->hasMany(MessageThread::class, 'sender_id');
+	}
+
+	public function messages()
+	{
+		return $this->hasMany(Message::class, 'sender_id');
+	}
+
+	public function parents()
+	{
+		return $this->hasMany(Parent::class);
+	}
+
+	public function schools()
+	{
+		return $this->belongsToMany(School::class, 'school_user_assignments')
+					->withPivot('id')
+					->withTimestamps();
+	}
+
+	public function staff()
+	{
+		return $this->hasMany(Staff::class);
+	}
 }
