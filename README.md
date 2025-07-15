@@ -1,62 +1,206 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# School Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A comprehensive Laravel-based school management system designed to streamline administrative tasks, student management, and academic operations.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Student Management**: Registration, profiles, attendance tracking
+- **Teacher Management**: Staff profiles, class assignments, schedules
+- **Academic Management**: Courses, subjects, grading system
+- **Administrative Tools**: Reports, notifications, user management
+- **Authentication & Authorization**: Role-based access control
+- **API Documentation**: Swagger/OpenAPI integration
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Technology Stack
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Backend**: Laravel 10.x (PHP 8.1+)
+- **Database**: MySQL 8.0+
+- **Authentication**: Laravel Sanctum
+- **API Documentation**: L5-Swagger
+- **Testing**: PHPUnit, Pest
+- **Code Quality**: PHP-CS-Fixer, PHPStan
 
-## Learning Laravel
+## Prerequisites
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.1 or higher
+- Composer
+- Node.js & NPM
+- MySQL 8.0 or higher
+- Git
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## Installation
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/school-management-system.git
+   cd school-management-system
+   ```
 
-## Laravel Sponsors
+2. **Install PHP dependencies**
+   ```bash
+   composer install
+   ```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+3. **Install Node.js dependencies**
+   ```bash
+   npm install
+   ```
 
-### Premium Partners
+4. **Environment setup**
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+5. **Configure your `.env` file**
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=school_management
+   DB_USERNAME=your_username
+   DB_PASSWORD=your_password
+   
+   # Swagger Documentation
+   L5_SWAGGER_CONST_HOST=http://localhost:8000
+   L5_SWAGGER_GENERATE_ALWAYS=true
+   ```
+
+6. **Database setup**
+   ```bash
+   php artisan migrate
+   php artisan db:seed
+   ```
+
+7. **Generate API documentation**
+   ```bash
+   php artisan l5-swagger:generate
+   ```
+
+8. **Build frontend assets**
+   ```bash
+   npm run dev
+   ```
+
+9. **Start the development server**
+   ```bash
+   php artisan serve
+   ```
+
+## Usage
+
+### Accessing the Application
+
+- **Web Interface**: `http://localhost:8000`
+- **API Documentation**: `http://localhost:8000/api/documentation`
+- **Admin Panel**: `http://localhost:8000/admin`
+
+### Default Credentials
+
+- **Admin**: admin@school.com / password
+- **Teacher**: teacher@school.com / password
+- **Student**: student@school.com / password
+
+## API Endpoints
+
+### Authentication
+- `POST /api/login` - User login
+- `POST /api/logout` - User logout
+- `POST /api/register` - User registration
+
+### Students
+- `GET /api/students` - List all students
+- `POST /api/students` - Create new student
+- `GET /api/students/{id}` - Get student details
+- `PUT /api/students/{id}` - Update student
+- `DELETE /api/students/{id}` - Delete student
+
+### Teachers
+- `GET /api/teachers` - List all teachers
+- `POST /api/teachers` - Create new teacher
+- `GET /api/teachers/{id}` - Get teacher details
+
+For complete API documentation, visit `/api/documentation` after starting the server.
+
+## Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+php artisan test
+
+# Run with coverage
+php artisan test --coverage
+
+# Run specific test file
+php artisan test tests/Feature/StudentTest.php
+```
+
+## Code Quality
+
+### PHP CS Fixer
+```bash
+# Fix code style
+./vendor/bin/php-cs-fixer fix
+
+# Check code style
+./vendor/bin/php-cs-fixer fix --dry-run
+```
+
+### PHPStan
+```bash
+# Static analysis
+./vendor/bin/phpstan analyse
+```
+
+## Development Workflow
+
+1. Create a feature branch from `develop`
+2. Make your changes
+3. Write/update tests
+4. Run code quality checks
+5. Submit a pull request
+
+## Database Schema
+
+### Key Tables
+- `users` - System users (students, teachers, admins)
+- `students` - Student-specific information
+- `teachers` - Teacher-specific information
+- `courses` - Academic courses
+- `subjects` - Course subjects
+- `grades` - Student grades
+- `attendance` - Attendance records
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
-## Code of Conduct
+## Troubleshooting
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Common Issues
 
-## Security Vulnerabilities
+1. **Migration errors**: Ensure your database is running and credentials are correct
+2. **Permission errors**: Check file permissions on `storage/` and `bootstrap/cache/`
+3. **Swagger generation fails**: Ensure all controllers have proper OpenAPI annotations
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Getting Help
+
+- Create an issue in the repository
+- Check the [documentation](docs/)
+- Contact the development team
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# school-be-php
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Authors
+
+- **Your Name** - *Initial work* - [YourGitHub](https://github.com/yourusername)
+
+## Acknowledgments
+
+- Laravel Framework
+- OpenAPI/Swagger
+- Contributors and maintainers
