@@ -40,7 +40,7 @@ class SchoolRegistrationControllerTest extends TestCase
 
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
-            'role' => 'super_admin',
+            'role' => 'admin',
         ]);
     }
 }

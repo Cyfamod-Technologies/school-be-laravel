@@ -21,26 +21,12 @@ SET time_zone = "+00:00";
 -- Database: `main-db_sql`
 --
 
--- USER TABLE
-CREATE TABLE users (
-    id CHAR(36) NOT NULL PRIMARY KEY, -- UUID stored as 36-char string
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role ENUM('staff', 'parent', 'super_admin', 'accountant') NOT NULL,
-    status ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
-    last_login TIMESTAMP NULL DEFAULT NULL,
-    email_verified_at TIMESTAMP NULL DEFAULT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
--- SCHOOL TABLE
+-- SCHOOL TABLE (must come first)
 CREATE TABLE schools (
-    id CHAR(36) NOT NULL PRIMARY KEY, -- UUID
+    id CHAR(36) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
+    subdomain VARCHAR(255) NOT NULL UNIQUE,
     address TEXT NOT NULL,
     email VARCHAR(255) DEFAULT NULL,
     phone VARCHAR(50) DEFAULT NULL,
@@ -52,6 +38,22 @@ CREATE TABLE schools (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- USER TABLE
+CREATE TABLE users (
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    school_id CHAR(36) NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('staff', 'parent', 'super_admin', 'accountant', 'admin') NOT NULL,
+    status ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
+    last_login TIMESTAMP NULL DEFAULT NULL,
+    email_verified_at TIMESTAMP NULL DEFAULT NULL,
+    remember_token VARCHAR(100) DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- SESSION TABLE
 CREATE TABLE sessions (
@@ -621,3 +623,161 @@ CREATE INDEX idx_school_skill_types_skill_type ON school_skill_types(skill_type_
 
 
 -- mysql://root:ipala@2025@199.192.27.235:3306/sas
+
+
+
+
+
+-- laravel default
+
+
+CREATE TABLE personal_access_tokens (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tokenable_type VARCHAR(255) NOT NULL,
+    tokenable_id CHAR(36) NOT NULL,
+    name TEXT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    abilities TEXT DEFAULT NULL,
+    last_used_at TIMESTAMP NULL DEFAULT NULL,
+    expires_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    INDEX idx_tokenable (tokenable_type, tokenable_id)
+);
+CREATE TABLE cache (
+    `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+    `value` MEDIUMTEXT NOT NULL,
+    `expiration` INT NOT NULL
+);
+CREATE TABLE cache_locks (
+    `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+    `owner` VARCHAR(255) NOT NULL,
+    `expiration` INT NOT NULL
+);
+CREATE TABLE jobs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    queue VARCHAR(255) NOT NULL,
+    payload LONGTEXT NOT NULL,
+    attempts TINYINT UNSIGNED NOT NULL,
+    reserved_at INT UNSIGNED DEFAULT NULL,
+    available_at INT UNSIGNED NOT NULL,
+    created_at INT UNSIGNED NOT NULL,
+    INDEX jobs_queue_index (queue)
+);
+CREATE TABLE job_batches (
+    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    total_jobs INT NOT NULL,
+    pending_jobs INT NOT NULL,
+    failed_jobs INT NOT NULL,
+    failed_job_ids LONGTEXT NOT NULL,
+    options MEDIUMTEXT DEFAULT NULL,
+    cancelled_at INT DEFAULT NULL,
+    created_at INT NOT NULL,
+    finished_at INT DEFAULT NULL
+);
+CREATE TABLE failed_jobs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(255) NOT NULL UNIQUE,
+    connection TEXT NOT NULL,
+    queue TEXT NOT NULL,
+    payload LONGTEXT NOT NULL,
+    exception LONGTEXT NOT NULL,
+    failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+-- upgrade
+
+
+
+
+
+
+
+-- RBAC Tables
+CREATE TABLE IF NOT EXISTS `roles` (
+  `id` char(36) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `permissions` (
+  `id` char(36) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `role_has_permissions` (
+  `role_id` char(36) NOT NULL,
+  `permission_id` char(36) NOT NULL,
+  PRIMARY KEY (`role_id`,`permission_id`),
+  KEY `role_has_permissions_permission_id_foreign` (`permission_id`),
+  CONSTRAINT `role_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `role_has_permissions_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Analytics & Reports
+CREATE TABLE IF NOT EXISTS `analytics_data` (
+  `id` char(36) NOT NULL,
+  `school_id` char(36) NOT NULL,
+  `class_id` char(36) NOT NULL,
+  `subject_id` char(36) NOT NULL,
+  `average_score` float NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `analytics_data_school_id_foreign` (`school_id`),
+  KEY `analytics_data_class_id_foreign` (`class_id`),
+  KEY `analytics_data_subject_id_foreign` (`subject_id`),
+  CONSTRAINT `analytics_data_school_id_foreign` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `analytics_data_class_id_foreign` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `analytics_data_subject_id_foreign` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `performance_reports` (
+  `id` char(36) NOT NULL,
+  `student_id` char(36) NOT NULL,
+  `report_data` json NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `performance_reports_student_id_foreign` (`student_id`),
+  CONSTRAINT `performance_reports_student_id_foreign` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Student Status Management
+-- ALTER TABLE `students` ADD `status` varchar(255) NOT NULL DEFAULT 'active';
+
+-- External Integrations
+CREATE TABLE IF NOT EXISTS `api_keys` (
+  `id` char(36) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `key` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `key` (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Security & Auditing
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` char(36) NOT NULL,
+  `user_id` char(36) NOT NULL,
+  `action` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `audit_logs_user_id_foreign` (`user_id`),
+  CONSTRAINT `audit_logs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

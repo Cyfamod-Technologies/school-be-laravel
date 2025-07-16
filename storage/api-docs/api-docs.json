@@ -5,7 +5,108 @@
         "description": "API for managing school data",
         "version": "1.0.0"
     },
+    "servers": [
+        {
+            "url": "http://127.0.0.1:8000/api"
+        }
+    ],
     "paths": {
+        "/school-admin/login": {
+            "post": {
+                "tags": [
+                    "School Admin"
+                ],
+                "summary": "Login as a school admin",
+                "operationId": "b87ef1b9c5d96b073d7d13d1f5ea46c1",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "admin@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful login",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "token": {
+                                            "type": "string"
+                                        },
+                                        "user": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/school-admin/logout": {
+            "post": {
+                "tags": [
+                    "School Admin"
+                ],
+                "summary": "Logout the authenticated user",
+                "operationId": "91be664ccfd53b14528fbbdaaf8c08d5",
+                "responses": {
+                    "200": {
+                        "description": "Successfully logged out",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Logged out successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/register-school": {
             "post": {
                 "tags": [
@@ -179,6 +280,10 @@
         }
     },
     "tags": [
+        {
+            "name": "School Admin",
+            "description": "School Admin"
+        },
         {
             "name": "School",
             "description": "School"
