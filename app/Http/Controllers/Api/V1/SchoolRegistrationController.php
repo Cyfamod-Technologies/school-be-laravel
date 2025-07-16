@@ -89,6 +89,7 @@ class SchoolRegistrationController extends Controller
             'subdomain' => $validatedData['subdomain'],
             'address' => $validatedData['address'],
             'email' => $validatedData['email'],
+            'phone' => '1234567890', // Add a dummy phone number
         ]);
 
         $user = User::create([
@@ -97,6 +98,7 @@ class SchoolRegistrationController extends Controller
             'password' => Hash::make($validatedData['password']),
             'role' => 'admin',
             'school_id' => $school->id,
+            'status' => 'active',
         ]);
 
         $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
