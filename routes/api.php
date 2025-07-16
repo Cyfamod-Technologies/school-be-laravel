@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\V1\SchoolController;
+
 
 use App\Http\Controllers\Api\V1\SchoolRegistrationController;
 
@@ -11,11 +13,10 @@ Route::domain('{subdomain}.' . $host)->group(function () {
     // Add your school-specific routes here
 });
 
-use App\Http\Controllers\Api\V1\SchoolController;
 
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
 
-Route::prefix('v1')->group(function () {
+Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
     Route::middleware('auth:sanctum')->post('/logout', [SchoolController::class, 'logout']);

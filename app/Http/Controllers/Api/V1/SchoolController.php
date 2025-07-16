@@ -97,6 +97,7 @@ class SchoolController extends Controller
         ]);
 
         $user = User::create([
+            'id' => Str::uuid(),
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'password' => Hash::make($validatedData['password']),
