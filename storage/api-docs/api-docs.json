@@ -6,13 +6,13 @@
         "version": "1.0.0"
     },
     "paths": {
-        "/api/v1/register-school": {
+        "/v1/register-school": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Register a new school",
-                "operationId": "d488d2d37d460c84a9de0eb5dc4ddf2a",
+                "operationId": "86c065ad7c08e79dba5a1b38acff7cc6",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -177,13 +177,13 @@
                 }
             }
         },
-        "/api/v1/login": {
+        "/v1/login": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Login as a school admin",
-                "operationId": "dd88ccaa8c0202be7608c248fcbc5b6d",
+                "operationId": "9b5e2e33a3e012c5d925e05f9a4f1521",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -238,13 +238,13 @@
                 }
             }
         },
-        "/api/v1/logout": {
+        "/v1/logout": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Logout the authenticated user",
-                "operationId": "f68497443ec1640d78b54128c8a98fde",
+                "operationId": "3aca6d185fca08cdefc9194b0d8d4160",
                 "responses": {
                     "200": {
                         "description": "Successfully logged out",
@@ -273,13 +273,13 @@
                 ]
             }
         },
-        "/api/v1/school": {
+        "/v1/school": {
             "put": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Update school profile",
-                "operationId": "1602f246e0f93bb4ded0cfd660dbaadc",
+                "operationId": "bba8cf7d40e5dacce03cc880a8f17541",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -331,13 +331,13 @@
                 ]
             }
         },
-        "/api/v1/user": {
+        "/v1/user": {
             "put": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Update user profile",
-                "operationId": "d8256e2daf6b738069a8734aeefcf400",
+                "operationId": "2fe2c5c7466f0e20b3e41e35750fd84a",
                 "requestBody": {
                     "content": {
                         "application/json": {
