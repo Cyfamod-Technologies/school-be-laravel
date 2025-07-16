@@ -77,7 +77,7 @@ class School extends Model
 
 	public function classes()
 	{
-		return $this->hasMany(Class::class);
+		return $this->hasMany(\App\Models\Classes::class);
 	}
 
 	public function grading_scales()
