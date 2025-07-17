@@ -86,4 +86,3 @@ The following Eloquent models are available in the `app/Models` directory:
 *   **User**: Corresponds to the `users` table.
 
 
-steph
