@@ -67,10 +67,6 @@ return [
         'proxy' => false,
         'additional_config_url' => null,
         'operations_sort' => env('L5_SWAGGER_OPERATIONS_SORT', null),
-        'tags' => [
-            ['name' => 'school-v1.0', 'description' => 'API Endpoints for School v1.0'],
-            ['name' => 'school-v1.1', 'description' => 'API Endpoints for School v1.1'],
-        ],
         'validator_url' => null,
         'ui' => [
             'display' => [
