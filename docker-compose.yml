@@ -24,18 +24,22 @@ services:
       - DB_DATABASE=school
       - DB_USERNAME=school
       - DB_PASSWORD=school
+    ports:
+      - "8000:80"
+
 
   caddy:
     image: caddy:2
     container_name: school_caddy
     restart: unless-stopped
     ports:
-      - "8000:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - ./docker/caddy/data:/data
       - ./docker/caddy/config:/config
-      - ./:/var/www/html
+      # - ./:/var/www/html
     networks:
       - school
     depends_on:
