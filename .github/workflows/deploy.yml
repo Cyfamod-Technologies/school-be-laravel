@@ -49,5 +49,6 @@ jobs:
           port: 22
           script: |
             cd /home/ubuntu/school-be-php
+            git checkout -- storage/api-docs/api-docs.json
             git pull 
             docker restart school-be
