@@ -1,0 +1,53 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      # - main
+      - staging
+
+jobs:
+  ci:
+    name: Run Tests (CI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.2
+          extensions: mbstring, bcmath, pdo, pdo_mysql
+          coverage: none
+
+      - name: Install Dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Copy .env
+        run: cp .env.prod .env
+
+      - name: Generate Application Key
+        run: php artisan key:generate
+
+      # - name: Run Tests
+      #   run: php artisan test
+
+  cd:
+    name: Deploy to Server (CD)
+    runs-on: ubuntu-latest
+    needs: ci  # Only runs if CI passes
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          script: |
+            cd /home/ubuntu/school-be-php
+            git pull 
+            docker restart school-be
