@@ -109,7 +109,7 @@ class SchoolController extends Controller
         $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
 
         return response()->json([
-            'message' => 'School registered successfully. Login via ' . $loginUrl,
+            'message' => 'School registered successfully.',
             'school' => $school,
             'user' => $user,
         ], 201);
