@@ -84,3 +84,5 @@ The following Eloquent models are available in the `app/Models` directory:
 *   **TermSummary**: Corresponds to the `term_summaries` table.
 *   **Term**: Corresponds to the `terms` table.
 *   **User**: Corresponds to the `users` table.
+
+

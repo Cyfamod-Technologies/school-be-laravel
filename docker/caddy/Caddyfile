@@ -1,0 +1,11 @@
+api.bmp.com.ng {
+    reverse_proxy school-be:80
+}
+
+phpmyadmin.bmp.com.ng {
+    reverse_proxy phpmyadmin:80
+}
+
+port.bmp.com.ng {
+    reverse_proxy portainer:9000
+}
