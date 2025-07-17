@@ -19,6 +19,10 @@ use Illuminate\Support\Str;
  *      title="School API",
  *      description="API for managing school data"
  * )
+ * @OA\Tag(
+ *     name="school-v1.0",
+ *     description="API Endpoints for School v1.0"
+ * )
  */
 class SchoolController extends Controller
 {
