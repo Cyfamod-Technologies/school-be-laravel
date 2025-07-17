@@ -19,7 +19,12 @@ Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate
 Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
-    Route::middleware('auth:sanctum')->post('/logout', [SchoolController::class, 'logout']);
-    Route::middleware('auth:sanctum')->put('/school', [SchoolController::class, 'updateSchoolProfile']);
-    Route::middleware('auth:sanctum')->put('/user', [SchoolController::class, 'updatePersonalProfile']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/logout', [SchoolController::class, 'logout']);
+        Route::get('/school', [SchoolController::class, 'showSchoolProfile']);
+        Route::put('/school', [SchoolController::class, 'updateSchoolProfile']);
+        Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);            
+        Route::put('/user', [SchoolController::class, 'updateSchoolAdminProfile']);
+    });
 });

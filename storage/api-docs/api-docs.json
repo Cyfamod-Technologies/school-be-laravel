@@ -279,6 +279,26 @@
             }
         },
         "/v1/school": {
+            "get": {
+                "tags": [
+                    "school-v1.0"
+                ],
+                "summary": "Get the authenticated school's profile",
+                "operationId": "9b804cbf107ffc421fc6ed5068edf802",
+                "responses": {
+                    "200": {
+                        "description": "School profile returned"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
             "put": {
                 "tags": [
                     "school-v1.0"
@@ -337,12 +357,32 @@
             }
         },
         "/v1/user": {
+            "get": {
+                "tags": [
+                    "school-v1.0"
+                ],
+                "summary": "Get the authenticated School Admin's profile",
+                "operationId": "1361145f662b9723cff15438ab9d4c18",
+                "responses": {
+                    "200": {
+                        "description": "User profile returned"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
             "put": {
                 "tags": [
                     "school-v1.0"
                 ],
-                "summary": "Update user profile",
-                "operationId": "2fe2c5c7466f0e20b3e41e35750fd84a",
+                "summary": "Update School Admin profile",
+                "operationId": "dc8fa0fcbec90acdeb7034fba4f980bc",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -378,7 +418,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "User profile updated successfully"
+                        "description": "School Admin profile updated successfully"
                     },
                     "401": {
                         "description": "Unauthenticated"

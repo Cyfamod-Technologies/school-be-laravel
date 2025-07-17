@@ -254,7 +254,7 @@ class SchoolController extends Controller
     /**
      * @OA\Put(
      *     path="/v1/user",
-     *     summary="Update user profile",
+     *     summary="Update School Admin profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
@@ -267,13 +267,13 @@ class SchoolController extends Controller
      *             @OA\Property(property="password_confirmation", type="string", example="newPassword456")
      *         )
      *     ),
-     *     @OA\Response(response=200, description="User profile updated successfully"),
+     *     @OA\Response(response=200, description="School Admin profile updated successfully"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")
      * )
      */
 
-    public function updatePersonalProfile(Request $request)
+    public function updateSchoolAdminProfile(Request $request)
         {
             $user = Auth::user();
         
@@ -312,4 +312,56 @@ class SchoolController extends Controller
                 'user' => $user
             ]);
         }
+
+    /**
+     * @OA\Get(
+     *     path="/v1/user",
+     *     summary="Get the authenticated School Admin's profile",
+     *     tags={"school-v1.0"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="User profile returned"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function showSchoolAdminProfile(Request $request)
+        {
+            $user = $request->user();            // same as Auth::user()
+            $school = $user->school;             // eager-load if you want
+
+            return response()->json([
+                'user'   => $user,
+                // 'school' => $school,
+            ]);
+        }
+
+
+    /**
+     * @OA\Get(
+     *     path="/v1/school",
+     *     summary="Get the authenticated school's profile",
+     *     tags={"school-v1.0"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="School profile returned"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function showSchoolProfile(Request $request)
+        {
+            $user = $request->user();            // same as Auth::user()
+            $school = $user->school;             // eager-load if you want
+
+            return response()->json([
+                // 'user'   => $user,
+                'school' => $school,
+            ]);
+        }
+
+
+
+
+
+
+
+
+
 }
