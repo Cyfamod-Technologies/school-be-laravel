@@ -1,4 +1,4 @@
-school.bmp.com.ng {
+api.bmp.com.ng {
     reverse_proxy school-be:80
 }
 
