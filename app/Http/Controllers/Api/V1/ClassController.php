@@ -259,8 +259,8 @@ class ClassController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('class_arms')->where(function ($query) use ($class) {
-                    return $query->where('class_id', $class->id);
+                Rule::unique('class_arms')->where(function ($query) use ($schoolClass) {
+                    return $query->where('school_class_id', $schoolClass->id);
                 }),
             ],
         ]);
@@ -360,8 +360,8 @@ class ClassController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('class_arms')->where(function ($query) use ($class, $arm) {
-                    return $query->where('class_id', $class->id)->where('id', '!=', $arm->id);
+                Rule::unique('class_arms')->where(function ($query) use ($schoolClass, $arm) {
+                    return $query->where('school_class_id', $schoolClass->id)->where('id', '!=', $arm->id);
                 }),
             ],
         ]);
