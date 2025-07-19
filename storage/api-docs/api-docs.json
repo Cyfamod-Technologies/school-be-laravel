@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "School API",
-        "description": "API for managing school data",
+        "description": "Admin Login & managing school data",
         "version": "1.0.0"
     },
     "servers": [
@@ -11,6 +11,344 @@
         }
     ],
     "paths": {
+        "/v1/sessions": {
+            "get": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Get list of sessions",
+                "description": "Returns list of sessions",
+                "operationId": "getSessionsList",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Store new session",
+                "description": "Returns session data",
+                "operationId": "storeSession",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "2025/2026"
+                                    },
+                                    "start_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2025-09-01"
+                                    },
+                                    "end_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-07-31"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            }
+        },
+        "/v1/sessions/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Get session information",
+                "description": "Returns session data",
+                "operationId": "getSessionById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Session id",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": 123
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Update existing session",
+                "description": "Returns updated session data",
+                "operationId": "updateSession",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Session id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "start_date",
+                                    "end_date"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "2025/2026"
+                                    },
+                                    "slug": {
+                                        "type": "string",
+                                        "example": "2025/2026"
+                                    },
+                                    "start_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2025-09-01"
+                                    },
+                                    "end_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-07-31"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Delete existing session",
+                "description": "Deletes a record and returns no content",
+                "operationId": "deleteSession",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Session id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            }
+        },
+        "/v1/sessions/{id}/terms": {
+            "get": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Get list of terms for a session",
+                "description": "Returns list of terms for a session",
+                "operationId": "getTermsForSession",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Session id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Store new term",
+                "description": "Returns term data",
+                "operationId": "storeTerm",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Session id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "1st"
+                                    },
+                                    "start_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2025-09-01"
+                                    },
+                                    "end_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-07-31"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            }
+        },
+        "/v1/terms/{id}": {
+            "put": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Update existing term",
+                "description": "Returns updated term data",
+                "operationId": "updateTerm",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Term id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "2nd"
+                                    },
+                                    "slug": {
+                                        "type": "string",
+                                        "example": "2nd"
+                                    },
+                                    "start_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2025-09-01"
+                                    },
+                                    "end_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-07-31"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Delete existing term",
+                "description": "Deletes a record and returns no content",
+                "operationId": "deleteTerm",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Term id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                }
+            }
+        },
         "/v1/register-school": {
             "post": {
                 "tags": [
@@ -436,6 +774,10 @@
         }
     },
     "tags": [
+        {
+            "name": "school-v1.1",
+            "description": "Academic Session & Term Management"
+        },
         {
             "name": "school-v1.0",
             "description": "school-v1.0"

@@ -50,6 +50,7 @@ class Session extends Model
 	];
 
 	protected $fillable = [
+		'id',
 		'school_id',
 		'name',
 		'slug',

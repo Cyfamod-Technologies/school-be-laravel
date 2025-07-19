@@ -50,6 +50,7 @@ class Term extends Model
 	];
 
 	protected $fillable = [
+		'id',
 		'school_id',
 		'session_id',
 		'name',
