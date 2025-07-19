@@ -40,9 +40,9 @@ class ClassArm extends Model
 		'color'
 	];
 
-	public function class()
+	public function school_class()
 	{
-		return $this->belongsTo(Class::class);
+		return $this->belongsTo(SchoolClass::class, 'school_class_id');
 	}
 
 	public function class_sections()

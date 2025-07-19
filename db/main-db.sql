@@ -90,7 +90,8 @@ CREATE TABLE terms (
 
 
 -- CLASS TABLE
-CREATE TABLE classes (
+-- SCHOOL_CLASS TABLE
+CREATE TABLE school_classes (
     id CHAR(36) NOT NULL PRIMARY KEY, -- UUID
     school_id CHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -98,22 +99,22 @@ CREATE TABLE classes (
     description TEXT DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_classes_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
-    UNIQUE KEY uk_classes_school_slug (school_id, slug)
+    CONSTRAINT fk_school_classes_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_school_classes_school_slug (school_id, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- CLASS-ARMS TABLE
 CREATE TABLE class_arms (
     id CHAR(36) NOT NULL PRIMARY KEY, -- UUID
-    class_id CHAR(36) NOT NULL,
+    school_class_id CHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
     description TEXT DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_class_arms_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-    UNIQUE KEY uk_class_arms_class_slug (class_id, slug)
+    CONSTRAINT fk_class_arms_school_class FOREIGN KEY (school_class_id) REFERENCES school_classes(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_class_arms_school_class_slug (school_class_id, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -174,7 +175,7 @@ CREATE TABLE students (
     club VARCHAR(100) NOT NULL DEFAULT 'none',
     current_session_id CHAR(36) NOT NULL,
     current_term_id CHAR(36) NOT NULL,
-    class_id CHAR(36) NOT NULL,
+    school_class_id CHAR(36) NOT NULL,
     class_arm_id CHAR(36) NOT NULL,
     class_section_id CHAR(36) DEFAULT NULL,
     parent_id CHAR(36) NOT NULL,
@@ -187,13 +188,13 @@ CREATE TABLE students (
     CONSTRAINT fk_students_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
     CONSTRAINT fk_students_session FOREIGN KEY (current_session_id) REFERENCES sessions(id) ON DELETE RESTRICT,
     CONSTRAINT fk_students_term FOREIGN KEY (current_term_id) REFERENCES terms(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_students_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_students_school_class FOREIGN KEY (school_class_id) REFERENCES school_classes(id) ON DELETE RESTRICT,
     CONSTRAINT fk_students_class_arm FOREIGN KEY (class_arm_id) REFERENCES class_arms(id) ON DELETE RESTRICT,
     CONSTRAINT fk_students_class_section FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE SET NULL,
     CONSTRAINT fk_students_parent FOREIGN KEY (parent_id) REFERENCES parents(id) ON DELETE RESTRICT,
 
     INDEX idx_students_school (school_id),
-    INDEX idx_students_class (class_id),
+    INDEX idx_students_school_class (school_class_id),
     INDEX idx_students_class_arm (class_arm_id),
     INDEX idx_students_class_section (class_section_id),
     INDEX idx_students_parent (parent_id)
@@ -516,18 +517,19 @@ CREATE INDEX idx_student_enrollments_term_session ON student_enrollments(term_id
 
 
 -- subject_class_assignments Table
-CREATE TABLE subject_class_assignments (
+-- subject_school_class_assignments Table
+CREATE TABLE subject_school_class_assignments (
     id CHAR(36) NOT NULL PRIMARY KEY,
     subject_id CHAR(36) NOT NULL,
-    class_id CHAR(36) NOT NULL,
+    school_class_id CHAR(36) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_subject_class_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
-    CONSTRAINT fk_subject_class_assignments_class FOREIGN KEY (class_id) REFERENCES classes(id)
+    CONSTRAINT fk_subject_school_class_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
+    CONSTRAINT fk_subject_school_class_assignments_school_class FOREIGN KEY (school_class_id) REFERENCES school_classes(id)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_subject_class_assignments_subject ON subject_class_assignments(subject_id);
-CREATE INDEX idx_subject_class_assignments_class ON subject_class_assignments(class_id);
+CREATE INDEX idx_subject_school_class_assignments_subject ON subject_school_class_assignments(subject_id);
+CREATE INDEX idx_subject_school_class_assignments_school_class ON subject_school_class_assignments(school_class_id);
 
 
 -- subject_teacher_assignments Table
@@ -730,17 +732,17 @@ CREATE TABLE IF NOT EXISTS `role_has_permissions` (
 CREATE TABLE IF NOT EXISTS `analytics_data` (
   `id` char(36) NOT NULL,
   `school_id` char(36) NOT NULL,
-  `class_id` char(36) NOT NULL,
+  `school_class_id` char(36) NOT NULL,
   `subject_id` char(36) NOT NULL,
   `average_score` float NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `analytics_data_school_id_foreign` (`school_id`),
-  KEY `analytics_data_class_id_foreign` (`class_id`),
+  KEY `analytics_data_school_class_id_foreign` (`school_class_id`),
   KEY `analytics_data_subject_id_foreign` (`subject_id`),
   CONSTRAINT `analytics_data_school_id_foreign` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `analytics_data_class_id_foreign` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `analytics_data_school_class_id_foreign` FOREIGN KEY (`school_class_id`) REFERENCES `school_classes` (`id`) ON DELETE CASCADE,
   CONSTRAINT `analytics_data_subject_id_foreign` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
