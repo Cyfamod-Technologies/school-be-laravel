@@ -35,5 +35,23 @@ Route::prefix('api/v1')->group(function () {
         Route::post('sessions/{session}/terms', [AcademicSessionController::class, 'storeTerm']);
         Route::put('terms/{term}', [AcademicSessionController::class, 'updateTerm']);
         Route::delete('terms/{term}', [AcademicSessionController::class, 'destroyTerm']);
+
+        // Class, Class Arm, and Class Arm Section Routes
+        Route::apiResource('classes', ClassController::class);
+        Route::prefix('classes/{class}')->group(function () {
+            Route::get('arms', [ClassController::class, 'indexArms']);
+            Route::post('arms', [ClassController::class, 'storeArm']);
+            Route::get('arms/{arm}', [ClassController::class, 'showArm']);
+            Route::put('arms/{arm}', [ClassController::class, 'updateArm']);
+            Route::delete('arms/{arm}', [ClassController::class, 'destroyArm']);
+
+            Route::prefix('arms/{arm}')->group(function () {
+                Route::get('sections', [ClassController::class, 'indexSections']);
+                Route::post('sections', [ClassController::class, 'storeSection']);
+                Route::get('sections/{section}', [ClassController::class, 'showSection']);
+                Route::put('sections/{section}', [ClassController::class, 'updateSection']);
+                Route::delete('sections/{section}', [ClassController::class, 'destroySection']);
+            });
+        });
     });
 });

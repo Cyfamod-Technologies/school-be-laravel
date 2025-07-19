@@ -36,7 +36,8 @@ class ClassArm extends Model
 		'class_id',
 		'name',
 		'slug',
-		'description'
+		'description',
+		'color'
 	];
 
 	public function class()
