@@ -262,7 +262,7 @@ class ClassController extends Controller
             ],
         ]);
 
-        $arm = $class->class_arms()->create([
+        $arm = $schoolClass->class_arms()->create([
             'id' => Str::uuid(),
             'name' => $request->name,
             'slug' => Str::slug($request->name),
