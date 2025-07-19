@@ -33,6 +33,7 @@ class ClassArm extends Model
 	public $incrementing = false;
 
 	protected $fillable = [
+		'id',
 		'class_id',
 		'name',
 		'slug',

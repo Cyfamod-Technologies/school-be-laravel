@@ -35,6 +35,7 @@ class ClassSection extends Model
 	public $incrementing = false;
 
 	protected $fillable = [
+		'id',
 		'class_arm_id',
 		'name',
 		'slug',

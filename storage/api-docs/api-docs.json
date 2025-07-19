@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "School API",
-        "description": "Admin Login & managing school data",
+        "description": "API for managing school data",
         "version": "1.0.0"
     },
     "servers": [
@@ -345,6 +345,579 @@
                     },
                     "400": {
                         "description": "Bad Request"
+                    }
+                }
+            }
+        },
+        "/v1/classes": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get list of classes",
+                "description": "Returns list of classes",
+                "operationId": "getClassesList",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Store new class",
+                "description": "Stores a new class and returns the created class",
+                "operationId": "storeClass",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "school_id"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "JSS1"
+                                    },
+                                    "school_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "9a7a7b0e-0b1c-4f0e-8c1a-0b1c4f0e8c1a"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+        },
+        "/v1/classes/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get session information",
+                "description": "Returns class data",
+                "operationId": "getClassById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Update existing class",
+                "description": "Updates a class and returns the updated class",
+                "operationId": "updateClass",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "JSS1"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Delete existing class",
+                "description": "Deletes a class and returns no content",
+                "operationId": "deleteClass",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+        },
+        "/v1/classes/{classId}/arms": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get list of class arms",
+                "description": "Returns list of class arms for a given class",
+                "operationId": "getClassArmsList",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Store new class arm",
+                "description": "Stores a new class arm and returns the created class arm",
+                "operationId": "storeClassArm",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "A"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+        },
+        "/v1/classes/{classId}/arms/{armId}": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get class arm information",
+                "description": "Returns class arm data",
+                "operationId": "getClassArmById",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Update existing class arm",
+                "description": "Updates a class arm and returns the updated class arm",
+                "operationId": "updateClassArm",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "A"
+                                    },
+                                    "color": {
+                                        "type": "string",
+                                        "example": "Blue"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Delete existing class arm",
+                "description": "Deletes a class arm and returns no content",
+                "operationId": "deleteClassArm",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+        },
+        "/v1/classes/{classId}/arms/{armId}/sections": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get list of class arm sections",
+                "description": "Returns list of class arm sections for a given class arm",
+                "operationId": "getClassArmSectionsList",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Store new class arm section",
+                "description": "Stores a new class arm section and returns the created class arm section",
+                "operationId": "storeClassArmSection",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Science"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+        },
+        "/v1/classes/{classId}/arms/{armId}/sections/{sectionId}": {
+            "get": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Get class arm section information",
+                "description": "Returns class arm section data",
+                "operationId": "getClassArmSectionById",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sectionId",
+                        "in": "path",
+                        "description": "Class Arm Section id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Update existing class arm section",
+                "description": "Updates a class arm section and returns the updated class arm section",
+                "operationId": "updateClassArmSection",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sectionId",
+                        "in": "path",
+                        "description": "Class Arm Section id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Science"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.2"
+                ],
+                "summary": "Delete existing class arm section",
+                "description": "Deletes a class arm section and returns no content",
+                "operationId": "deleteClassArmSection",
+                "parameters": [
+                    {
+                        "name": "classId",
+                        "in": "path",
+                        "description": "Class id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "armId",
+                        "in": "path",
+                        "description": "Class Arm id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sectionId",
+                        "in": "path",
+                        "description": "Class Arm Section id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
                     }
                 }
             }
@@ -777,6 +1350,10 @@
         {
             "name": "school-v1.1",
             "description": "Academic Session & Term Management"
+        },
+        {
+            "name": "school-v1.2",
+            "description": "Class & Arm Setup"
         },
         {
             "name": "school-v1.0",
