@@ -104,6 +104,7 @@ class ParentController extends Controller
         ]);
 
         $user = \App\Models\User::create([
+            'id' => str()->uuid(),
             'name' => $request->first_name . ' ' . $request->last_name,
             'email' => $request->email,
             'password' => bcrypt($request->first_name),

@@ -40,6 +40,7 @@ class SchoolParent extends Model
 	public $incrementing = false;
 
 	protected $fillable = [
+		'id',
 		'school_id',
 		'user_id',
 		'first_name',
