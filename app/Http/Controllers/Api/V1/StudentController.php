@@ -118,23 +118,31 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'full_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
+            'school_id' => 'required|exists:schools,id',
+            'admission_no' => 'required|string|max:255|unique:students,admission_no',
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
             'gender' => 'required|in:male,female',
-            'parent_id' => 'required|exists:parents,id',
+            'date_of_birth' => 'required|date',
+            'nationality' => 'nullable|string|max:255',
+            'state_of_origin' => 'nullable|string|max:255',
+            'lga_of_origin' => 'nullable|string|max:255',
+            'house' => 'nullable|string|max:255',
+            'club' => 'nullable|string|max:255',
+            'current_session_id' => 'required|exists:sessions,id',
+            'current_term_id' => 'required|exists:terms,id',
             'class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'session_id' => 'required|exists:sessions,id',
+            'parent_id' => 'required|exists:school_parents,id',
+            'admission_date' => 'required|date',
+            'photo_url' => 'nullable|string|max:255',
+            'status' => 'required|string|max:255',
         ]);
 
-        $school = $request->user()->school;
-        $session = \App\Models\Session::find($request->session_id);
-        $admission_number = $session->name . '/' . ($school->students()->where('session_id', $session->id)->count() + 1);
-
-        $student = $school->students()->create(array_merge($request->all(), [
-            'id' => str()->uuid(),
-            'admission_no' => $admission_number,
+        $student = Student::create(array_merge($request->all(), [
+            'id' => str()->uuid()
         ]));
 
         return response()->json($student, 201);
@@ -247,14 +255,27 @@ class StudentController extends Controller
         }
 
         $request->validate([
-            'full_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
+            'school_id' => 'required|exists:schools,id',
+            'admission_no' => 'required|string|max:255|unique:students,admission_no,' . $student->id,
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
             'gender' => 'required|in:male,female',
-            'parent_id' => 'required|exists:parents,id',
+            'date_of_birth' => 'required|date',
+            'nationality' => 'nullable|string|max:255',
+            'state_of_origin' => 'nullable|string|max:255',
+            'lga_of_origin' => 'nullable|string|max:255',
+            'house' => 'nullable|string|max:255',
+            'club' => 'nullable|string|max:255',
+            'current_session_id' => 'required|exists:sessions,id',
+            'current_term_id' => 'required|exists:terms,id',
             'class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'session_id' => 'required|exists:sessions,id',
+            'parent_id' => 'required|exists:school_parents,id',
+            'admission_date' => 'required|date',
+            'photo_url' => 'nullable|string|max:255',
+            'status' => 'required|string|max:255',
         ]);
 
         $student->update($request->all());
