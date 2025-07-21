@@ -65,7 +65,13 @@ class User extends Authenticatable
 		'status',
 		'last_login',
 		'email_verified_at',
-		'remember_token'
+		'remember_token',
+		'phone',
+		'address',
+		'occupation',
+		'nationality',
+		'state_of_origin',
+		'local_government_area',
 	];
 
 	public function school()
