@@ -106,7 +106,7 @@ class ParentController extends Controller
         $user = \App\Models\User::create([
             'name' => $request->first_name . ' ' . $request->last_name,
             'email' => $request->email,
-            'password' => bcrypt(str()->random(10)),
+            'password' => bcrypt($request->first_name),
             'school_id' => $request->user()->school_id,
         ]);
 
