@@ -100,10 +100,17 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,NULL,id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:users,email,NULL,id,school_id,' . $request->user()->school_id,
+            'email' => 'nullable|email|unique:users,email',
         ]);
 
-        $parent = $request->user()->school->parents()->create($request->all());
+        $user = \App\Models\User::create([
+            'name' => $request->first_name . ' ' . $request->last_name,
+            'email' => $request->email,
+            'password' => bcrypt(str()->random(10)),
+            'school_id' => $request->user()->school_id,
+        ]);
+
+        $parent = $request->user()->school->parents()->create(array_merge($request->all(), ['user_id' => $user->id]));
 
         return response()->json($parent, 201);
     }
@@ -215,7 +222,12 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,' . $parent->id . ',id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:users,email,' . $parent->user_id . ',id,school_id,' . $request->user()->school_id,
+            'email' => 'nullable|email|unique:users,email,' . $parent->user_id,
+        ]);
+
+        $parent->user->update([
+            'name' => $request->first_name . ' ' . $request->last_name,
+            'email' => $request->email,
         ]);
 
         $parent->update($request->all());
