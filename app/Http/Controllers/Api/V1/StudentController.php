@@ -7,6 +7,12 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
+/**
+ * @OA\Tag(
+ *     name="school-v1.4",
+ *     description="student Management"
+ * )
+ */
 class StudentController extends Controller
 {
     /**
@@ -18,7 +24,7 @@ class StudentController extends Controller
      * @OA\Get(
      *      path="/v1/students",
      *      operationId="getStudentsList",
-     *      tags={"Students"},
+     *      tags={"school-v1.4"},
      *      summary="Get list of students",
      *      description="Returns list of students",
      *      @OA\Parameter(
@@ -78,7 +84,7 @@ class StudentController extends Controller
      * @OA\Post(
      *      path="/v1/students",
      *      operationId="storeStudent",
-     *      tags={"Students"},
+     *      tags={"school-v1.4"},
      *      summary="Store new student",
      *      description="Returns student data",
      *      @OA\RequestBody(
@@ -144,7 +150,7 @@ class StudentController extends Controller
      * @OA\Get(
      *      path="/v1/students/{id}",
      *      operationId="getStudentById",
-     *      tags={"Students"},
+     *      tags={"school-v1.4"},
      *      summary="Get student information",
      *      description="Returns student data",
      *      @OA\Parameter(
@@ -190,7 +196,7 @@ class StudentController extends Controller
      * @OA\Put(
      *      path="/v1/students/{id}",
      *      operationId="updateStudent",
-     *      tags={"Students"},
+     *      tags={"school-v1.4"},
      *      summary="Update existing student",
      *      description="Returns updated student data",
      *      @OA\Parameter(
@@ -266,7 +272,7 @@ class StudentController extends Controller
      * @OA\Delete(
      *      path="/v1/students/{id}",
      *      operationId="deleteStudent",
-     *      tags={"Students"},
+     *      tags={"school-v1.4"},
      *      summary="Delete existing student",
      *      description="Deletes a record and returns no content",
      *      @OA\Parameter(
