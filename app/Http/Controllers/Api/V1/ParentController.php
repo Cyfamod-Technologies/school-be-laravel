@@ -296,8 +296,8 @@ class ParentController extends Controller
             return response()->json(['message' => 'Cannot delete parent with linked students.'], 409);
         }
 
-        $parent->user()->delete();
         $parent->delete();
+        $parent->user()->delete();
 
         return response()->json(null, 204);
     }
