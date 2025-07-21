@@ -143,7 +143,7 @@ class ParentController extends Controller
      *          required=true,
      *          in="path",
      *          @OA\Schema(
-     *              type="integer"
+     *              type="string"
      *          )
      *      ),
      *      @OA\Response(
@@ -188,7 +188,7 @@ class ParentController extends Controller
      *          required=true,
      *          in="path",
      *          @OA\Schema(
-     *              type="integer"
+     *              type="string"
      *          )
      *      ),
      *      @OA\RequestBody(
@@ -269,7 +269,7 @@ class ParentController extends Controller
      *          required=true,
      *          in="path",
      *          @OA\Schema(
-     *              type="integer"
+     *              type="string"
      *          )
      *      ),
      *      @OA\Response(
@@ -296,6 +296,7 @@ class ParentController extends Controller
             return response()->json(['message' => 'Cannot delete parent with linked students.'], 409);
         }
 
+        $parent->user()->delete();
         $parent->delete();
 
         return response()->json(null, 204);
