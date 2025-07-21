@@ -100,7 +100,7 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,NULL,id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:parents,email,NULL,id,school_id,' . $request->user()->school_id,
+            'email' => 'nullable|email|unique:users,email,NULL,id,school_id,' . $request->user()->school_id,
         ]);
 
         $parent = $request->user()->school->parents()->create($request->all());
@@ -215,7 +215,7 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,' . $parent->id . ',id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:parents,email,' . $parent->id . ',id,school_id,' . $request->user()->school_id,
+            'email' => 'nullable|email|unique:users,email,' . $parent->user_id . ',id,school_id,' . $request->user()->school_id,
         ]);
 
         $parent->update($request->all());
