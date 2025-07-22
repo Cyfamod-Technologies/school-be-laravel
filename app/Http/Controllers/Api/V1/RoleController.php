@@ -9,7 +9,21 @@ use Illuminate\Http\Request;
 class RoleController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * @OA\Get(
+     *      path="/v1/roles",
+     *      operationId="getRolesList",
+     *      tags={"Roles"},
+     *      summary="Get list of roles",
+     *      description="Returns list of roles",
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successful operation",
+     *       ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      )
+     * )
      */
     public function index(Request $request)
     {
@@ -18,7 +32,34 @@ class RoleController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * @OA\Post(
+     *      path="/v1/roles",
+     *      operationId="storeRole",
+     *      tags={"Roles"},
+     *      summary="Store new role",
+     *      description="Returns role data",
+     *      @OA\RequestBody(
+     *          required=true,
+     *          @OA\JsonContent(
+     *              type="object",
+     *              @OA\Property(property="name", type="string", example="Admin"),
+     *              @OA\Property(property="description", type="string", example="Administrator role"),
+     *              @OA\Property(property="permissions", type="array", @OA\Items(type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")),
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=201,
+     *          description="Successful operation",
+     *       ),
+     *      @OA\Response(
+     *          response=400,
+     *          description="Bad Request"
+     *      ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      )
+     * )
      */
     public function store(Request $request)
     {
@@ -39,7 +80,34 @@ class RoleController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * @OA\Get(
+     *      path="/v1/roles/{id}",
+     *      operationId="getRoleById",
+     *      tags={"Roles"},
+     *      summary="Get role information",
+     *      description="Returns role data",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Role id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successful operation",
+     *       ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
      */
     public function show(Request $request, Role $role)
     {
@@ -51,7 +119,47 @@ class RoleController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * @OA\Put(
+     *      path="/v1/roles/{id}",
+     *      operationId="updateRole",
+     *      tags={"Roles"},
+     *      summary="Update existing role",
+     *      description="Returns updated role data",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Role id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\RequestBody(
+     *          required=true,
+     *          @OA\JsonContent(
+     *              type="object",
+     *              @OA\Property(property="name", type="string", example="Admin"),
+     *              @OA\Property(property="description", type="string", example="Administrator role"),
+     *              @OA\Property(property="permissions", type="array", @OA\Items(type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")),
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successful operation",
+     *       ),
+     *      @OA\Response(
+     *          response=400,
+     *          description="Bad Request"
+     *      ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
      */
     public function update(Request $request, Role $role)
     {
@@ -76,7 +184,34 @@ class RoleController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * @OA\Delete(
+     *      path="/v1/roles/{id}",
+     *      operationId="deleteRole",
+     *      tags={"Roles"},
+     *      summary="Delete existing role",
+     *      description="Deletes a record and returns no content",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Role id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=204,
+     *          description="Successful operation",
+     *       ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
      */
     public function destroy(Request $request, Role $role)
     {
