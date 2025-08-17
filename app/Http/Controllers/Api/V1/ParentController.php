@@ -45,7 +45,7 @@ class ParentController extends Controller
      */
     public function index(Request $request)
     {
-        $parents = $request->user()->school->parents()->withCount('students')
+        $parents = $request->user()->school->parents()->with('user')->withCount('students')
             ->when($request->has('search'), function ($query) use ($request) {
                 $query->where('first_name', 'like', '%' . $request->search . '%')
                     ->orWhere('last_name', 'like', '%' . $request->search . '%')
@@ -165,6 +165,7 @@ class ParentController extends Controller
         if ($parent->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
+        $parent->load('user');
         return response()->json($parent);
     }
 
