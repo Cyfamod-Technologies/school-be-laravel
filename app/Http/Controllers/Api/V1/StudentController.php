@@ -34,14 +34,38 @@ class StudentController extends Controller
      *          @OA\Schema(type="string")
      *      ),
      *      @OA\Parameter(
+     *          name="session_id",
+     *          description="Filter by session",
+     *          in="query",
+     *          @OA\Schema(type="string")
+     *      ),
+     *      @OA\Parameter(
      *          name="class_id",
      *          description="Filter by class",
      *          in="query",
      *          @OA\Schema(type="string")
      *      ),
      *      @OA\Parameter(
-     *          name="parent_id",
-     *          description="Filter by parent",
+     *          name="class_arm_id",
+     *          description="Filter by class arm",
+     *          in="query",
+     *          @OA\Schema(type="string")
+     *      ),
+     *      @OA\Parameter(
+     *          name="class_section_id",
+     *          description="Filter by class section",
+     *          in="query",
+     *          @OA\Schema(type="string")
+     *      ),
+     *      @OA\Parameter(
+     *          name="sortBy",
+     *          description="Sort by column",
+     *          in="query",
+     *          @OA\Schema(type="string")
+     *      ),
+     *      @OA\Parameter(
+     *          name="sortDirection",
+     *          description="Sort direction (asc or desc)",
      *          in="query",
      *          @OA\Schema(type="string")
      *      ),
