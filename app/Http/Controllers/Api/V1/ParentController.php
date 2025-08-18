@@ -306,4 +306,11 @@ class ParentController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function getAllParents(Request $request)
+    {
+        $parents = $request->user()->school->parents()->with('user')->get();
+
+        return response()->json($parents);
+    }
 }

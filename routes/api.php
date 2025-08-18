@@ -59,6 +59,7 @@ Route::prefix('api/v1')->group(function () {
         });
 
         // Parent Routes
+        Route::get('all-parents', [\App\Http\Controllers\Api\V1\ParentController::class, 'getAllParents']);
         Route::apiResource('parents', \App\Http\Controllers\Api\V1\ParentController::class);
 
         // Student Routes
