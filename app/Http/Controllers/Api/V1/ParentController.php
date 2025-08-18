@@ -45,7 +45,7 @@ class ParentController extends Controller
      */
     public function index(Request $request)
     {
-        $parents = $request->user()->school->parents()->withCount('students')
+        $parents = $request->user()->school->parents()->with('user')->withCount('students')
             ->when($request->has('search'), function ($query) use ($request) {
                 $query->where('first_name', 'like', '%' . $request->search . '%')
                     ->orWhere('last_name', 'like', '%' . $request->search . '%')
@@ -110,7 +110,6 @@ class ParentController extends Controller
             'email' => $request->email,
             'password' => bcrypt($request->first_name),
             'school_id' => $request->user()->school_id,
-            'role' => 'parent',
             'phone' => $request->phone,
             'address' => $request->address,
             'occupation' => $request->occupation,
@@ -118,6 +117,11 @@ class ParentController extends Controller
             'state_of_origin' => $request->state_of_origin,
             'local_government_area' => $request->local_government_area,
         ]);
+
+        $parentRole = \App\Models\Role::where('name', 'parent')->where('school_id', $request->user()->school_id)->first();
+        if ($parentRole) {
+            $user->roles()->attach($parentRole->id);
+        }
 
         $parent = $request->user()->school->parents()->create(array_merge($request->all(), ['id' => str()->uuid(), 'user_id' => $user->id]));
 
@@ -165,6 +169,7 @@ class ParentController extends Controller
         if ($parent->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
+        $parent->load('user');
         return response()->json($parent);
     }
 

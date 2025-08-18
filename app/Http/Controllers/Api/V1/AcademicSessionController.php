@@ -445,4 +445,35 @@ class AcademicSessionController extends Controller
         $term->delete();
         return response()->json(['message' => 'Term deleted successfully']);
     }
+
+    /**
+     * @OA\Get(
+     *      path="/v1/terms/{id}",
+     *      operationId="getTermById",
+     *      tags={"school-v1.1"},
+     *      summary="Get term information",
+     *      description="Returns term data",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Term id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successful operation"
+     *       ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
+     */
+    public function showTerm(Term $term)
+    {
+        return response()->json($term);
+    }
 }

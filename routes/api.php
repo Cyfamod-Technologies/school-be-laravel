@@ -34,6 +34,7 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('sessions', AcademicSessionController::class);
         Route::get('sessions/{session}/terms', [AcademicSessionController::class, 'getTermsForSession']);
         Route::post('sessions/{session}/terms', [AcademicSessionController::class, 'storeTerm']);
+        Route::get('terms/{term}', [AcademicSessionController::class, 'showTerm']);
         Route::put('terms/{term}', [AcademicSessionController::class, 'updateTerm']);
         Route::delete('terms/{term}', [AcademicSessionController::class, 'destroyTerm']);
 
