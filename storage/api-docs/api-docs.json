@@ -922,6 +922,406 @@
                 }
             }
         },
+        "/v1/parents": {
+            "get": {
+                "tags": [
+                    "school-v1.3"
+                ],
+                "summary": "Get list of parents",
+                "description": "Returns list of parents",
+                "operationId": "getParentsList",
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search by name or phone",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.3"
+                ],
+                "summary": "Store new parent",
+                "description": "Returns parent data",
+                "operationId": "storeParent",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "first_name": {
+                                        "type": "string",
+                                        "example": "John"
+                                    },
+                                    "last_name": {
+                                        "type": "string",
+                                        "example": "Doe"
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "example": "1234567890"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "example": "john.doe@example.com"
+                                    },
+                                    "address": {
+                                        "type": "string",
+                                        "example": "123 Main St"
+                                    },
+                                    "occupation": {
+                                        "type": "string",
+                                        "example": "Engineer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            }
+        },
+        "/v1/parents/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.3"
+                ],
+                "summary": "Get parent information",
+                "description": "Returns parent data",
+                "operationId": "getParentById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Parent id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.3"
+                ],
+                "summary": "Update existing parent",
+                "description": "Returns updated parent data",
+                "operationId": "updateParent",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Parent id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "first_name": {
+                                        "type": "string",
+                                        "example": "John"
+                                    },
+                                    "last_name": {
+                                        "type": "string",
+                                        "example": "Doe"
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "example": "1234567890"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "example": "john.doe@example.com"
+                                    },
+                                    "address": {
+                                        "type": "string",
+                                        "example": "123 Main St"
+                                    },
+                                    "occupation": {
+                                        "type": "string",
+                                        "example": "Engineer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.3"
+                ],
+                "summary": "Delete existing parent",
+                "description": "Deletes a record and returns no content",
+                "operationId": "deleteParent",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Parent id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
+        "/v1/roles": {
+            "get": {
+                "tags": [
+                    "school-v1.9"
+                ],
+                "summary": "Get list of roles",
+                "description": "Returns list of roles",
+                "operationId": "getRolesList",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.9"
+                ],
+                "summary": "Store new role",
+                "description": "Returns role data",
+                "operationId": "storeRole",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Admin"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Administrator role"
+                                    },
+                                    "permissions": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "view-students"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            }
+        },
+        "/v1/roles/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.9"
+                ],
+                "summary": "Get role information",
+                "description": "Returns role data",
+                "operationId": "getRoleById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Role id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.9"
+                ],
+                "summary": "Update existing role",
+                "description": "Returns updated role data",
+                "operationId": "updateRole",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Role id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Admin"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Administrator role"
+                                    },
+                                    "permissions": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "view-students"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.9"
+                ],
+                "summary": "Delete existing role",
+                "description": "Deletes a record and returns no content",
+                "operationId": "deleteRole",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Role id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
         "/v1/register-school": {
             "post": {
                 "tags": [
@@ -1344,6 +1744,462 @@
                     }
                 ]
             }
+        },
+        "/v1/students": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Get list of students",
+                "description": "Returns list of students",
+                "operationId": "getStudentsList",
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search by name or admission number",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "class_id",
+                        "in": "query",
+                        "description": "Filter by class",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "parent_id",
+                        "in": "query",
+                        "description": "Filter by parent",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Store new student",
+                "description": "Returns student data",
+                "operationId": "storeStudent",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "school_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "admission_no": {
+                                        "type": "string",
+                                        "example": "2023/123"
+                                    },
+                                    "first_name": {
+                                        "type": "string",
+                                        "example": "John"
+                                    },
+                                    "middle_name": {
+                                        "type": "string",
+                                        "example": ""
+                                    },
+                                    "last_name": {
+                                        "type": "string",
+                                        "example": "Doe"
+                                    },
+                                    "gender": {
+                                        "type": "string",
+                                        "example": "male"
+                                    },
+                                    "date_of_birth": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2010-01-01"
+                                    },
+                                    "nationality": {
+                                        "type": "string",
+                                        "example": "Nigerian"
+                                    },
+                                    "state_of_origin": {
+                                        "type": "string",
+                                        "example": "Lagos"
+                                    },
+                                    "lga_of_origin": {
+                                        "type": "string",
+                                        "example": "Ikeja"
+                                    },
+                                    "house": {
+                                        "type": "string",
+                                        "example": "Green"
+                                    },
+                                    "club": {
+                                        "type": "string",
+                                        "example": "Debate"
+                                    },
+                                    "current_session_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "current_term_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_arm_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_section_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "parent_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "admission_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2023-09-01"
+                                    },
+                                    "photo_url": {
+                                        "type": "string",
+                                        "example": ""
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "example": "active"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                }
+            }
+        },
+        "/v1/students/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Get student information",
+                "description": "Returns student data",
+                "operationId": "getStudentById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Student id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Update existing student",
+                "description": "Returns updated student data",
+                "operationId": "updateStudent",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Student id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "school_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "admission_no": {
+                                        "type": "string",
+                                        "example": "2023/123"
+                                    },
+                                    "first_name": {
+                                        "type": "string",
+                                        "example": "John"
+                                    },
+                                    "middle_name": {
+                                        "type": "string",
+                                        "example": ""
+                                    },
+                                    "last_name": {
+                                        "type": "string",
+                                        "example": "Doe"
+                                    },
+                                    "gender": {
+                                        "type": "string",
+                                        "example": "male"
+                                    },
+                                    "date_of_birth": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2010-01-01"
+                                    },
+                                    "nationality": {
+                                        "type": "string",
+                                        "example": "Nigerian"
+                                    },
+                                    "state_of_origin": {
+                                        "type": "string",
+                                        "example": "Lagos"
+                                    },
+                                    "lga_of_origin": {
+                                        "type": "string",
+                                        "example": "Ikeja"
+                                    },
+                                    "house": {
+                                        "type": "string",
+                                        "example": "Green"
+                                    },
+                                    "club": {
+                                        "type": "string",
+                                        "example": "Debate"
+                                    },
+                                    "current_session_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "current_term_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_arm_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_section_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "parent_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "admission_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2023-09-01"
+                                    },
+                                    "photo_url": {
+                                        "type": "string",
+                                        "example": ""
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "example": "active"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Delete existing student",
+                "description": "Deletes a record and returns no content",
+                "operationId": "deleteStudent",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Student id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful operation"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
+        "/v1/users/{user}/assign-role": {
+            "post": {
+                "tags": [
+                    "school-v1.9.1"
+                ],
+                "summary": "Assign role to user",
+                "description": "Assigns a role to a user",
+                "operationId": "assignRole",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "description": "User id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "role_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
+        "/v1/users/{user}/unassign-role": {
+            "post": {
+                "tags": [
+                    "school-v1.9.1"
+                ],
+                "summary": "Unassign role from user",
+                "description": "Unassigns a role from a user",
+                "operationId": "unassignRole",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "description": "User id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "role_id": {
+                                        "type": "string",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
         }
     },
     "tags": [
@@ -1354,6 +2210,22 @@
         {
             "name": "school-v1.2",
             "description": "Class & Arm Setup"
+        },
+        {
+            "name": "school-v1.3",
+            "description": "API for Parent Management "
+        },
+        {
+            "name": "school-v1.9",
+            "description": "Role and permission  Management"
+        },
+        {
+            "name": "school-v1.4",
+            "description": "student Management"
+        },
+        {
+            "name": "school-v1.9.1",
+            "description": "user-role assigning"
         },
         {
             "name": "school-v1.0",

@@ -60,6 +60,7 @@ class School extends Model
 		'address',
 		'email',
 		'phone',
+		'role',
 		'logo_url',
 		'established_at',
 		'owner_name',
