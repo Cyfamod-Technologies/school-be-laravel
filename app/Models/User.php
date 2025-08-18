@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 
 /**
@@ -41,7 +42,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  */
 class User extends Authenticatable
 {
-	use HasApiTokens;
+	use HasApiTokens, HasUuids;
 	protected $table = 'users';
 	public $incrementing = false;
 

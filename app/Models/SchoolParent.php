@@ -9,6 +9,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 /**
  * Class SchoolParent
@@ -36,6 +37,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SchoolParent extends Model
 {
+	use HasUuids;
 	protected $table = 'parents';
 	public $incrementing = false;
 
