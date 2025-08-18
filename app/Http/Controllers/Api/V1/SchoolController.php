@@ -101,7 +101,7 @@ class SchoolController extends Controller
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'password' => Hash::make($validatedData['password']),
-            'role' => 'admin',
+            'role' => 'owner',
             'school_id' => $school->id,
             'status' => 'active',
         ]);
