@@ -682,4 +682,23 @@ class ClassController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function getAllClasses()
+    {
+        $schoolId = auth()->user()->school_id;
+        $classes = SchoolClass::where('school_id', $schoolId)->get();
+
+        return response()->json($classes);
+    }
+
+    public function getClassArms(SchoolClass $schoolClass)
+    {
+        return response()->json($schoolClass->class_arms);
+    }
+
+    public function getClassArmSections(SchoolClass $schoolClass, string $armId)
+    {
+        $arm = $schoolClass->class_arms()->findOrFail($armId);
+        return response()->json($arm->class_sections);
+    }
 }

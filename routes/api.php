@@ -39,6 +39,9 @@ Route::prefix('api/v1')->group(function () {
         Route::delete('terms/{term}', [AcademicSessionController::class, 'destroyTerm']);
 
         // Class, Class Arm, and Class Arm Section Routes
+        Route::get('all-classes', [ClassController::class, 'getAllClasses']);
+        Route::get('classes/{schoolClass}/all-arms', [ClassController::class, 'getClassArms']);
+        Route::get('classes/{schoolClass}/arms/{armId}/all-sections', [ClassController::class, 'getClassArmSections']);
         Route::apiResource('classes', ClassController::class)->parameters([
             'classes' => 'schoolClass'
         ]);
@@ -57,6 +60,9 @@ Route::prefix('api/v1')->group(function () {
                 Route::delete('sections/{section}', [ClassController::class, 'destroySection']);
             });
         });
+
+        // Session Routes
+        Route::get('all-sessions', [AcademicSessionController::class, 'getAllSessions']);
 
         // Parent Routes
         Route::get('all-parents', [\App\Http\Controllers\Api\V1\ParentController::class, 'getAllParents']);

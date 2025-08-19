@@ -446,6 +446,14 @@ class AcademicSessionController extends Controller
         return response()->json(['message' => 'Term deleted successfully']);
     }
 
+    public function getAllSessions()
+    {
+        $schoolId = auth()->user()->school_id;
+        $sessions = Session::where('school_id', $schoolId)->get();
+
+        return response()->json($sessions);
+    }
+
     /**
      * @OA\Get(
      *      path="/v1/terms/{id}",
