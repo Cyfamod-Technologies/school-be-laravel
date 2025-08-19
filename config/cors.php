@@ -4,13 +4,13 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'register-school', 'login', 'logout', '*'],
 
-    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    'allowed_methods' => ['*'],
 
     'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Authorization', 'Content-Type', 'Accept'],
+    'allowed_headers' => ['*'],
 
     'exposed_headers' => [],
 
