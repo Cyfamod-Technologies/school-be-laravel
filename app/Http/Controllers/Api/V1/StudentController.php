@@ -69,7 +69,17 @@ class StudentController extends Controller
                 $query->where(function ($subQuery) use ($search) {
                     $subQuery->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('admission_no', 'like', "%{$search}%");
+                        ->orWhere('admission_no', 'like', "%{$search}%")
+                        ->orWhereHas('school_class', function ($classQuery) use ($search) {
+                            $classQuery->where('name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('class_arm', function ($armQuery) use ($search) {
+                            $armQuery->where('name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('parent', function ($parentQuery) use ($search) {
+                            $parentQuery->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%");
+                        });
                 });
             })
             ->when($request->filled('session_id') || $request->filled('current_session_id'), function ($query) use ($request) {
