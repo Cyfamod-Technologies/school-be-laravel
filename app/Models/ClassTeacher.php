@@ -32,6 +32,8 @@ class ClassTeacher extends Model
 	protected $table = 'class_teachers';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'staff_id',
 		'class_section_id',

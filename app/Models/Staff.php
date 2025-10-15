@@ -46,6 +46,7 @@ class Staff extends Model
 {
 	protected $table = 'staff';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $casts = [
 		'date_of_birth' => 'datetime',

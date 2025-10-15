@@ -29,6 +29,8 @@ class MessageThread extends Model
 	protected $table = 'message_threads';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'sender_id',
 		'receiver_id',

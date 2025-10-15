@@ -33,6 +33,8 @@ class SkillRating extends Model
 	protected $table = 'skill_ratings';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'rating_value' => 'int'
 	];

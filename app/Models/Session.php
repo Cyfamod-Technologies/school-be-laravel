@@ -43,6 +43,7 @@ class Session extends Model
 {
 	protected $table = 'sessions';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $casts = [
 		'start_date' => 'datetime',

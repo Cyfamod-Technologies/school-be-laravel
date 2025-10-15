@@ -31,6 +31,8 @@ class AnalyticsDatum extends Model
 	protected $table = 'analytics_data';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'average_score' => 'float'
 	];

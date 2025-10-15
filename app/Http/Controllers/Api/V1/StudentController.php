@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * @OA\Tag(
@@ -34,7 +35,7 @@ class StudentController extends Controller
      *          @OA\Schema(type="string")
      *      ),
      *      @OA\Parameter(
-     *          name="class_id",
+     *          name="school_class_id",
      *          description="Filter by class",
      *          in="query",
      *          @OA\Schema(type="string")
@@ -57,19 +58,55 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
+        Student::fixLegacyForeignKeys();
+        $perPage = max((int) $request->input('per_page', 10), 1);
+
         $students = $request->user()->school->students()
-            ->with(['class', 'class_arm', 'parent', 'session'])
-            ->when($request->has('search'), function ($query) use ($request) {
-                $query->where('full_name', 'like', '%' . $request->search . '%')
-                    ->orWhere('admission_no', 'like', '%' . $request->search . '%');
+            ->with($this->studentRelations())
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->input('search');
+
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('admission_no', 'like', "%{$search}%");
+                });
             })
-            ->when($request->has('class_id'), function ($query) use ($request) {
-                $query->where('class_id', $request->class_id);
+            ->when($request->filled('session_id') || $request->filled('current_session_id'), function ($query) use ($request) {
+                $sessionId = $request->input('current_session_id', $request->input('session_id'));
+                $query->where('current_session_id', $sessionId);
             })
-            ->when($request->has('parent_id'), function ($query) use ($request) {
+            ->when($request->filled('term_id') || $request->filled('current_term_id'), function ($query) use ($request) {
+                $termId = $request->input('current_term_id', $request->input('term_id'));
+                $query->where('current_term_id', $termId);
+            })
+            ->when($request->filled('class_id') || $request->filled('school_class_id'), function ($query) use ($request) {
+                $classId = $request->input('school_class_id', $request->input('class_id'));
+                $query->where('school_class_id', $classId);
+            })
+            ->when($request->filled('class_arm_id'), function ($query) use ($request) {
+                $query->where('class_arm_id', $request->class_arm_id);
+            })
+            ->when($request->filled('class_section_id'), function ($query) use ($request) {
+                $query->where('class_section_id', $request->class_section_id);
+            })
+            ->when($request->filled('parent_id'), function ($query) use ($request) {
                 $query->where('parent_id', $request->parent_id);
             })
-            ->paginate(10);
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $query->where('status', strtolower($request->status));
+            })
+            ->when($request->filled('sortBy'), function ($query) use ($request) {
+                $allowed = ['first_name', 'last_name', 'admission_no', 'created_at'];
+                $column = $request->input('sortBy');
+
+                if (in_array($column, $allowed, true)) {
+                    $direction = strtolower($request->input('sortDirection', 'asc')) === 'desc' ? 'desc' : 'asc';
+                    $query->orderBy($column, $direction);
+                }
+            })
+            ->paginate($perPage)
+            ->withQueryString();
 
         return response()->json($students);
     }
@@ -91,7 +128,6 @@ class StudentController extends Controller
      *          required=true,
      *          @OA\JsonContent(
      *              type="object",
-     *              @OA\Property(property="school_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="admission_no", type="string", example="2023/123"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
@@ -105,7 +141,7 @@ class StudentController extends Controller
      *              @OA\Property(property="club", type="string", example="Debate"),
      *              @OA\Property(property="current_session_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="current_term_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
-     *              @OA\Property(property="class_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *              @OA\Property(property="school_class_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="class_arm_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="class_section_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="parent_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
@@ -130,39 +166,63 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'school_id' => 'required|exists:schools,id',
+        Student::fixLegacyForeignKeys();
+        $school = $request->user()->school;
+
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $this->prepareRelationshipInput($request);
+
+        $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
-            'gender' => 'required|in:male,female',
+            'gender' => ['required', Rule::in(['male', 'female', 'other', 'others', 'Male', 'Female', 'Other', 'Others', 'm', 'f', 'o', 'M', 'F', 'O'])],
             'date_of_birth' => 'required|date',
             'nationality' => 'nullable|string|max:255',
             'state_of_origin' => 'nullable|string|max:255',
             'lga_of_origin' => 'nullable|string|max:255',
             'house' => 'nullable|string|max:255',
             'club' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'medical_information' => 'nullable|string',
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
-            'class_id' => 'required|exists:classes,id',
+            'school_class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'parent_id' => 'exists:school_parents,id',
+            'parent_id' => 'required|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
-            'status' => 'required|string|max:255',
+            'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
-        $school = \App\Models\School::find($request->school_id);
-        $session = \App\Models\Session::find($request->current_session_id);
-        $admission_number = $session->name . '/' . ($school->students()->where('current_session_id', $session->id)->count() + 1);
+        $session = \App\Models\Session::findOrFail($validated['current_session_id']);
+        $studentCountForSession = $school->students()->where('current_session_id', $session->id)->count();
 
-        $student = Student::create(array_merge($request->all(), [
-            'id' => str()->uuid(),
-            'admission_no' => $admission_number,
-        ]));
+        $studentData = $validated;
+        $studentData['id'] = (string) Str::uuid();
+        $studentData['school_id'] = $school->id;
+        $studentData['admission_no'] = $session->name . '/' . ($studentCountForSession + 1);
+        $studentData['status'] = strtolower($studentData['status']);
 
-        return response()->json($student, 201);
+        if (array_key_exists('class_section_id', $studentData) && ! $studentData['class_section_id']) {
+            $studentData['class_section_id'] = null;
+        }
+
+        if (array_key_exists('photo_url', $studentData) && ! $studentData['photo_url']) {
+            $studentData['photo_url'] = null;
+        }
+
+        $student = Student::create($studentData);
+
+        return response()->json([
+            'data' => $student->load($this->studentRelations()),
+        ], 201);
     }
 
     /**
@@ -203,11 +263,14 @@ class StudentController extends Controller
      */
     public function show(Request $request, Student $student)
     {
+        Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
 
-        return response()->json($student);
+        return response()->json([
+            'data' => $student->load($this->studentRelations()),
+        ]);
     }
 
     /**
@@ -237,7 +300,6 @@ class StudentController extends Controller
      *          required=true,
      *          @OA\JsonContent(
      *              type="object",
-     *              @OA\Property(property="school_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="admission_no", type="string", example="2023/123"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
@@ -251,7 +313,7 @@ class StudentController extends Controller
      *              @OA\Property(property="club", type="string", example="Debate"),
      *              @OA\Property(property="current_session_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="current_term_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
-     *              @OA\Property(property="class_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *              @OA\Property(property="school_class_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="class_arm_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="class_section_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *              @OA\Property(property="parent_id", type="string", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
@@ -280,37 +342,57 @@ class StudentController extends Controller
      */
     public function update(Request $request, Student $student)
     {
+        Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
 
-        $request->validate([
-            'school_id' => 'required|exists:schools,id',
-            'admission_no' => 'required|string|max:255|unique:students,admission_no,' . $student->id,
+        $this->prepareRelationshipInput($request);
+
+        $validated = $request->validate([
+            'admission_no' => ['sometimes', 'string', 'max:255', Rule::unique('students', 'admission_no')->ignore($student->id)],
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
-            'gender' => 'required|in:male,female',
+            'gender' => ['required', Rule::in(['male', 'female', 'other', 'others', 'Male', 'Female', 'Other', 'Others', 'm', 'f', 'o', 'M', 'F', 'O'])],
             'date_of_birth' => 'required|date',
             'nationality' => 'nullable|string|max:255',
             'state_of_origin' => 'nullable|string|max:255',
             'lga_of_origin' => 'nullable|string|max:255',
             'house' => 'nullable|string|max:255',
             'club' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'medical_information' => 'nullable|string',
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
-            'class_id' => 'required|exists:classes,id',
+            'school_class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'parent_id' => 'exists:school_parents,id',
+            'parent_id' => 'required|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
-            'status' => 'required|string|max:255',
+            'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
-        $student->update($request->all());
+        if (array_key_exists('class_section_id', $validated) && ! $validated['class_section_id']) {
+            $validated['class_section_id'] = null;
+        }
 
-        return response()->json($student);
+        if (array_key_exists('photo_url', $validated) && ! $validated['photo_url']) {
+            $validated['photo_url'] = null;
+        }
+
+        $validated['status'] = strtolower($validated['status']);
+
+        if (! array_key_exists('admission_no', $validated)) {
+            $validated['admission_no'] = $student->admission_no;
+        }
+
+        $student->update($validated);
+
+        return response()->json([
+            'data' => $student->fresh()->load($this->studentRelations()),
+        ]);
     }
 
     /**
@@ -362,5 +444,35 @@ class StudentController extends Controller
         $student->delete();
 
         return response()->json(null, 204);
+    }
+
+    protected function studentRelations(): array
+    {
+        return ['school_class', 'class_arm', 'class_section', 'parent', 'session', 'term'];
+    }
+
+    protected function prepareRelationshipInput(Request $request): void
+    {
+        $classIdentifier = $request->input('school_class_id', $request->input('class_id'));
+
+        if (in_array($classIdentifier, [null, '', '0', 0], true)) {
+            $request->request->remove('school_class_id');
+        } else {
+            $request->merge(['school_class_id' => (string) $classIdentifier]);
+        }
+
+        foreach (['school_class_id', 'class_arm_id', 'class_section_id', 'parent_id', 'current_session_id', 'current_term_id'] as $field) {
+            if (! $request->has($field)) {
+                continue;
+            }
+
+            $value = $request->input($field);
+
+            if (in_array($value, [null, '', '0', 0], true)) {
+                $request->merge([$field => null]);
+            } else {
+                $request->merge([$field => (string) $value]);
+            }
+        }
     }
 }

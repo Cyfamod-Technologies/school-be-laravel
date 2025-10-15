@@ -33,6 +33,8 @@ class GradeRange extends Model
 	protected $table = 'grade_ranges';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'min_score' => 'float',
 		'max_score' => 'float',

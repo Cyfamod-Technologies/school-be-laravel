@@ -34,6 +34,8 @@ class AssessmentComponent extends Model
 	protected $table = 'assessment_components';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'weight' => 'float',
 		'order' => 'int'

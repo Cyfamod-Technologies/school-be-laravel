@@ -28,6 +28,8 @@ class Role extends Model
 	protected $table = 'roles';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'name',
 		'description'

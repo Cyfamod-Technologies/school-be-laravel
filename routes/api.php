@@ -41,23 +41,28 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('classes', ClassController::class)->parameters([
             'classes' => 'schoolClass'
         ]);
-        Route::prefix('classes/{schoolClass}')->group(function () {
-            Route::get('arms', [ClassController::class, 'indexArms']);
-            Route::post('arms', [ClassController::class, 'storeArm']);
-            Route::get('arms/{arm}', [ClassController::class, 'showArm']);
-            Route::put('arms/{arm}', [ClassController::class, 'updateArm']);
-            Route::delete('arms/{arm}', [ClassController::class, 'destroyArm']);
+        Route::prefix('classes/{schoolClass}')
+            ->whereUuid('schoolClass')
+            ->group(function () {
+                Route::get('arms', [ClassController::class, 'indexArms']);
+                Route::post('arms', [ClassController::class, 'storeArm']);
+                Route::get('arms/{armId}', [ClassController::class, 'showArm'])->whereUuid('armId');
+                Route::put('arms/{armId}', [ClassController::class, 'updateArm'])->whereUuid('armId');
+                Route::delete('arms/{armId}', [ClassController::class, 'destroyArm'])->whereUuid('armId');
 
-            Route::prefix('arms/{arm}')->group(function () {
-                Route::get('sections', [ClassController::class, 'indexSections']);
-                Route::post('sections', [ClassController::class, 'storeSection']);
-                Route::get('sections/{section}', [ClassController::class, 'showSection']);
-                Route::put('sections/{section}', [ClassController::class, 'updateSection']);
-                Route::delete('sections/{section}', [ClassController::class, 'destroySection']);
+                Route::prefix('arms/{armId}')
+                    ->whereUuid('armId')
+                    ->group(function () {
+                        Route::get('sections', [ClassController::class, 'indexSections']);
+                        Route::post('sections', [ClassController::class, 'storeSection']);
+                        Route::get('sections/{sectionId}', [ClassController::class, 'showSection'])->whereUuid('sectionId');
+                        Route::put('sections/{sectionId}', [ClassController::class, 'updateSection'])->whereUuid('sectionId');
+                        Route::delete('sections/{sectionId}', [ClassController::class, 'destroySection'])->whereUuid('sectionId');
+                    });
             });
-        });
 
         // Parent Routes
+        Route::get('all-parents', [\App\Http\Controllers\Api\V1\ParentController::class, 'all']);
         Route::apiResource('parents', \App\Http\Controllers\Api\V1\ParentController::class);
 
         // Student Routes

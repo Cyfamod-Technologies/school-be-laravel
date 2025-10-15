@@ -27,6 +27,8 @@ class PerformanceReport extends Model
 	protected $table = 'performance_reports';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'student_id',
 		'report_data'

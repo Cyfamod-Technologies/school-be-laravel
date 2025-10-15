@@ -40,6 +40,8 @@ class Result extends Model
 	protected $table = 'results';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'total_score' => 'float',
 		'position_in_subject' => 'int',

@@ -28,6 +28,8 @@ class SubjectClassAssignment extends Model
 	protected $table = 'subject_class_assignments';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'subject_id',
 		'class_id'

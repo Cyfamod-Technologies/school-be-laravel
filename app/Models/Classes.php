@@ -33,6 +33,8 @@ class Classes extends Model
 	protected $table = 'classes';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'school_id',
 		'name',

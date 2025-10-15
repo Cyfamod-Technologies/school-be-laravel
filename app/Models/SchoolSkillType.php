@@ -30,6 +30,8 @@ class SchoolSkillType extends Model
 	protected $table = 'school_skill_types';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'school_id',
 		'skill_category_id',

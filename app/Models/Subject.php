@@ -34,6 +34,8 @@ class Subject extends Model
 	protected $table = 'subjects';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'school_id',
 		'name',

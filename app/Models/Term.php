@@ -43,6 +43,7 @@ class Term extends Model
 {
 	protected $table = 'terms';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $casts = [
 		'start_date' => 'datetime',

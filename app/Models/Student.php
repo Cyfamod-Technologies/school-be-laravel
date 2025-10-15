@@ -9,6 +9,8 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Class Student
@@ -28,20 +30,22 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $club
  * @property string $current_session_id
  * @property string $current_term_id
- * @property string $class_id
+ * @property string $school_class_id
  * @property string $class_arm_id
  * @property string|null $class_section_id
- * @property string $parent_id
+ * @property string|null $parent_id
  * @property Carbon $admission_date
  * @property string|null $photo_url
  * @property string $status
+ * @property string|null $address
+ * @property string|null $medical_information
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
- * @property Class $class
+ * @property SchoolClass $school_class
  * @property ClassArm $class_arm
  * @property ClassSection|null $class_section
- * @property SchoolParent $parent
+ * @property SchoolParent|null $parent
  * @property School $school
  * @property Session $session
  * @property Term $term
@@ -58,111 +62,293 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Student extends Model
 {
-	protected $table = 'students';
-	public $incrementing = false;
+    protected $table = 'students';
+    public $incrementing = false;
+    protected $keyType = 'string';
 
-	protected $casts = [
-		'date_of_birth' => 'datetime',
-		'admission_date' => 'datetime'
-	];
+    protected $casts = [
+        'date_of_birth' => 'datetime',
+        'admission_date' => 'datetime',
+    ];
 
-	protected $fillable = [
-		'id',
-		'school_id',
-		'admission_no',
-		'first_name',
-		'middle_name',
-		'last_name',
-		'gender',
-		'date_of_birth',
-		'nationality',
-		'state_of_origin',
-		'lga_of_origin',
-		'house',
-		'club',
-		'current_session_id',
-		'current_term_id',
-		'class_id',
-		'class_arm_id',
-		'class_section_id',
-		'parent_id',
-		'admission_date',
-		'photo_url',
-		'status'
-	];
+    protected $fillable = [
+        'id',
+        'school_id',
+        'admission_no',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'gender',
+        'date_of_birth',
+        'nationality',
+        'state_of_origin',
+        'lga_of_origin',
+        'house',
+        'club',
+        'current_session_id',
+        'current_term_id',
+        'school_class_id',
+        'class_arm_id',
+        'class_section_id',
+        'parent_id',
+        'admission_date',
+        'photo_url',
+        'status',
+        'address',
+        'medical_information',
+    ];
 
-	public function school_class()
-	{
-		return $this->belongsTo(SchoolClass::class, 'school_class_id');
-	}
+    protected static array $uuidForeignKeys = [
+        'school_id',
+        'current_session_id',
+        'current_term_id',
+        'school_class_id',
+        'class_arm_id',
+        'class_section_id',
+        'parent_id',
+    ];
 
-	public function class_arm()
-	{
-		return $this->belongsTo(ClassArm::class);
-	}
+    protected static function booted(): void
+    {
+        static::addGlobalScope('validUuids', function ($builder) {
+            $builder->whereRaw('(class_arm_id IS NULL OR CHAR_LENGTH(CAST(class_arm_id AS CHAR)) = 36)')
+                ->whereRaw('(class_section_id IS NULL OR CHAR_LENGTH(CAST(class_section_id AS CHAR)) = 36)')
+                ->whereRaw('(parent_id IS NULL OR CHAR_LENGTH(CAST(parent_id AS CHAR)) = 36)')
+                ->whereRaw('(school_class_id IS NULL OR CHAR_LENGTH(CAST(school_class_id AS CHAR)) = 36)')
+                ->whereRaw('(current_session_id IS NULL OR CHAR_LENGTH(CAST(current_session_id AS CHAR)) = 36)')
+                ->whereRaw('(current_term_id IS NULL OR CHAR_LENGTH(CAST(current_term_id AS CHAR)) = 36)');
+        });
 
-	public function class_section()
-	{
-		return $this->belongsTo(ClassSection::class);
-	}
+        static::retrieved(function (Student $student): void {
+            $student->sanitizeUuidForeignKeys();
+        });
 
-	public function parent()
-	{
-		return $this->belongsTo(SchoolParent::class);
-	}
+        static::saving(function (Student $student): void {
+            $student->sanitizeUuidForeignKeys();
+        });
+    }
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    public function getGenderAttribute($value)
+    {
+        return match ($value) {
+            'M' => 'Male',
+            'F' => 'Female',
+            'O' => 'Others',
+            null => null,
+            default => $value,
+        };
+    }
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class, 'current_session_id');
-	}
+    public function setGenderAttribute($value): void
+    {
+        if ($value === null) {
+            $this->attributes['gender'] = null;
+            return;
+        }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class, 'current_term_id');
-	}
+        $normalized = strtolower((string) $value);
+        $map = [
+            'male' => 'M',
+            'm' => 'M',
+            'female' => 'F',
+            'f' => 'F',
+            'other' => 'O',
+            'others' => 'O',
+            'o' => 'O',
+        ];
 
-	public function attendances()
-	{
-		return $this->hasMany(Attendance::class);
-	}
+        $this->attributes['gender'] = $map[$normalized] ?? $value;
+    }
 
-	public function fee_payments()
-	{
-		return $this->hasMany(FeePayment::class);
-	}
+    protected function normalizeNullableUuid($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
 
-	public function performance_reports()
-	{
-		return $this->hasMany(PerformanceReport::class);
-	}
+        $trimmed = trim((string) $value);
 
-	public function result_pins()
-	{
-		return $this->hasMany(ResultPin::class);
-	}
+        if (in_array($trimmed, ['', '0'], true)) {
+            return null;
+        }
 
-	public function results()
-	{
-		return $this->hasMany(Result::class);
-	}
+        if (! Str::isUuid($trimmed)) {
+            return null;
+        }
 
-	public function skill_ratings()
-	{
-		return $this->hasMany(SkillRating::class);
-	}
+        return $trimmed;
+    }
 
-	public function student_enrollments()
-	{
-		return $this->hasMany(StudentEnrollment::class);
-	}
+    protected function sanitizeUuidForeignKeys(): void
+    {
+        foreach (self::$uuidForeignKeys as $key) {
+            if (! array_key_exists($key, $this->attributes)) {
+                continue;
+            }
 
-	public function term_summaries()
-	{
-		return $this->hasMany(TermSummary::class);
-	}
+            $normalized = $this->normalizeNullableUuid($this->attributes[$key] ?? null);
+            $this->attributes[$key] = $normalized;
+        }
+    }
+
+    public static function fixLegacyForeignKeys(): void
+    {
+        $fields = [
+            'class_arm_id',
+            'class_section_id',
+            'parent_id',
+            'school_class_id',
+            'current_session_id',
+            'current_term_id',
+        ];
+
+        foreach ($fields as $field) {
+            // Use raw SQL to avoid type comparison issues
+            DB::statement("
+                UPDATE students 
+                SET {$field} = NULL 
+                WHERE {$field} IS NOT NULL 
+                AND (
+                    CAST({$field} AS CHAR) = '0' 
+                    OR CAST({$field} AS CHAR) = '' 
+                    OR CHAR_LENGTH(CAST({$field} AS CHAR)) <> 36
+                )
+            ");
+        }
+    }
+
+    public function getSchoolClassIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setSchoolClassIdAttribute($value): void
+    {
+        $this->attributes['school_class_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function getClassArmIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setClassArmIdAttribute($value): void
+    {
+        $this->attributes['class_arm_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function getClassSectionIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setClassSectionIdAttribute($value): void
+    {
+        $this->attributes['class_section_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function getParentIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setParentIdAttribute($value): void
+    {
+        $this->attributes['parent_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function getCurrentSessionIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setCurrentSessionIdAttribute($value): void
+    {
+        $this->attributes['current_session_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function getCurrentTermIdAttribute($value)
+    {
+        return $this->normalizeNullableUuid($value);
+    }
+
+    public function setCurrentTermIdAttribute($value): void
+    {
+        $this->attributes['current_term_id'] = $this->normalizeNullableUuid($value);
+    }
+
+    public function school_class()
+    {
+        return $this->belongsTo(SchoolClass::class, 'school_class_id');
+    }
+
+    public function class_arm()
+    {
+        return $this->belongsTo(ClassArm::class);
+    }
+
+    public function class_section()
+    {
+        return $this->belongsTo(ClassSection::class);
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(SchoolParent::class);
+    }
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function session()
+    {
+        return $this->belongsTo(Session::class, 'current_session_id');
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class, 'current_term_id');
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function fee_payments()
+    {
+        return $this->hasMany(FeePayment::class);
+    }
+
+    public function performance_reports()
+    {
+        return $this->hasMany(PerformanceReport::class);
+    }
+
+    public function result_pins()
+    {
+        return $this->hasMany(ResultPin::class);
+    }
+
+    public function results()
+    {
+        return $this->hasMany(Result::class);
+    }
+
+    public function skill_ratings()
+    {
+        return $this->hasMany(SkillRating::class);
+    }
+
+    public function student_enrollments()
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function term_summaries()
+    {
+        return $this->hasMany(TermSummary::class);
+    }
 }

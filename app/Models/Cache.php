@@ -22,6 +22,8 @@ class Cache extends Model
 	protected $table = 'cache';
 	protected $primaryKey = 'key';
 	public $incrementing = false;
+
+	protected $keyType = 'string';
 	public $timestamps = false;
 
 	protected $casts = [

@@ -28,6 +28,8 @@ class Permission extends Model
 	protected $table = 'permissions';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'name',
 		'description'

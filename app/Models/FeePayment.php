@@ -35,6 +35,8 @@ class FeePayment extends Model
 	protected $table = 'fee_payments';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'amount_paid' => 'float',
 		'amount_due' => 'float',

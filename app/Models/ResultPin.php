@@ -30,6 +30,8 @@ class ResultPin extends Model
 	protected $table = 'result_pins';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'expiry_date' => 'datetime',
 		'use_count' => 'int'

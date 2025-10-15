@@ -1577,7 +1577,7 @@
                         }
                     },
                     {
-                        "name": "class_id",
+                        "name": "school_class_id",
                         "in": "query",
                         "description": "Filter by class",
                         "schema": {
@@ -1615,10 +1615,6 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "school_id": {
-                                        "type": "string",
-                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                                    },
                                     "admission_no": {
                                         "type": "string",
                                         "example": "2023/123"
@@ -1672,7 +1668,7 @@
                                         "type": "string",
                                         "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                     },
-                                    "class_id": {
+                                    "school_class_id": {
                                         "type": "string",
                                         "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                     },
@@ -1775,10 +1771,6 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "school_id": {
-                                        "type": "string",
-                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                                    },
                                     "admission_no": {
                                         "type": "string",
                                         "example": "2023/123"
@@ -1832,7 +1824,7 @@
                                         "type": "string",
                                         "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                     },
-                                    "class_id": {
+                                    "school_class_id": {
                                         "type": "string",
                                         "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                                     },

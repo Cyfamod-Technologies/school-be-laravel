@@ -31,6 +31,8 @@ class Message extends Model
 {
 	protected $table = 'messages';
 	public $incrementing = false;
+
+	protected $keyType = 'string';
 	public $timestamps = false;
 
 	protected $casts = [

@@ -47,6 +47,7 @@ class School extends Model
 {
 	protected $table = 'schools';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $casts = [
 		'established_at' => 'datetime'

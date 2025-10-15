@@ -39,6 +39,8 @@ class TermSummary extends Model
 	protected $table = 'term_summaries';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'total_marks_obtained' => 'int',
 		'total_marks_possible' => 'int',

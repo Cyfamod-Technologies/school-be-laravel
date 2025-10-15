@@ -38,6 +38,7 @@ class SchoolParent extends Model
 {
 	protected $table = 'parents';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $fillable = [
 		'id',

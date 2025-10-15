@@ -32,6 +32,8 @@ class Attendance extends Model
 	protected $table = 'attendances';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'date' => 'datetime'
 	];

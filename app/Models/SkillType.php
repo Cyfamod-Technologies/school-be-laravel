@@ -34,6 +34,8 @@ class SkillType extends Model
 	protected $table = 'skill_types';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $casts = [
 		'weight' => 'float'
 	];

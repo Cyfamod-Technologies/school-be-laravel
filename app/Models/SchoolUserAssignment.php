@@ -28,6 +28,8 @@ class SchoolUserAssignment extends Model
 	protected $table = 'school_user_assignments';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'school_id',
 		'user_id'

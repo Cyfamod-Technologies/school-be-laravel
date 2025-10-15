@@ -25,6 +25,8 @@ class ApiKey extends Model
 	protected $table = 'api_keys';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'name',
 		'key'

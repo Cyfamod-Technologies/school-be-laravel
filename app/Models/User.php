@@ -44,6 +44,7 @@ class User extends Authenticatable
 	use HasApiTokens;
 	protected $table = 'users';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $casts = [
 		'last_login' => 'datetime',

@@ -28,6 +28,8 @@ class AuditLog extends Model
 	protected $table = 'audit_logs';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'user_id',
 		'action',

@@ -56,6 +56,17 @@ class ParentController extends Controller
         return response()->json($parents);
     }
 
+    public function all(Request $request)
+    {
+        $parents = $request->user()->school->parents()
+            ->select('id', 'first_name', 'last_name', 'phone')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return response()->json($parents);
+    }
+
     /**
      * Store a newly created resource in storage.
      *

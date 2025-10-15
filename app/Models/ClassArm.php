@@ -31,6 +31,7 @@ class ClassArm extends Model
 {
 	protected $table = 'class_arms';
 	public $incrementing = false;
+	protected $keyType = 'string';
 
 	protected $fillable = [
 		'id',

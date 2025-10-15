@@ -34,6 +34,8 @@ class SubjectTeacherAssignment extends Model
 	protected $table = 'subject_teacher_assignments';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'subject_id',
 		'staff_id',

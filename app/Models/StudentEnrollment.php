@@ -32,6 +32,8 @@ class StudentEnrollment extends Model
 	protected $table = 'student_enrollments';
 	public $incrementing = false;
 
+	protected $keyType = 'string';
+
 	protected $fillable = [
 		'student_id',
 		'class_section_id',

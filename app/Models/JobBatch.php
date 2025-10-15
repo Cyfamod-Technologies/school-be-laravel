@@ -28,6 +28,8 @@ class JobBatch extends Model
 {
 	protected $table = 'job_batches';
 	public $incrementing = false;
+
+	protected $keyType = 'string';
 	public $timestamps = false;
 
 	protected $casts = [
