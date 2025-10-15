@@ -3,9 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\SchoolController;
-
-
 use App\Http\Controllers\Api\V1\SchoolRegistrationController;
+use App\Http\Controllers\Api\V1\AcademicSessionController;
+use App\Http\Controllers\Api\V1\ClassController;
+use App\Http\Controllers\Api\V1\SubjectController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -15,9 +16,6 @@ Route::domain('{subdomain}.' . $host)->group(function () {
 
 
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
-
-use App\Http\Controllers\Api\V1\AcademicSessionController;
-use App\Http\Controllers\Api\V1\ClassController;
 
 Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
@@ -70,5 +68,10 @@ Route::prefix('api/v1')->group(function () {
 
         // Staff Routes
         Route::apiResource('staff', \App\Http\Controllers\Api\V1\StaffController::class);
+
+        // Settings Routes
+        Route::prefix('settings')->group(function () {
+            Route::apiResource('subjects', SubjectController::class);
+        });
     });
 });

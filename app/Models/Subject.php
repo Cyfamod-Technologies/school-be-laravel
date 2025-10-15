@@ -37,6 +37,7 @@ class Subject extends Model
 	protected $keyType = 'string';
 
 	protected $fillable = [
+		'id',
 		'school_id',
 		'name',
 		'code',
