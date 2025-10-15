@@ -80,6 +80,11 @@ class User extends Authenticatable
 		return $this->belongsTo(School::class);
 	}
 
+	public function staff()
+	{
+		return $this->hasOne(Staff::class);
+	}
+
 	public function audit_logs()
 	{
 		return $this->hasMany(AuditLog::class);
@@ -107,8 +112,4 @@ class User extends Authenticatable
 					->withTimestamps();
 	}
 
-	public function staff()
-	{
-		return $this->hasMany(Staff::class);
-	}
 }

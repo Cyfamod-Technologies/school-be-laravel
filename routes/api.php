@@ -67,5 +67,8 @@ Route::prefix('api/v1')->group(function () {
 
         // Student Routes
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
+
+        // Staff Routes
+        Route::apiResource('staff', \App\Http\Controllers\Api\V1\StaffController::class);
     });
 });

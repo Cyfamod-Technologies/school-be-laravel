@@ -8,44 +8,35 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
-    public function up()
+    public function up(): void
     {
         Schema::create('staff', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('school_id');
-            $table->uuid('user_id');
-            $table->string('staff_number')->nullable()->unique();
-            $table->string('first_name');
-            $table->string('last_name');
-            $table->string('middle_name')->nullable();
-            $table->enum('gender', ['male', 'female', 'other'])->nullable();
-            $table->date('date_of_birth')->nullable();
-            $table->string('phone', 50)->nullable();
-            $table->string('email')->nullable();
-            $table->text('address')->nullable();
-            $table->string('qualification')->nullable();
-            $table->string('designation')->nullable();
-            $table->date('employment_date')->nullable();
-            $table->string('nationality')->nullable();
-            $table->string('state_of_origin')->nullable();
-            $table->string('local_government_area')->nullable();
-            $table->string('profile_picture', 512)->nullable();
+            $table->uuid('user_id')->unique();
+            $table->string('full_name');
+            $table->string('email');
+            $table->string('phone');
+            $table->string('role');
+            $table->enum('gender', ['male', 'female', 'others']);
+            $table->string('address')->nullable();
+            $table->string('qualifications')->nullable();
+            $table->date('employment_start_date')->nullable();
+            $table->string('photo_url', 512)->nullable();
             $table->timestamps();
 
             $table->foreign('school_id')->references('id')->on('schools')->onDelete('cascade');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('restrict');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->unique(['school_id', 'email']);
+            $table->unique(['school_id', 'phone']);
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('staff');
     }
