@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\V1\SubjectController;
 use App\Http\Controllers\Api\V1\SubjectAssignmentController;
 use App\Http\Controllers\Api\V1\SubjectTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
+use App\Http\Controllers\Api\V1\AssessmentComponentController;
+use App\Http\Controllers\Api\V1\ResultController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -72,9 +74,16 @@ Route::prefix('api/v1')->group(function () {
         // Staff Routes
         Route::apiResource('staff', \App\Http\Controllers\Api\V1\StaffController::class);
 
+        // Results
+        Route::get('results', [ResultController::class, 'index']);
+        Route::post('results/batch', [ResultController::class, 'batchUpsert']);
+
         // Settings Routes
         Route::prefix('settings')->group(function () {
             Route::apiResource('subjects', SubjectController::class);
+            Route::apiResource('assessment-components', AssessmentComponentController::class)
+                ->parameters(['assessment-components' => 'assessmentComponent'])
+                ->except(['create', 'edit']);
             Route::apiResource('subject-assignments', SubjectAssignmentController::class)
                 ->parameters(['subject-assignments' => 'assignment'])
                 ->except(['create', 'edit']);

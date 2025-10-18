@@ -54,7 +54,7 @@ class School extends Model
 	];
 
 	protected $fillable = [
-        'id',
+		'id',
 		'name',
 		'slug',
 		'subdomain',
@@ -64,7 +64,9 @@ class School extends Model
 		'logo_url',
 		'established_at',
 		'owner_name',
-		'status'
+		'status',
+		'current_session_id',
+		'current_term_id',
 	];
 
 	public function analytics_data()
@@ -100,6 +102,16 @@ class School extends Model
 	public function users()
 	{
 		return $this->hasMany(User::class);
+	}
+
+	public function currentSession()
+	{
+		return $this->belongsTo(Session::class, 'current_session_id');
+	}
+
+	public function currentTerm()
+	{
+		return $this->belongsTo(Term::class, 'current_term_id');
 	}
 
 	public function sessions()

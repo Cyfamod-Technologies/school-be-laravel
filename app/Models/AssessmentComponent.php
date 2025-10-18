@@ -42,6 +42,7 @@ class AssessmentComponent extends Model
 	];
 
 	protected $fillable = [
+		'id',
 		'school_id',
 		'session_id',
 		'term_id',
@@ -64,5 +65,20 @@ class AssessmentComponent extends Model
 	public function term()
 	{
 		return $this->belongsTo(Term::class);
+	}
+
+	public function subjects()
+	{
+		return $this->belongsToMany(
+			Subject::class,
+			'assessment_component_subject',
+			'assessment_component_id',
+			'subject_id'
+		);
+	}
+
+	public function results()
+	{
+		return $this->hasMany(Result::class, 'assessment_component_id');
 	}
 }

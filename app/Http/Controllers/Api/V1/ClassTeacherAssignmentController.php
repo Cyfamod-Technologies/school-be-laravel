@@ -40,6 +40,7 @@ class ClassTeacherAssignmentController extends Controller
                 'staff:id,full_name,email,phone,role,school_id',
                 'school_class:id,name,slug,school_id',
                 'class_arm:id,name,school_class_id',
+                'class_section:id,name,class_arm_id',
                 'session:id,name,school_id',
                 'term:id,name,school_id,session_id',
             ])
@@ -49,6 +50,7 @@ class ClassTeacherAssignmentController extends Controller
             'staff_id',
             'school_class_id',
             'class_arm_id',
+            'class_section_id',
             'session_id',
             'term_id',
         ];

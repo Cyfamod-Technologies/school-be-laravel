@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
 use App\Models\School;
+use App\Models\Session;
+use App\Models\Term;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
@@ -240,15 +242,66 @@ class SchoolController extends Controller
             'logo_url' => 'string|max:512',
             'established_at' => 'date',
             'owner_name' => 'string|max:255',
+            'current_session_id' => 'nullable|uuid',
+            'current_term_id' => 'nullable|uuid',
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $school->update($request->all());
+        $data = $validator->validated();
 
-        return response()->json(['message' => 'School profile updated successfully', 'school' => $school]);
+        $sessionId = $data['current_session_id'] ?? null;
+        $termId = $data['current_term_id'] ?? null;
+
+        if (array_key_exists('current_session_id', $data) && $sessionId !== null) {
+            $session = Session::where('id', $sessionId)
+                ->where('school_id', $school->id)
+                ->first();
+
+            if (! $session) {
+                return response()->json(['message' => 'Selected session was not found for this school.'], 404);
+            }
+        }
+
+        if (array_key_exists('current_term_id', $data) && $termId !== null) {
+            $term = Term::where('id', $termId)
+                ->where('school_id', $school->id)
+                ->first();
+
+            if (! $term) {
+                return response()->json(['message' => 'Selected term was not found for this school.'], 404);
+            }
+
+            if ($sessionId !== null && $term->session_id !== $sessionId) {
+                return response()->json(['message' => 'The selected term does not belong to the chosen session.'], 422);
+            }
+
+            if ($sessionId === null) {
+                $sessionId = $term->session_id;
+                $data['current_session_id'] = $sessionId;
+            }
+        }
+
+        if ($sessionId === null && array_key_exists('current_term_id', $data) && $termId === null && ! array_key_exists('current_session_id', $data)) {
+            // When only term is being cleared ensure session remains untouched.
+            unset($data['current_session_id']);
+        }
+
+        $school->fill($data);
+
+        if ($school->isDirty()) {
+            $school->save();
+        }
+
+        return response()->json([
+            'message' => 'School profile updated successfully',
+            'school' => $school->fresh([
+                'currentSession:id,name,slug,start_date,end_date,status',
+                'currentTerm:id,name,session_id,start_date,end_date,status',
+            ]),
+        ]);
     }
 
     /**
@@ -329,8 +382,10 @@ class SchoolController extends Controller
             $school = $user->school;             // eager-load if you want
 
             return response()->json([
-                'user'   => $user,
-                // 'school' => $school,
+                'user'   => $user->loadMissing([
+                    'school.currentSession:id,name,slug,start_date,end_date,status',
+                    'school.currentTerm:id,name,session_id,start_date,end_date,status',
+                ]),
             ]);
         }
 
@@ -351,8 +406,10 @@ class SchoolController extends Controller
             $school = $user->school;             // eager-load if you want
 
             return response()->json([
-                // 'user'   => $user,
-                'school' => $school,
+                'school' => $school->loadMissing([
+                    'currentSession:id,name,slug,start_date,end_date,status',
+                    'currentTerm:id,name,session_id,start_date,end_date,status',
+                ]),
             ]);
         }
 

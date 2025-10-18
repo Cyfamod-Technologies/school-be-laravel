@@ -63,7 +63,7 @@ return new class extends Migration
         // Ensure unique per class arm + term + session (ignores section)
         Schema::table('class_teachers', function (Blueprint $table) {
             if (! $this->hasIndex('class_teachers', 'class_teachers_arm_session_term_unique')) {
-                $table->unique(['class_arm_id', 'session_id', 'term_id'], 'class_teachers_arm_session_term_unique');
+                $table->unique(['class_arm_id', 'class_section_id', 'session_id', 'term_id'], 'class_teachers_arm_session_term_unique');
             }
         });
     }
