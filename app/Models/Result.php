@@ -55,10 +55,10 @@ class Result extends Model
 	public const NULL_COMPONENT_UUID = '00000000-0000-0000-0000-000000000000';
 
 	protected $fillable = [
+		'id',
 		'student_id',
 		'subject_id',
 		'assessment_component_id',
-		'component_slot',
 		'term_id',
 		'session_id',
 		'total_score',
@@ -67,7 +67,8 @@ class Result extends Model
 		'highest_in_class',
 		'class_average',
 		'grade_id',
-		'remarks'
+		'remarks',
+		'component_slot'
 	];
 
 	public function setAssessmentComponentIdAttribute($value): void
