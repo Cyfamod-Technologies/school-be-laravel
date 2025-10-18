@@ -200,6 +200,7 @@ class StudentController extends Controller
             'club' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'medical_information' => 'nullable|string',
+            'blood_group_id' => 'nullable|uuid|exists:blood_groups,id',
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
             'school_class_id' => 'required|exists:classes,id',
@@ -373,6 +374,7 @@ class StudentController extends Controller
             'club' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'medical_information' => 'nullable|string',
+            'blood_group_id' => 'sometimes|nullable|uuid|exists:blood_groups,id',
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
             'school_class_id' => 'required|exists:classes,id',
@@ -458,7 +460,7 @@ class StudentController extends Controller
 
     protected function studentRelations(): array
     {
-        return ['school_class', 'class_arm', 'class_section', 'parent', 'session', 'term'];
+        return ['school_class', 'class_arm', 'class_section', 'parent', 'session', 'term', 'blood_group'];
     }
 
     protected function prepareRelationshipInput(Request $request): void
@@ -471,7 +473,7 @@ class StudentController extends Controller
             $request->merge(['school_class_id' => (string) $classIdentifier]);
         }
 
-        foreach (['school_class_id', 'class_arm_id', 'class_section_id', 'parent_id', 'current_session_id', 'current_term_id'] as $field) {
+        foreach (['school_class_id', 'class_arm_id', 'class_section_id', 'parent_id', 'current_session_id', 'current_term_id', 'blood_group_id'] as $field) {
             if (! $request->has($field)) {
                 continue;
             }

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\SubjectAssignmentController;
 use App\Http\Controllers\Api\V1\SubjectTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\GradeScaleController;
+use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\AssessmentComponentController;
 use App\Http\Controllers\Api\V1\ResultController;
 
@@ -101,6 +102,13 @@ Route::prefix('api/v1')->group(function () {
             Route::get('scales/{gradingScale}', [GradeScaleController::class, 'show'])->whereUuid('gradingScale');
             Route::put('scales/{gradingScale}/ranges', [GradeScaleController::class, 'updateRanges'])->whereUuid('gradingScale');
             Route::delete('ranges/{gradeRange}', [GradeScaleController::class, 'destroyRange'])->whereUuid('gradeRange');
+        });
+
+        Route::prefix('locations')->group(function () {
+            Route::get('countries', [LocationController::class, 'countries']);
+            Route::get('states', [LocationController::class, 'states']);
+            Route::get('states/{state}/lgas', [LocationController::class, 'lgas'])->whereUuid('state');
+            Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
         });
     });
 });

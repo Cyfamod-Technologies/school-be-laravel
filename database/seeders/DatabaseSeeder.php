@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             BloodGroupSeeder::class,
             DefaultGradeScaleSeeder::class,
+            CountryStateLgaSeeder::class,
         ]);
     }
 }

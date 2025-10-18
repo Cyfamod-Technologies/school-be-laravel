@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\BloodGroup;
 
 /**
  * Class Student
@@ -82,7 +83,8 @@ class Student extends Model
         'date_of_birth',
         'nationality',
         'state_of_origin',
-        'lga_of_origin',
+		'lga_of_origin',
+		'blood_group_id',
         'house',
         'club',
         'current_session_id',
@@ -90,7 +92,8 @@ class Student extends Model
         'school_class_id',
         'class_arm_id',
         'class_section_id',
-        'parent_id',
+		'parent_id',
+		'blood_group_id',
         'admission_date',
         'photo_url',
         'status',
@@ -191,16 +194,17 @@ class Student extends Model
         }
     }
 
-    public static function fixLegacyForeignKeys(): void
-    {
-        $fields = [
-            'class_arm_id',
-            'class_section_id',
-            'parent_id',
-            'school_class_id',
-            'current_session_id',
-            'current_term_id',
-        ];
+	public static function fixLegacyForeignKeys(): void
+	{
+		$fields = [
+			'class_arm_id',
+			'class_section_id',
+			'parent_id',
+			'school_class_id',
+			'current_session_id',
+			'current_term_id',
+			'blood_group_id',
+		];
 
         foreach ($fields as $field) {
             // Use raw SQL to avoid type comparison issues
@@ -307,10 +311,15 @@ class Student extends Model
         return $this->belongsTo(Session::class, 'current_session_id');
     }
 
-    public function term()
-    {
-        return $this->belongsTo(Term::class, 'current_term_id');
-    }
+	public function term()
+	{
+		return $this->belongsTo(Term::class, 'current_term_id');
+	}
+
+	public function blood_group()
+	{
+		return $this->belongsTo(BloodGroup::class);
+	}
 
     public function attendances()
     {
