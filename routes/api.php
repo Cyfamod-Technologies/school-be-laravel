@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\V1\StudentTermSummaryController;
 use App\Http\Controllers\Api\V1\SkillCategoryController;
 use App\Http\Controllers\Api\V1\SkillTypeController;
 use App\Http\Controllers\Api\V1\PromotionController;
+use App\Http\Controllers\Api\V1\StaffAttendanceController;
+use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -123,6 +125,42 @@ Route::prefix('api/v1')->group(function () {
                 ->name('promotions.history');
             Route::get('history/export.pdf', [PromotionController::class, 'exportPdf'])
                 ->name('promotions.history.export.pdf');
+        });
+
+        Route::prefix('attendance')->group(function () {
+            Route::get('students', [StudentAttendanceController::class, 'index'])
+                ->name('attendance.students.index');
+            Route::post('students', [StudentAttendanceController::class, 'store'])
+                ->name('attendance.students.store');
+            Route::put('students/{attendance}', [StudentAttendanceController::class, 'update'])
+                ->whereUuid('attendance')
+                ->name('attendance.students.update');
+            Route::delete('students/{attendance}', [StudentAttendanceController::class, 'destroy'])
+                ->whereUuid('attendance')
+                ->name('attendance.students.destroy');
+            Route::get('students/report', [StudentAttendanceController::class, 'report'])
+                ->name('attendance.students.report');
+            Route::get('students/export.csv', [StudentAttendanceController::class, 'exportCsv'])
+                ->name('attendance.students.export.csv');
+            Route::get('students/export.pdf', [StudentAttendanceController::class, 'exportPdf'])
+                ->name('attendance.students.export.pdf');
+
+            Route::get('staff', [StaffAttendanceController::class, 'index'])
+                ->name('attendance.staff.index');
+            Route::post('staff', [StaffAttendanceController::class, 'store'])
+                ->name('attendance.staff.store');
+            Route::put('staff/{staffAttendance}', [StaffAttendanceController::class, 'update'])
+                ->whereUuid('staffAttendance')
+                ->name('attendance.staff.update');
+            Route::delete('staff/{staffAttendance}', [StaffAttendanceController::class, 'destroy'])
+                ->whereUuid('staffAttendance')
+                ->name('attendance.staff.destroy');
+            Route::get('staff/report', [StaffAttendanceController::class, 'report'])
+                ->name('attendance.staff.report');
+            Route::get('staff/export.csv', [StaffAttendanceController::class, 'exportCsv'])
+                ->name('attendance.staff.export.csv');
+            Route::get('staff/export.pdf', [StaffAttendanceController::class, 'exportPdf'])
+                ->name('attendance.staff.export.pdf');
         });
 
         // Staff Routes
