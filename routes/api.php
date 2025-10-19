@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ResultPinController;
 use App\Http\Controllers\Api\V1\StudentTermSummaryController;
 use App\Http\Controllers\Api\V1\SkillCategoryController;
 use App\Http\Controllers\Api\V1\SkillTypeController;
+use App\Http\Controllers\Api\V1\PromotionController;
 use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -113,6 +114,15 @@ Route::prefix('api/v1')->group(function () {
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
+        });
+
+        Route::prefix('promotions')->group(function () {
+            Route::post('bulk', [PromotionController::class, 'bulk'])
+                ->name('promotions.bulk');
+            Route::get('history', [PromotionController::class, 'history'])
+                ->name('promotions.history');
+            Route::get('history/export.pdf', [PromotionController::class, 'exportPdf'])
+                ->name('promotions.history.export.pdf');
         });
 
         // Staff Routes
