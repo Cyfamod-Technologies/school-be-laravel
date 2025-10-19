@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\StudentTermSummaryController;
 use App\Http\Controllers\Api\V1\SkillCategoryController;
 use App\Http\Controllers\Api\V1\SkillTypeController;
 use App\Http\Controllers\Api\V1\PromotionController;
+use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\StaffAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\ResultViewController;
@@ -81,6 +82,13 @@ Route::prefix('api/v1')->group(function () {
 
         // Student Routes
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
+        Route::prefix('students/bulk')->group(function () {
+            Route::get('template', [StudentBulkUploadController::class, 'template'])->name('students.bulk.template');
+            Route::post('preview', [StudentBulkUploadController::class, 'preview'])->name('students.bulk.preview');
+            Route::post('{batch}/commit', [StudentBulkUploadController::class, 'commit'])
+                ->whereUuid('batch')
+                ->name('students.bulk.commit');
+        });
         Route::get('students/{student}/results/print', [ResultViewController::class, 'show'])
             ->whereUuid('student');
         Route::prefix('students/{student}')
