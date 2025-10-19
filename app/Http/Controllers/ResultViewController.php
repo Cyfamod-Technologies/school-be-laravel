@@ -134,6 +134,7 @@ class ResultViewController extends Controller
         }
 
         $data = [
+            'student' => $student,
             'schoolName' => optional($student->school)->name ?? 'School',
             'schoolAddress' => optional($student->school)->address,
             'schoolPhone' => optional($student->school)->phone,
@@ -190,7 +191,7 @@ class ResultViewController extends Controller
             'skillRatings' => $skillRatings,
             'classTeacherName' => $classTeacher?->staff?->full_name,
             'principalName' => optional($student->school)->owner_name,
-            'principalSignatureUrl' => null,
+            'principalSignatureUrl' => optional($student->school)->signature_url,
         ];
 
         return view('result', $data);

@@ -76,6 +76,7 @@ class School extends Model
 		'email',
 		'phone',
 		'logo_url',
+		'signature_url',
 		'established_at',
 		'owner_name',
 		'status',
@@ -119,6 +120,25 @@ class School extends Model
 	}
 
 	public function getLogoUrlAttribute($value)
+	{
+		if ($value === null || $value === '') {
+			return null;
+		}
+
+		if (Str::startsWith($value, ['http://', 'https://'])) {
+			return $value;
+		}
+
+		$appUrl = rtrim(config('app.url'), '/');
+
+		if (Str::startsWith($value, '/storage/')) {
+			return $appUrl . $value;
+		}
+
+		return $appUrl . Storage::url($value);
+	}
+
+	public function getSignatureUrlAttribute($value)
 	{
 		if ($value === null || $value === '') {
 			return null;

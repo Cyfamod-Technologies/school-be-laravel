@@ -241,7 +241,9 @@ class SchoolController extends Controller
             'email' => 'string|email|max:255',
             'phone' => 'string|max:50',
             'logo_url' => 'string|max:512',
+            'signature_url' => 'string|max:512',
             'logo' => 'nullable|image|max:4096',
+            'signature' => 'nullable|image|max:4096',
             'established_at' => 'date',
             'owner_name' => 'string|max:255',
             'current_session_id' => 'nullable|uuid',
@@ -265,6 +267,19 @@ class SchoolController extends Controller
                 $this->deletePublicFile($school->logo_url);
             }
             $data['logo_url'] = null;
+        }
+
+        if ($request->hasFile('signature')) {
+            $signaturePath = $request->file('signature')->store('schools/signatures', 'public');
+            if (! empty($school->signature_url)) {
+                $this->deletePublicFile($school->signature_url);
+            }
+            $data['signature_url'] = $this->formatStoredFileUrl($signaturePath);
+        } elseif (array_key_exists('signature_url', $data) && ! $data['signature_url']) {
+            if (! empty($school->signature_url)) {
+                $this->deletePublicFile($school->signature_url);
+            }
+            $data['signature_url'] = null;
         }
 
         $sessionId = $data['current_session_id'] ?? null;

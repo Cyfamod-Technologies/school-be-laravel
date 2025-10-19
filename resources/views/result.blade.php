@@ -345,6 +345,11 @@
                         <br>Signed: {{ $principalName }}
                     @endif
                 </p>
+                <!-- @if(!empty($principalSignatureUrl))
+                    <div style="margin-top: 10px;">
+                        <img src="{{ $principalSignatureUrl }}" alt="Principal signature" style="max-height:70px;width:auto;">
+                    </div>
+                @endif -->
             </div>
         </div>
 
@@ -357,11 +362,13 @@
                 <p>Class Average: {{ $aggregate['class_average'] !== null ? number_format($aggregate['class_average'], 2) : '-' }}</p>
                 <p>Position: {{ $aggregate['position'] !== null ? $aggregate['position'] . ' of ' . ($classSize ?: 'N/A') : '-' }}</p>
             </div>
-            <div class="flex-col" style="text-align: right;">
-                @if(!empty($principalSignatureUrl))
-                    <img src="{{ $principalSignatureUrl }}" alt="Principal signature">
+            <!-- <div class="flex-col" style="text-align: right;">
+                <div class="section-title">School Logo</div>
+                @php($schoolLogoUrl = optional($student->school)->logo_url)
+                @if(!empty($schoolLogoUrl))
+                    <img src="{{ $schoolLogoUrl }}" alt="School logo" style="max-height:70px;width:auto;">
                 @endif
-            </div>
+            </div> -->
         </div>
     </div>
 </body>
