@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\GradeScaleController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\AssessmentComponentController;
 use App\Http\Controllers\Api\V1\ResultController;
+use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -72,6 +73,8 @@ Route::prefix('api/v1')->group(function () {
 
         // Student Routes
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
+        Route::get('students/{student}/results/print', [ResultViewController::class, 'show'])
+            ->whereUuid('student');
 
         // Staff Routes
         Route::apiResource('staff', \App\Http\Controllers\Api\V1\StaffController::class);

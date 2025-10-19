@@ -14,18 +14,12 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property string $id
  * @property string $school_id
- * @property string $session_id
- * @property string $term_id
  * @property string $name
  * @property float $weight
  * @property int $order
  * @property string|null $label
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @property School $school
- * @property Session $session
- * @property Term $term
  *
  * @package App\Models
  */
@@ -44,8 +38,6 @@ class AssessmentComponent extends Model
 	protected $fillable = [
 		'id',
 		'school_id',
-		'session_id',
-		'term_id',
 		'name',
 		'weight',
 		'order',
@@ -55,16 +47,6 @@ class AssessmentComponent extends Model
 	public function school()
 	{
 		return $this->belongsTo(School::class);
-	}
-
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
-
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
 	}
 
 	public function subjects()

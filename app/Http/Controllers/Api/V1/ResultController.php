@@ -39,7 +39,7 @@ class ResultController extends Controller
                 'subject:id,name,code',
                 'session:id,name',
                 'term:id,name,session_id',
-                'assessment_component:id,name,label,order,weight,session_id,term_id',
+                'assessment_component:id,name,label,order,weight',
             ])
             ->whereHas('student', function (Builder $builder) use ($school) {
                 $builder->where('school_id', $school->id);
@@ -284,35 +284,6 @@ class ResultController extends Controller
                         ]);
                     }
 
-                    if ($component->session_id !== $session->id) {
-                        throw ValidationException::withMessages([
-                            'entries' => ['Assessment component session does not match the selected session.'],
-                        ]);
-                    }
-
-                    if ($entryTermId === null) {
-                        $entryTermId = $component->term_id;
-                        $term = $terms->get($entryTermId);
-                        if (! $term) {
-                            $term = Term::query()
-                                ->where('school_id', $school->id)
-                                ->where('id', $entryTermId)
-                                ->first();
-
-                            if (! $term) {
-                                throw ValidationException::withMessages([
-                                    'entries' => ['Assessment component term is not available for this school.'],
-                                ]);
-                            }
-
-                            $terms->put($term->id, $term);
-                        }
-                    } elseif ($component->term_id !== $entryTermId) {
-                        throw ValidationException::withMessages([
-                            'entries' => ['Assessment component term does not match the selected term.'],
-                        ]);
-                    }
-
                     $componentSubjectIds = $component->subjects->pluck('id')->map(fn ($id) => (string) $id);
                     if ($componentSubjectIds->isNotEmpty() && ! $componentSubjectIds->contains($subject->id)) {
                         throw ValidationException::withMessages([
@@ -374,7 +345,7 @@ class ResultController extends Controller
                         'subject:id,name,code',
                         'session:id,name',
                         'term:id,name',
-                        'assessment_component:id,name,label',
+                        'assessment_component:id,name,label,order,weight',
                     ])
                 );
             }
@@ -391,4 +362,3 @@ class ResultController extends Controller
         ]);
     }
 }
-
