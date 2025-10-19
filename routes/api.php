@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\AssessmentComponentController;
 use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\StudentSkillRatingController;
+use App\Http\Controllers\Api\V1\StudentTermSummaryController;
 use App\Http\Controllers\Api\V1\SkillCategoryController;
 use App\Http\Controllers\Api\V1\SkillTypeController;
 use App\Http\Controllers\ResultViewController;
@@ -93,6 +94,10 @@ Route::prefix('api/v1')->group(function () {
                 Route::delete('skill-ratings/{skillRating}', [StudentSkillRatingController::class, 'destroy'])
                     ->whereUuid('skillRating')
                     ->name('students.skill-ratings.destroy');
+                Route::get('term-summary', [StudentTermSummaryController::class, 'show'])
+                    ->name('students.term-summary.show');
+                Route::put('term-summary', [StudentTermSummaryController::class, 'update'])
+                    ->name('students.term-summary.update');
             });
 
         // Staff Routes

@@ -191,7 +191,8 @@ class ResultViewController extends Controller
                 'position' => $overallStats['position'],
                 'class_average' => $overallStats['class_average'],
                 'final_grade' => $termSummary?->final_grade,
-                'overall_comment' => $termSummary?->overall_comment,
+                'class_teacher_comment' => $termSummary?->overall_comment,
+                'principal_comment' => $termSummary?->principal_comment,
             ],
             'gradeRanges' => $gradeRanges
                 ->map(function ($range) {

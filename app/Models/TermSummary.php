@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int|null $days_absent
  * @property string|null $final_grade
  * @property string|null $overall_comment
+ * @property string|null $principal_comment
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -63,7 +64,8 @@ class TermSummary extends Model
 		'days_present',
 		'days_absent',
 		'final_grade',
-		'overall_comment'
+		'overall_comment',
+		'principal_comment'
 	];
 
 	public function session()

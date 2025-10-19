@@ -179,22 +179,39 @@
             margin-top: 12px;
         }
 
-        .skill-category {
-            margin-bottom: 12px;
+        .skill-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
         }
 
-        .skill-category-name {
-            font-weight: 600;
-            color: #0f172a;
-            margin-bottom: 6px;
-            text-transform: uppercase;
+        .skill-card {
+            flex: 1 1 45%;
+            min-width: 240px;
+            border: 1px solid #d0d5dd;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .skill-card-title {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 8px 12px;
             font-size: 12px;
             letter-spacing: 0.4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .skill-table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
         .skill-table td {
-            border: none;
-            padding: 4px 0;
+            border: 1px solid #d0d5dd;
+            padding: 6px 10px;
             font-size: 13px;
         }
 
@@ -203,11 +220,42 @@
             color: #1e293b;
         }
 
-        .rating-key {
+        .grade-line {
+            font-size: 13px;
+            color: #0f172a;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .grade-line span {
+            display: block;
+            margin-top: 6px;
+            font-weight: 400;
+            text-transform: none;
             font-size: 12px;
             color: #475569;
-            line-height: 1.5;
-            margin-top: 8px;
+        }
+
+        .rating-key-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        .rating-key-table td {
+            border: 1px solid #d0d5dd;
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .rating-key-table td:first-child {
+            width: 18%;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .rating-key-table tr:first-child td:first-child {
+            width: auto;
         }
 
         @media print {
@@ -332,51 +380,84 @@
             <div class="flex-col">
                 <div class="section-title">Grading System</div>
                 <div class="info-box">
-                    <table class="table-three">
-                        @if(!empty($gradeRanges))
-                            @foreach($gradeRanges as $range)
-                                <tr>
-                                    <td>{{ $range['label'] }}</td>
-                                    <td>{{ number_format($range['min'], 0) }} - {{ number_format($range['max'], 0) }}</td>
-                                    <td>{{ $range['description'] }}</td>
-                                </tr>
-                            @endforeach
-                        @else
-                            <tr>
-                                <td colspan="3">No grading scale configured.</td>
-                            </tr>
-                        @endif
-                    </table>
+                    @php
+                        $formatScore = function ($value) {
+                            $formatted = number_format($value ?? 0, 2);
+                            return rtrim(rtrim($formatted, '0'), '.');
+                        };
+
+                        $gradeLine = collect($gradeRanges ?? [])->map(function ($range) use ($formatScore) {
+                            $label = strtoupper($range['label'] ?? '');
+                            $min = $formatScore($range['min'] ?? 0);
+                            $max = $formatScore($range['max'] ?? 0);
+                            $description = strtoupper($range['description'] ?? '');
+                            return $description
+                                ? "{$label} = {$min} - {$max} [{$description}]"
+                                : "{$label} = {$min} - {$max}";
+                        })->implode(' , ');
+                    @endphp
+                    <div class="grade-line">
+                        KEY TO GRADINGS
+                        <span>{{ !empty($gradeLine) ? $gradeLine : 'No grading scale configured.' }}</span>
+                    </div>
                 </div>
+                   <table class="rating-key-table">
+                        <tr>
+                            <td colspan="2" style="font-weight:600;text-transform:uppercase;text-align:center;background:#0f172a;color:#ffffff;">Key to Ratings</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td>Excellent Degree of Observable Trait</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>Good Level of Observable Trait</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>Fair But Acceptable Level of Observable Trait</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>Poor Level of Observable Trait</td>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>No Observable Trait</td>
+                        </tr>
+                    </table>
             </div>
             <div class="flex-col">
                 <div class="section-title">Skills &amp; Behaviour</div>
-                <div class="info-box">
+                <div class="info-box" style="padding:18px 20px;">
                     @if(!empty($skillRatingsByCategory))
-                        @foreach($skillRatingsByCategory as $category)
-                            <div class="skill-category">
-                                <div class="skill-category-name">{{ $category['category'] }}</div>
-                                <table class="skill-table">
-                                    @foreach($category['skills'] as $skill)
-                                        <tr>
-                                            <td>{{ $skill['skill'] }}</td>
-                                            <td width="80" align="center">{{ $skill['value'] !== null ? number_format($skill['value'], 0) : '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                </table>
+                        @php
+                            $skillChunks = array_chunk($skillRatingsByCategory, 2);
+                        @endphp
+                        @foreach($skillChunks as $chunk)
+                            <div class="skill-grid" style="margin-bottom:16px;">
+                                @foreach($chunk as $category)
+                                    <div class="skill-card">
+                                        <div class="skill-card-title">{{ strtoupper($category['category']) }}</div>
+                                        <table class="skill-table">
+                                            @foreach($category['skills'] as $skill)
+                                                <tr>
+                                                    <td>{{ $skill['skill'] }}</td>
+                                                    <td width="80" align="center">{{ $skill['value'] !== null ? number_format($skill['value'], 0) : '-' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </table>
+                                    </div>
+                                @endforeach
+                                @if(count($chunk) === 1)
+                                    <div class="skill-card" style="visibility:hidden;"></div>
+                                @endif
                             </div>
                         @endforeach
                     @else
                         <p style="margin:0;">No skill ratings recorded.</p>
                     @endif
-                    <div class="rating-key">
-                        <strong>Key to Ratings:</strong><br>
-                        5 – Excellent Degree of Observable Trait<br>
-                        4 – Good Level of Observable Trait<br>
-                        3 – Fair But Acceptable Level of Observable Trait<br>
-                        2 – Poor Level of Observable Trait<br>
-                        1 – No Observable Trait
-                    </div>
+                 
                 </div>
             </div>
         </div>
@@ -384,21 +465,20 @@
         <div class="flex-row">
             <div class="flex-col">
                 <div class="section-title">Class Teacher Comment</div>
-                <p>{{ $aggregate['overall_comment'] ?? 'No comment provided.' }}</p>
+                <p>{{ $aggregate['class_teacher_comment'] ?? 'No comment provided.' }}</p>
                 @if(!empty($classTeacherName))
                     <p><strong>Class Teacher:</strong> {{ $classTeacherName }}</p>
                 @endif
             </div>
             <div class="flex-col">
                 <div class="section-title">Principal Comment</div>
-                <p>
-                    @if(!empty($aggregate['final_grade']))
-                        Final Grade: {{ $aggregate['final_grade'] }}.
-                    @endif
-                    @if(!empty($principalName))
-                        <br>Signed: {{ $principalName }}
-                    @endif
-                </p>
+                <p>{{ $aggregate['principal_comment'] ?? 'No comment provided.' }}</p>
+                @if(!empty($aggregate['final_grade']))
+                    <p><strong>Final Grade:</strong> {{ $aggregate['final_grade'] }}</p>
+                @endif
+                @if(!empty($principalName))
+                    <p><strong>Signed:</strong> {{ $principalName }}</p>
+                @endif
                 <!-- @if(!empty($principalSignatureUrl))
                     <div style="margin-top: 10px;">
                         <img src="{{ $principalSignatureUrl }}" alt="Principal signature" style="max-height:70px;width:auto;">
@@ -409,12 +489,14 @@
 
         <div class="flex-row signature-box">
             <div class="flex-col">
+                <div class="info-box">
                 <div class="section-title">Summary</div>
                 <p>Marks Obtainable: {{ $aggregate['total_possible'] !== null ? number_format($aggregate['total_possible'], 0) : '-' }}</p>
                 <p>Marks Obtained: {{ $aggregate['total_obtained'] !== null ? number_format($aggregate['total_obtained'], 0) : '-' }}</p>
                 <p>Average: {{ $aggregate['average'] !== null ? number_format($aggregate['average'], 2) : '-' }}</p>
                 <p>Class Average: {{ $aggregate['class_average'] !== null ? number_format($aggregate['class_average'], 2) : '-' }}</p>
                 <p>Position: {{ $aggregate['position'] !== null ? $aggregate['position'] . ' of ' . ($classSize ?: 'N/A') : '-' }}</p>
+            </div>
             </div>
             <!-- <div class="flex-col" style="text-align: right;">
                 <div class="section-title">School Logo</div>
