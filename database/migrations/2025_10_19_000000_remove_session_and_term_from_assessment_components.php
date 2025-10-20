@@ -10,12 +10,6 @@ return new class extends Migration
     {
         Schema::disableForeignKeyConstraints();
 
-        Schema::table('results', function (Blueprint $table) {
-            if ($this->hasForeignKey('results', 'results_assessment_component_id_foreign')) {
-                $table->dropForeign(['assessment_component_id']);
-            }
-        });
-
         // Drop Foreign Keys and Indexes if Columns exist
         Schema::table('assessment_components', function (Blueprint $table) {
             $tableName = Schema::getConnection()->getTablePrefix() . 'assessment_components';
@@ -23,15 +17,19 @@ return new class extends Migration
             // Check and drop foreign keys for session_id
             if (Schema::hasColumn('assessment_components', 'session_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'session_id') as $foreignName) {
-                    if ($this->hasForeignKey($tableName, $foreignName)) {
+                    try {
                         $table->dropForeign($foreignName);
+                    } catch (\Exception $e) {
+                        // ignore if constraint doesn't exist
                     }
                 }
                 
                 // Check and drop indexes for session_id
                 foreach ($this->indexesForColumn($tableName, 'session_id') as $indexName) {
-                    if ($this->hasIndex($tableName, $indexName)) {
+                    try {
                         $table->dropIndex($indexName);
+                    } catch (\Exception $e) {
+                        // ignore if index doesn't exist
                     }
                 }
             }
@@ -39,24 +37,19 @@ return new class extends Migration
             // Check and drop foreign keys for term_id
             if (Schema::hasColumn('assessment_components', 'term_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'term_id') as $foreignName) {
-                    if ($this->hasForeignKey($tableName, $foreignName)) {
+                    try {
                         $table->dropForeign($foreignName);
+                    } catch (\Exception $e) {
+                        // ignore if constraint doesn't exist
                     }
                 }
 
                 // Check and drop indexes for term_id
                 foreach ($this->indexesForColumn($tableName, 'term_id') as $indexName) {
-                    if ($this->hasIndex($tableName, $indexName)) {
+                    try {
                         $table->dropIndex($indexName);
-                    }
-                }
-            }
-            
-            // Check and drop foreign keys for subject_id
-            if (Schema::hasColumn('assessment_components', 'subject_id')) {
-                foreach ($this->foreignKeysForColumn($tableName, 'subject_id') as $foreignName) {
-                    if ($this->hasForeignKey($tableName, $foreignName)) {
-                        $table->dropForeign($foreignName);
+                    } catch (\Exception $e) {
+                        // ignore if index doesn't exist
                     }
                 }
             }
@@ -66,10 +59,6 @@ return new class extends Migration
         Schema::table('assessment_components', function (Blueprint $table) {
             if ($this->hasIndex('assessment_components', 'assessment_components_unique_per_context_no_subject')) {
                 $table->dropUnique('assessment_components_unique_per_context_no_subject');
-            }
-
-            if ($this->hasIndex('assessment_components', 'assessment_components_unique_per_context')) {
-                $table->dropUnique('assessment_components_unique_per_context');
             }
         });
 
@@ -145,22 +134,6 @@ return new class extends Migration
         );
 
         return ! empty($rows);
-    }
-
-    private function hasForeignKey(string $table, string $keyName): bool
-    {
-        $schema = Schema::getConnection()->getDatabaseName();
-
-        $result = Schema::getConnection()->selectOne('
-            SELECT 1
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE TABLE_SCHEMA = ?
-              AND TABLE_NAME = ?
-              AND CONSTRAINT_NAME = ?
-            LIMIT 1
-        ', [$schema, $table, $keyName]);
-
-        return $result !== null;
     }
 
     private function foreignKeysForColumn(string $table, string $column): array
