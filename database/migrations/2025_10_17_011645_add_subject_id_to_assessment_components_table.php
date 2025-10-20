@@ -41,7 +41,10 @@ return new class extends Migration
             }
 
             if (Schema::hasColumn('assessment_components', 'subject_id')) {
-                $table->dropForeign(['subject_id']);
+                $tableName = 'assessment_components';
+                foreach ($this->foreignKeysForColumn($tableName, 'subject_id') as $foreignKey) {
+                    $table->dropForeign($foreignKey);
+                }
                 $table->dropColumn('subject_id');
             }
         });
@@ -61,5 +64,24 @@ return new class extends Migration
         ', [$schema, $table, $index]);
 
         return $result !== null;
+    }
+
+    private function foreignKeysForColumn(string $table, string $column): array
+    {
+        $schema = Schema::getConnection()->getDatabaseName();
+        $rows = Schema::getConnection()->select(
+            "SELECT constraint_name
+             FROM information_schema.key_column_usage
+             WHERE table_schema = ?
+               AND table_name = ?
+               AND column_name = ?
+               AND referenced_table_name IS NOT NULL",
+            [$schema, $table, $column]
+        );
+
+        return collect($rows)
+            ->pluck('constraint_name')
+            ->map(fn ($name) => (string) $name)
+            ->all();
     }
 };
