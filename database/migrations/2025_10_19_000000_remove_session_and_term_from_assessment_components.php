@@ -10,8 +10,11 @@ return new class extends Migration
     {
         Schema::disableForeignKeyConstraints();
 
+        // Drop Foreign Keys and Indexes if Columns exist
         Schema::table('assessment_components', function (Blueprint $table) {
             $tableName = Schema::getConnection()->getTablePrefix() . 'assessment_components';
+            
+            // Check and drop foreign keys for session_id
             if (Schema::hasColumn('assessment_components', 'session_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'session_id') as $foreignName) {
                     try {
@@ -20,6 +23,8 @@ return new class extends Migration
                         // ignore if constraint doesn't exist
                     }
                 }
+                
+                // Check and drop indexes for session_id
                 foreach ($this->indexesForColumn($tableName, 'session_id') as $indexName) {
                     try {
                         $table->dropIndex($indexName);
@@ -29,6 +34,7 @@ return new class extends Migration
                 }
             }
 
+            // Check and drop foreign keys for term_id
             if (Schema::hasColumn('assessment_components', 'term_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'term_id') as $foreignName) {
                     try {
@@ -37,6 +43,8 @@ return new class extends Migration
                         // ignore if constraint doesn't exist
                     }
                 }
+
+                // Check and drop indexes for term_id
                 foreach ($this->indexesForColumn($tableName, 'term_id') as $indexName) {
                     try {
                         $table->dropIndex($indexName);
@@ -47,6 +55,7 @@ return new class extends Migration
             }
         });
 
+        // Drop unique indexes if they exist
         Schema::table('assessment_components', function (Blueprint $table) {
             if ($this->hasIndex('assessment_components', 'assessment_components_unique_per_context_no_subject')) {
                 $table->dropUnique('assessment_components_unique_per_context_no_subject');
@@ -57,6 +66,7 @@ return new class extends Migration
             }
         });
 
+        // Drop columns session_id and term_id if they exist
         Schema::table('assessment_components', function (Blueprint $table) {
             if (Schema::hasColumn('assessment_components', 'session_id')) {
                 $table->dropColumn('session_id');
@@ -74,6 +84,7 @@ return new class extends Migration
     {
         Schema::disableForeignKeyConstraints();
 
+        // Add columns session_id and term_id back
         Schema::table('assessment_components', function (Blueprint $table) {
             if (! Schema::hasColumn('assessment_components', 'session_id')) {
                 $table->uuid('session_id')->nullable()->after('school_id');
@@ -84,6 +95,7 @@ return new class extends Migration
             }
         });
 
+        // Add foreign keys for session_id and term_id
         Schema::table('assessment_components', function (Blueprint $table) {
             if (Schema::hasColumn('assessment_components', 'session_id')) {
                 $table->foreign('session_id')
@@ -100,6 +112,7 @@ return new class extends Migration
             }
         });
 
+        // Recreate unique indexes if they were dropped
         Schema::table('assessment_components', function (Blueprint $table) {
             if (! $this->hasIndex('assessment_components', 'assessment_components_unique_per_context_no_subject')) {
                 $table->unique(
