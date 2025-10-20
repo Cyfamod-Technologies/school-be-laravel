@@ -24,6 +24,9 @@ use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\AcademicAnalyticsController;
 use App\Http\Controllers\Api\V1\StaffAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
+use App\Http\Controllers\Api\V1\FeeItemController;
+use App\Http\Controllers\Api\V1\FeeStructureController;
+use App\Http\Controllers\Api\V1\BankDetailController;
 use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -173,6 +176,35 @@ Route::prefix('api/v1')->group(function () {
                 ->name('attendance.staff.export.csv');
             Route::get('staff/export.pdf', [StaffAttendanceController::class, 'exportPdf'])
                 ->name('attendance.staff.export.pdf');
+        });
+
+        // Fee Management Routes
+        Route::prefix('fees')->group(function () {
+            // Fee Items
+            Route::apiResource('items', FeeItemController::class)
+                ->parameters(['items' => 'feeItem'])
+                ->except(['create', 'edit']);
+            
+            // Fee Structures
+            Route::apiResource('structures', FeeStructureController::class)
+                ->parameters(['structures' => 'feeStructure'])
+                ->except(['create', 'edit']);
+            Route::post('structures/copy', [FeeStructureController::class, 'copy'])
+                ->name('fee-structures.copy');
+            Route::get('structures/total', [FeeStructureController::class, 'getTotal'])
+                ->name('fee-structures.total');
+            Route::get('structures/by-session-term', [FeeStructureController::class, 'getBySessionTerm'])
+                ->name('fee-structures.by-session-term');
+            
+            // Bank Details
+            Route::apiResource('bank-details', BankDetailController::class)
+                ->parameters(['bank-details' => 'bankDetail'])
+                ->except(['create', 'edit']);
+            Route::put('bank-details/{bankDetail}/set-default', [BankDetailController::class, 'setDefault'])
+                ->whereUuid('bankDetail')
+                ->name('bank-details.set-default');
+            Route::get('bank-details/default/get', [BankDetailController::class, 'getDefault'])
+                ->name('bank-details.get-default');
         });
 
         // Staff Routes

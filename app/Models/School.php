@@ -196,4 +196,19 @@ class School extends Model
 	{
 		return $this->hasMany(Term::class);
 	}
+
+	public function feeItems()
+	{
+		return $this->hasMany(FeeItem::class);
+	}
+
+	public function feeStructures()
+	{
+		return $this->hasMany(FeeStructure::class);
+	}
+
+	public function bankDetails()
+	{
+		return $this->hasMany(BankDetail::class);
+	}
 }
