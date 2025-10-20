@@ -14,19 +14,35 @@ return new class extends Migration
             $tableName = Schema::getConnection()->getTablePrefix() . 'assessment_components';
             if (Schema::hasColumn('assessment_components', 'session_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'session_id') as $foreignName) {
-                    $table->dropForeign($foreignName);
+                    try {
+                        $table->dropForeign($foreignName);
+                    } catch (\Exception $e) {
+                        // ignore if constraint doesn't exist
+                    }
                 }
                 foreach ($this->indexesForColumn($tableName, 'session_id') as $indexName) {
-                    $table->dropIndex($indexName);
+                    try {
+                        $table->dropIndex($indexName);
+                    } catch (\Exception $e) {
+                        // ignore if index doesn't exist
+                    }
                 }
             }
 
             if (Schema::hasColumn('assessment_components', 'term_id')) {
                 foreach ($this->foreignKeysForColumn($tableName, 'term_id') as $foreignName) {
-                    $table->dropForeign($foreignName);
+                    try {
+                        $table->dropForeign($foreignName);
+                    } catch (\Exception $e) {
+                        // ignore if constraint doesn't exist
+                    }
                 }
                 foreach ($this->indexesForColumn($tableName, 'term_id') as $indexName) {
-                    $table->dropIndex($indexName);
+                    try {
+                        $table->dropIndex($indexName);
+                    } catch (\Exception $e) {
+                        // ignore if index doesn't exist
+                    }
                 }
             }
         });
