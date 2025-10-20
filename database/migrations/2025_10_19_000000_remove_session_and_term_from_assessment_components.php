@@ -10,6 +10,12 @@ return new class extends Migration
     {
         Schema::disableForeignKeyConstraints();
 
+        Schema::table('results', function (Blueprint $table) {
+            if ($this->hasForeignKey('results', 'results_assessment_component_id_foreign')) {
+                $table->dropForeign(['assessment_component_id']);
+            }
+        });
+
         // Drop Foreign Keys and Indexes if Columns exist
         Schema::table('assessment_components', function (Blueprint $table) {
             $tableName = Schema::getConnection()->getTablePrefix() . 'assessment_components';
