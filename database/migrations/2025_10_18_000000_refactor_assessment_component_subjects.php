@@ -56,9 +56,7 @@ return new class extends Migration
 
         // Drop the dependent foreign key from the 'results' table first.
         Schema::table('results', function (Blueprint $table) {
-            if ($this->hasForeignKey('results', 'results_assessment_component_id_foreign')) {
-                $table->dropForeign(['assessment_component_id']);
-            }
+            $table->dropForeign(['assessment_component_id']);
         });
         
         $this->dropAssessmentComponentSubjectForeignKey();
@@ -70,9 +68,26 @@ return new class extends Migration
         });
 
         if ($hasSubjectColumn) {
-            Schema::table('assessment_components', function (Blueprint $table) {
-                $table->dropColumn('subject_id');
-            });
+            if (DB::getDriverName() === 'sqlite') {
+                Schema::create('assessment_components_new', function (Blueprint $table) {
+                    $table->uuid('id')->primary();
+                    $table->uuid('school_id');
+                    $table->uuid('session_id');
+                    $table->uuid('term_id');
+                    $table->string('name');
+                    $table->decimal('weight', 5, 2);
+                    $table->integer('order');
+                    $table->string('label')->nullable();
+                    $table->timestamps();
+                });
+                DB::statement('INSERT INTO assessment_components_new SELECT id, school_id, session_id, term_id, name, weight, "order", label, created_at, updated_at FROM assessment_components');
+                Schema::drop('assessment_components');
+                Schema::rename('assessment_components_new', 'assessment_components');
+            } else {
+                Schema::table('assessment_components', function (Blueprint $table) {
+                    $table->dropColumn('subject_id');
+                });
+            }
         }
 
         Schema::table('assessment_components', function (Blueprint $table) {
@@ -131,6 +146,16 @@ return new class extends Migration
 
     private function hasForeignKey(string $table, string $foreignKey): bool
     {
+        if (DB::getDriverName() === 'sqlite') {
+            $keys = DB::select("PRAGMA foreign_key_list({$table})");
+            foreach ($keys as $key) {
+                if ($key->id === $foreignKey) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         $schema = Schema::getConnection()->getDatabaseName();
         $result = Schema::getConnection()->selectOne("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1", [$schema, $table, $foreignKey]);
         return $result !== null;
@@ -138,6 +163,16 @@ return new class extends Migration
 
     private function hasIndex(string $table, string $index): bool
     {
+        if (DB::getDriverName() === 'sqlite') {
+            $indexes = DB::select("PRAGMA index_list({$table})");
+            foreach ($indexes as $indexInfo) {
+                if ($indexInfo->name === $index) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         $schema = Schema::getConnection()->getDatabaseName();
         $result = Schema::getConnection()->selectOne("SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ? LIMIT 1", [$schema, $table, $index]);
         return $result !== null;
@@ -145,8 +180,6 @@ return new class extends Migration
 
     private function tableHasColumn(string $table, string $column): bool
     {
-        $schema = Schema::getConnection()->getDatabaseName();
-        $result = Schema::getConnection()->selectOne("SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1", [$schema, $table, $column]);
-        return $result !== null;
+        return Schema::hasColumn($table, $column);
     }
 };
