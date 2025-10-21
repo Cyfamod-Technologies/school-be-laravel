@@ -9,6 +9,8 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
+
         if (! Schema::hasTable('assessment_component_subject')) {
             Schema::create('assessment_component_subject', function (Blueprint $table) {
                 $table->uuid('assessment_component_id');
@@ -116,10 +118,14 @@ return new class extends Migration
                 'name',
             ], 'assessment_components_unique_per_context_no_subject');
         });
+
+        Schema::enableForeignKeyConstraints();
     }
 
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
+
         if ($this->hasIndex('assessment_components', 'assessment_components_unique_per_context_no_subject')) {
             Schema::table('assessment_components', function (Blueprint $table) {
                 $table->dropUnique('assessment_components_unique_per_context_no_subject');
@@ -154,6 +160,8 @@ return new class extends Migration
         });
 
         Schema::dropIfExists('assessment_component_subject');
+
+        Schema::enableForeignKeyConstraints();
     }
 
     private function dropAssessmentComponentSubjectForeignKey(): void
