@@ -249,7 +249,13 @@ class StudentSkillRatingController extends Controller
     private function isTermClosed(Term $term): bool
     {
         $status = strtolower((string) $term->status);
-        if (in_array($status, ['closed', 'archived'], true)) {
+        $lockedStatuses = collect(config('school.skill_rating_lock_statuses', ['archived']))
+            ->map(fn ($value) => strtolower((string) $value))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (in_array($status, $lockedStatuses, true)) {
             return true;
         }
 
@@ -257,9 +263,11 @@ class StudentSkillRatingController extends Controller
             return false;
         }
 
-        $graceDays = (int) config('school.skill_rating_grace_days', 14);
+        $graceDaysConfig = config('school.skill_rating_grace_days', -1);
+        $graceDays = is_numeric($graceDaysConfig) ? (int) $graceDaysConfig : -1;
+
         if ($graceDays < 0) {
-            $graceDays = 0;
+            return false;
         }
 
         $cutoff = $term->end_date->copy()->addDays($graceDays)->endOfDay();
