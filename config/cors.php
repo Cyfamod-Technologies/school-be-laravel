@@ -7,7 +7,7 @@ $defaultOrigins = [
     'http://localhost:5500',
     'http://127.0.0.1:3000',
     'http://localhost:3000',
-    'https://api.lynxglobal.com.ng',
+    'https://lynxglobal.com.ng',
 ];
 
 $configuredOrigins = array_filter(array_map(
