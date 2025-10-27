@@ -15,6 +15,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use App\Services\Rbac\RbacService;
 
 /**
  * @OA\Info(
@@ -79,7 +80,7 @@ class SchoolController extends Controller
      *      )
      * )
      */
-    public function register(Request $request)
+    public function register(Request $request, RbacService $rbacService)
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
@@ -108,6 +109,9 @@ class SchoolController extends Controller
             'school_id' => $school->id,
             'status' => 'active',
         ]);
+
+        $rbacService->bootstrapForSchool($school, $user);
+        $user->load('roles');
 
         $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
 
@@ -164,7 +168,24 @@ class SchoolController extends Controller
             ]);
         }
 
-        if ($user->role !== 'staff' && $user->role !== 'admin') {
+        if (in_array($user->role, ['admin', 'super_admin'], true) && $user->school) {
+            /** @var \App\Services\Rbac\RbacService $rbac */
+            $rbac = app(RbacService::class);
+            $rbac->bootstrapForSchool($user->school, $user);
+        }
+
+        $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+        $previousTeamId = method_exists($registrar, 'getPermissionsTeamId')
+            ? $registrar->getPermissionsTeamId()
+            : null;
+
+        $registrar->setPermissionsTeamId($user->school_id);
+
+        $hasAllowedRole = $user->hasAnyRole(['admin', 'staff', 'super_admin']);
+
+        $registrar->setPermissionsTeamId($previousTeamId);
+
+        if (! $hasAllowedRole) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -172,7 +193,7 @@ class SchoolController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => $user,
+            'user' => $user->load('roles'),
         ]);
     }
 

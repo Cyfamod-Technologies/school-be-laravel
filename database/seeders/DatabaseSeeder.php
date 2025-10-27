@@ -2,8 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\User;
+use App\Services\Rbac\RbacService;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,16 +26,48 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->forgetCachedPermissions();
+        $registrar->setPermissionsTeamId($school->id);
+
+        $user = User::updateOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
                 'password' => bcrypt('password'),
-                'role' => 'super_admin',
                 'status' => 'active',
                 'school_id' => $school->id,
             ]
         );
+
+        /** @var RbacService $rbac */
+        $rbac = app(RbacService::class);
+        $rbac->bootstrapForSchool($school, $user);
+
+        $adminRole = Role::query()->where('name', 'admin')->where('school_id', $school->id)->first();
+
+        $superAdminRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'super_admin',
+                'school_id' => $school->id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'Platform super administrator',
+            ]
+        );
+
+        if ($adminRole) {
+            $superAdminRole->syncPermissions($adminRole->permissions);
+        }
+
+        if (! $user->hasRole($superAdminRole)) {
+            $user->assignRole($superAdminRole);
+        }
+
+        $user->forceFill(['role' => 'super_admin'])->save();
+
+        $registrar->setPermissionsTeamId(null);
 
         $this->call([
             BloodGroupSeeder::class,

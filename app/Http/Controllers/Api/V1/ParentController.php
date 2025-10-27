@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\SchoolParent;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -129,6 +130,21 @@ class ParentController extends Controller
             'state_of_origin' => $request->state_of_origin,
             'local_government_area' => $request->local_government_area,
         ]);
+
+        $parentRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'parent',
+                'school_id' => $request->user()->school_id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'Parent or guardian',
+            ]
+        );
+
+        if (! $user->hasRole($parentRole)) {
+            $user->assignRole($parentRole);
+        }
 
         $parent = $request->user()->school->parents()->create(array_merge($request->all(), ['id' => str()->uuid(), 'user_id' => $user->id]));
 

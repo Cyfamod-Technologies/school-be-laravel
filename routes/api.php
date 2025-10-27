@@ -27,6 +27,10 @@ use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\BankDetailController;
+use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\UserRoleController;
+use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -48,6 +52,46 @@ Route::prefix('api/v1')->group(function () {
         Route::put('/school', [SchoolController::class, 'updateSchoolProfile']);
         Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);            
         Route::put('/user', [SchoolController::class, 'updateSchoolAdminProfile']);
+
+        // RBAC - Permissions
+        Route::get('permissions', [PermissionController::class, 'index'])
+            ->name('permissions.index');
+        Route::post('permissions', [PermissionController::class, 'store'])
+            ->name('permissions.store');
+        Route::get('permissions/{permission}', [PermissionController::class, 'show'])
+            ->whereNumber('permission')
+            ->name('permissions.show');
+        Route::put('permissions/{permission}', [PermissionController::class, 'update'])
+            ->whereNumber('permission')
+            ->name('permissions.update');
+        Route::delete('permissions/{permission}', [PermissionController::class, 'destroy'])
+            ->whereNumber('permission')
+            ->name('permissions.destroy');
+
+        // RBAC - Roles
+        Route::get('roles', [RoleController::class, 'index'])
+            ->name('roles.index');
+        Route::post('roles', [RoleController::class, 'store'])
+            ->name('roles.store');
+        Route::get('roles/{role}', [RoleController::class, 'show'])
+            ->whereNumber('role')
+            ->name('roles.show');
+        Route::put('roles/{role}', [RoleController::class, 'update'])
+            ->whereNumber('role')
+            ->name('roles.update');
+        Route::delete('roles/{role}', [RoleController::class, 'destroy'])
+            ->whereNumber('role')
+            ->name('roles.destroy');
+
+        // RBAC - User Roles
+        Route::get('users', [UserController::class, 'index'])
+            ->name('users.index');
+        Route::get('users/{user}/roles', [UserRoleController::class, 'index'])
+            ->whereUuid('user')
+            ->name('users.roles.index');
+        Route::put('users/{user}/roles', [UserRoleController::class, 'update'])
+            ->whereUuid('user')
+            ->name('users.roles.update');
 
         // Academic Session Routes
         Route::apiResource('sessions', AcademicSessionController::class);

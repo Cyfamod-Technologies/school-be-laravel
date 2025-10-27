@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Staff;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -24,7 +25,9 @@ class StaffController extends Controller
             $sortBy = 'full_name';
         }
 
-        $query = Staff::with('user')
+        $query = Staff::with(['user.roles' => function ($query) {
+                $query->where('guard_name', config('permission.default_guard', 'sanctum'));
+            }])
             ->where('school_id', $request->user()->school_id)
             ->when($request->filled('role'), function ($q) use ($request) {
                 $q->where('role', $request->input('role'));
@@ -77,6 +80,21 @@ class StaffController extends Controller
             'phone' => $validated['phone'],
         ]);
 
+        $staffRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'staff',
+                'school_id' => $school->id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'School staff',
+            ]
+        );
+
+        if (! $user->hasRole($staffRole)) {
+            $user->assignRole($staffRole);
+        }
+
         $photoUrl = null;
         if ($request->hasFile('photo')) {
             $path = $request->file('photo')->store('staff-photos', 'public');
@@ -99,7 +117,9 @@ class StaffController extends Controller
         ]);
 
         return response()->json([
-            'data' => $staff->load('user'),
+            'data' => $staff->load(['user.roles' => function ($query) {
+                $query->where('guard_name', config('permission.default_guard', 'sanctum'));
+            }]),
             'temporary_password' => $temporaryPassword,
         ], 201);
     }
@@ -109,7 +129,9 @@ class StaffController extends Controller
         $this->authorizeStaffAccess($request, $staff);
 
         return response()->json([
-            'data' => $staff->load('user'),
+            'data' => $staff->load(['user.roles' => function ($query) {
+                $query->where('guard_name', config('permission.default_guard', 'sanctum'));
+            }]),
         ]);
     }
 
@@ -198,7 +220,7 @@ class StaffController extends Controller
         }
 
         return response()->json([
-            'data' => $staff->fresh()->load('user'),
+            'data' => $staff->fresh()->load('user.roles'),
         ]);
     }
 

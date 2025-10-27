@@ -12,6 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Str;
+use Spatie\Permission\Traits\HasRoles;
 
 
 /**
@@ -44,6 +45,14 @@ class User extends Authenticatable
 {
 	use HasFactory;
 	use HasApiTokens;
+	use HasRoles;
+
+	/**
+	 * Guard name used by spatie/laravel-permission.
+	 *
+	 * @var string
+	 */
+	protected $guard_name = 'sanctum';
 	protected $table = 'users';
 	public $incrementing = false;
 	protected $keyType = 'string';
@@ -121,5 +130,16 @@ class User extends Authenticatable
 				$model->id = (string) Str::uuid();
 			}
 		});
+	}
+
+	public function getRoleAttribute($value)
+	{
+		if ($value !== null) {
+			return $value;
+		}
+
+		return $this->roles
+			->firstWhere('guard_name', config('permission.default_guard', 'sanctum'))
+			?->name ?? null;
 	}
 }

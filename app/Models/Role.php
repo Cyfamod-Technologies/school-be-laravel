@@ -1,42 +1,43 @@
 <?php
 
-/**
- * Created by Reliese Model.
- */
-
 namespace App\Models;
 
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Spatie\Permission\Models\Role as SpatieRole;
 
-/**
- * Class Role
- *
- * @property string $id
- * @property string $name
- * @property string|null $description
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- *
- * @property Collection|Permission[] $permissions
- *
- * @package App\Models
- */
-class Role extends Model
+class Role extends SpatieRole
 {
-	protected $table = 'roles';
-	public $incrementing = false;
+    use HasFactory;
 
-	protected $keyType = 'string';
+    protected $fillable = [
+        'name',
+        'guard_name',
+        'description',
+        'school_id',
+    ];
 
-	protected $fillable = [
-		'name',
-		'description'
-	];
+    protected $casts = [
+        'id' => 'int',
+    ];
 
-	public function permissions()
-	{
-		return $this->belongsToMany(Permission::class, 'role_has_permissions');
-	}
+    protected static function booted(): void
+    {
+        static::creating(static function (self $role): void {
+            if (! $role->guard_name) {
+                $role->guard_name = config('permission.default_guard', 'sanctum');
+            }
+        });
+    }
+
+    public function scopeForSchool(Builder $query, ?string $schoolId): Builder
+    {
+        if ($schoolId === null) {
+            return $query->whereNull('school_id')
+                ->where('guard_name', config('permission.default_guard', 'sanctum'));
+        }
+
+        return $query->where('school_id', $schoolId)
+            ->where('guard_name', config('permission.default_guard', 'sanctum'));
+    }
 }

@@ -10,6 +10,7 @@ use App\Models\SchoolParent;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\User;
+use App\Models\Role;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\UploadedFile;
@@ -789,7 +790,7 @@ class StudentBulkUploadService
                             'column' => $columns['parent.email']['header'],
                             'message' => 'Email already exists in another school.',
                         ];
-                    } elseif ($existingUser->role !== 'parent') {
+                    } elseif (! $existingUser->hasRole('parent') && $existingUser->role !== 'parent') {
                         $errors[] = [
                             'row' => $rowNumber,
                             'column' => $columns['parent.email']['header'],
@@ -943,6 +944,21 @@ class StudentBulkUploadService
         $user->state_of_origin = $parentData['state_of_origin'];
         $user->local_government_area = $parentData['local_government_area'];
         $user->save();
+
+        $parentRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'parent',
+                'school_id' => $school->id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'Parent or guardian',
+            ]
+        );
+
+        if (! $user->hasRole($parentRole)) {
+            $user->assignRole($parentRole);
+        }
 
         $parent = SchoolParent::create([
             'id' => (string) Str::uuid(),

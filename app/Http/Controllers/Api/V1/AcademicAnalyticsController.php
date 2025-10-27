@@ -21,7 +21,7 @@ class AcademicAnalyticsController extends Controller
     {
         $user = $request->user();
 
-        if (! $user || $user->role !== 'admin') {
+        if (! $user || ! $user->hasAnyRole(['admin', 'super_admin'])) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
