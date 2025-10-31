@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('students', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('school_id');
-            $table->string('admission_no');
+            $table->string('admission_no')->unique('students_admission_no_unique');
             $table->string('first_name');
             $table->string('middle_name')->nullable();
             $table->string('last_name');
@@ -40,7 +40,6 @@ return new class extends Migration
             $table->enum('status', ['active', 'inactive', 'graduated', 'withdrawn'])->default('active');
             $table->timestamps();
 
-            $table->unique(['school_id', 'admission_no'], 'students_school_id_admission_no_unique');
             $table->foreign('school_id')->references('id')->on('schools')->onDelete('cascade');
             $table->foreign('current_session_id')->references('id')->on('sessions')->onDelete('restrict');
             $table->foreign('current_term_id')->references('id')->on('terms')->onDelete('restrict');

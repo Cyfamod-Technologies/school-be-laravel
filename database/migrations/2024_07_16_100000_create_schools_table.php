@@ -16,6 +16,8 @@ return new class extends Migration
         Schema::create('schools', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->string('acronym', 20)->nullable();
+            $table->unsignedInteger('code_sequence')->nullable()->unique('schools_code_sequence_unique');
             $table->string('slug')->unique();
             $table->string('subdomain')->unique();
             $table->text('address');

@@ -7,6 +7,7 @@ use App\Models\BulkUploadBatch;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
+use App\Models\Session;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\User;
@@ -140,7 +141,6 @@ class StudentBulkUploadService
         $preparedRows = [];
         $errors = [];
 
-        $inFileAdmissionNumbers = [];
         $inFileComposite = [];
 
         while (($row = fgetcsv($handle)) !== false) {
@@ -159,7 +159,6 @@ class StudentBulkUploadService
                 $terms,
                 $classes,
                 $school,
-                $inFileAdmissionNumbers,
                 $inFileComposite
             );
 
@@ -212,7 +211,7 @@ class StudentBulkUploadService
                 return [
                     'name' => trim("{$row['student']['first_name']} {$row['student']['last_name']}"),
                     'gender' => $row['student']['gender'],
-                    'admission_no' => $row['student']['admission_no'],
+                    'admission_no' => $row['student']['admission_no'] ?: 'Auto-generated',
                     'session' => optional($sessions->firstWhere('id', $row['student']['current_session_id']))->name,
                     'term' => optional($terms->firstWhere('id', $row['student']['current_term_id']))->name,
                     'class' => $class?->name,
@@ -272,6 +271,8 @@ class StudentBulkUploadService
                 $studentData['school_id'] = $school->id;
                 $studentData['parent_id'] = $parent->id;
                 $studentData['status'] = strtolower($studentData['status']);
+                $session = Session::findOrFail($studentData['current_session_id']);
+                $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
 
                 $student = Student::create($studentData);
                 $createdStudents++;
@@ -311,9 +312,9 @@ class StudentBulkUploadService
         $baseColumns = collect([
             [
                 'key' => 'student.admission_no',
-                'header' => 'Admission Number',
-                'required' => true,
-                'example' => '2025/001',
+                'header' => 'Admission Number (Auto-generated)',
+                'required' => false,
+                'example' => 'NC001-2024/2025/1',
             ],
             [
                 'key' => 'student.first_name',
@@ -595,7 +596,6 @@ class StudentBulkUploadService
      * @param  EloquentCollection<int, \App\Models\Session>  $sessions
      * @param  EloquentCollection<int, \App\Models\Term>  $terms
      * @param  Collection<int, SchoolClass>  $classes
-     * @param  array<int, string>  $inFileAdmissionNumbers
      * @param  array<int, string>  $inFileComposite
      *
      * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}
@@ -608,7 +608,6 @@ class StudentBulkUploadService
         EloquentCollection $terms,
         Collection $classes,
         School $school,
-        array &$inFileAdmissionNumbers,
         array &$inFileComposite
     ): array {
         $errors = [];
@@ -628,7 +627,15 @@ class StudentBulkUploadService
             return $value;
         };
 
-        $studentData['admission_no'] = $getValue('student.admission_no', true);
+        $rawAdmissionNo = trim((string) ($getValue('student.admission_no') ?? ''));
+        if ($rawAdmissionNo !== '') {
+            $errors[] = [
+                'row' => $rowNumber,
+                'column' => $columns['student.admission_no']['header'],
+                'message' => 'Admission numbers are generated automatically. Leave this column blank.',
+            ];
+        }
+        $studentData['admission_no'] = null;
         $studentData['first_name'] = $getValue('student.first_name', true);
         $studentData['middle_name'] = $getValue('student.middle_name');
         $studentData['last_name'] = $getValue('student.last_name', true);
@@ -799,31 +806,6 @@ class StudentBulkUploadService
                         ];
                     }
                 }
-            }
-        }
-
-        if ($studentData['admission_no']) {
-            if (in_array(strtolower($studentData['admission_no']), $inFileAdmissionNumbers, true)) {
-                $errors[] = [
-                    'row' => $rowNumber,
-                    'column' => $columns['student.admission_no']['header'],
-                    'message' => 'Duplicate admission number found in the uploaded file.',
-                ];
-            } else {
-                $inFileAdmissionNumbers[] = strtolower($studentData['admission_no']);
-            }
-
-            $existingStudent = Student::query()
-                ->where('school_id', $school->id)
-                ->where('admission_no', $studentData['admission_no'])
-                ->exists();
-
-            if ($existingStudent) {
-                $errors[] = [
-                    'row' => $rowNumber,
-                    'column' => $columns['student.admission_no']['header'],
-                    'message' => 'A student with this admission number already exists.',
-                ];
             }
         }
 

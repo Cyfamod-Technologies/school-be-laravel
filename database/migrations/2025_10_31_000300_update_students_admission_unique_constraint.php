@@ -9,32 +9,32 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $shouldDropOldUnique = $this->indexExists('students', 'students_admission_no_unique');
-        $shouldCreateNewUnique = ! $this->indexExists('students', 'students_school_id_admission_no_unique');
+        $hasComposite = $this->indexExists('students', 'students_school_id_admission_no_unique');
+        $hasGlobal = $this->indexExists('students', 'students_admission_no_unique');
 
-        Schema::table('students', function (Blueprint $table) use ($shouldDropOldUnique, $shouldCreateNewUnique) {
-            if ($shouldDropOldUnique) {
-                $table->dropUnique('students_admission_no_unique');
+        Schema::table('students', function (Blueprint $table) use ($hasComposite, $hasGlobal) {
+            if ($hasComposite) {
+                $table->dropUnique('students_school_id_admission_no_unique');
             }
 
-            if ($shouldCreateNewUnique) {
-                $table->unique(['school_id', 'admission_no'], 'students_school_id_admission_no_unique');
+            if (! $hasGlobal) {
+                $table->unique('admission_no', 'students_admission_no_unique');
             }
         });
     }
 
     public function down(): void
     {
-        $shouldDropComposite = $this->indexExists('students', 'students_school_id_admission_no_unique');
-        $shouldRestoreLegacy = ! $this->indexExists('students', 'students_admission_no_unique');
+        $hasGlobal = $this->indexExists('students', 'students_admission_no_unique');
+        $hasComposite = $this->indexExists('students', 'students_school_id_admission_no_unique');
 
-        Schema::table('students', function (Blueprint $table) use ($shouldDropComposite, $shouldRestoreLegacy) {
-            if ($shouldDropComposite) {
-                $table->dropUnique('students_school_id_admission_no_unique');
+        Schema::table('students', function (Blueprint $table) use ($hasGlobal, $hasComposite) {
+            if ($hasGlobal) {
+                $table->dropUnique('students_admission_no_unique');
             }
 
-            if ($shouldRestoreLegacy) {
-                $table->unique('admission_no', 'students_admission_no_unique');
+            if (! $hasComposite) {
+                $table->unique(['school_id', 'admission_no'], 'students_school_id_admission_no_unique');
             }
         });
     }

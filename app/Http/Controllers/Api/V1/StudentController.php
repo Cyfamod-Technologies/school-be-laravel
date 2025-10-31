@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -139,7 +140,7 @@ class StudentController extends Controller
      *          required=true,
      *          @OA\JsonContent(
      *              type="object",
-     *              @OA\Property(property="admission_no", type="string", example="2023/123"),
+     *              @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
      *              @OA\Property(property="last_name", type="string", example="Doe"),
@@ -216,12 +217,10 @@ class StudentController extends Controller
         ]);
 
         $session = \App\Models\Session::findOrFail($validated['current_session_id']);
-        $studentCountForSession = $school->students()->where('current_session_id', $session->id)->count();
 
         $studentData = $validated;
         $studentData['id'] = (string) Str::uuid();
         $studentData['school_id'] = $school->id;
-        $studentData['admission_no'] = $session->name . '/' . ($studentCountForSession + 1);
         $studentData['status'] = strtolower($studentData['status']);
 
         if (array_key_exists('class_section_id', $studentData) && ! $studentData['class_section_id']) {
@@ -235,7 +234,12 @@ class StudentController extends Controller
             $studentData['photo_url'] = null;
         }
 
-        $student = Student::create($studentData);
+        $student = DB::transaction(function () use ($studentData, $school, $session) {
+            $payload = $studentData;
+            $payload['admission_no'] = Student::generateAdmissionNumber($school, $session);
+
+            return Student::create($payload);
+        });
 
         return response()->json([
             'data' => $student->load($this->studentRelations()),
@@ -317,7 +321,7 @@ class StudentController extends Controller
      *          required=true,
      *          @OA\JsonContent(
      *              type="object",
-     *              @OA\Property(property="admission_no", type="string", example="2023/123"),
+     *              @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
      *              @OA\Property(property="last_name", type="string", example="Doe"),
@@ -372,8 +376,7 @@ class StudentController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('students', 'admission_no')
-                    ->ignore($student->id)
-                    ->where(fn ($query) => $query->where('school_id', $student->school_id)),
+                    ->ignore($student->id),
             ],
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',

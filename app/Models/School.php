@@ -64,12 +64,15 @@ class School extends Model
 	protected $keyType = 'string';
 
 	protected $casts = [
-		'established_at' => 'datetime'
+		'established_at' => 'datetime',
+		'code_sequence' => 'integer',
 	];
 
 	protected $fillable = [
 		'id',
 		'name',
+		'acronym',
+		'code_sequence',
 		'slug',
 		'subdomain',
 		'address',
@@ -155,6 +158,47 @@ class School extends Model
 		}
 
 		return $appUrl . Storage::url($value);
+	}
+
+	public function getFormattedCodeSequenceAttribute(): string
+	{
+		$sequence = (int) ($this->code_sequence ?? 0);
+
+		if ($sequence <= 0) {
+			return '000';
+		}
+
+		return str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
+	}
+
+	public function getResolvedAcronymAttribute(): string
+	{
+		$acronym = trim((string) ($this->acronym ?? ''));
+
+		if ($acronym !== '') {
+			return Str::upper(Str::limit($acronym, 5, ''));
+		}
+
+		$words = collect(preg_split('/\s+/', (string) $this->name, -1, PREG_SPLIT_NO_EMPTY));
+
+		$derived = $words
+			->map(fn ($word) => mb_substr($word, 0, 1))
+			->implode('');
+
+		$derived = Str::upper(Str::of($derived)->replaceMatches('/[^A-Z]/', ''));
+
+		if ($derived === '') {
+			$derived = Str::upper(mb_substr((string) $this->name, 0, 3));
+		}
+
+		return Str::limit($derived ?: 'SCH', 5, '');
+	}
+
+	public function setAcronymAttribute(?string $value): void
+	{
+		$this->attributes['acronym'] = $value !== null && $value !== ''
+			? Str::upper(Str::limit(trim($value), 5, ''))
+			: null;
 	}
 
 	public function currentSession()

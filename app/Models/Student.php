@@ -9,10 +9,11 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\BloodGroup;
+use RuntimeException;
 
 /**
  * Class Student
@@ -181,7 +182,7 @@ class Student extends Model
 		}
 
 		return $appUrl . Storage::url($value);
-	}
+    }
 
     protected function normalizeNullableUuid($value): ?string
     {
@@ -201,6 +202,56 @@ class Student extends Model
 
         return $trimmed;
     }
+
+	public static function generateAdmissionNumber(School $school, Session $session): string
+	{
+		DB::table('schools')
+			->where('id', $school->id)
+			->lockForUpdate()
+			->value('id');
+
+		$school = $school->fresh();
+		$session = $session->fresh();
+
+		$sessionName = trim((string) ($session->name ?? ''));
+
+		if ($sessionName === '') {
+			throw new RuntimeException('Cannot generate admission number without a session name.');
+		}
+
+		$acronym = $school->resolved_acronym;
+		$code = $school->formatted_code_sequence;
+
+		if ($code === '000') {
+			$sequenceValue = (int) ($school->code_sequence ?? 0);
+			$code = str_pad((string) ($sequenceValue > 0 ? $sequenceValue : 1), 3, '0', STR_PAD_LEFT);
+		}
+
+		$prefix = "{$acronym}{$code}-{$sessionName}";
+
+		$maxSequence = (int) DB::table('students')
+			->where('school_id', $school->id)
+			->where('current_session_id', $session->id)
+			->where('admission_no', 'like', $prefix . '/%')
+			->lockForUpdate()
+			->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
+			->value('max_sequence');
+
+		$nextSequence = $maxSequence > 0 ? $maxSequence + 1 : 1;
+
+		$candidate = "{$prefix}/{$nextSequence}";
+
+		while (
+			DB::table('students')
+				->where('admission_no', $candidate)
+				->exists()
+		) {
+			$nextSequence++;
+			$candidate = "{$prefix}/{$nextSequence}";
+		}
+
+		return $candidate;
+	}
 
     protected function sanitizeUuidForeignKeys(): void
     {

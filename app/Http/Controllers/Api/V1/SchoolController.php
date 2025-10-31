@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Services\Rbac\RbacService;
 
@@ -90,28 +91,38 @@ class SchoolController extends Controller
             'subdomain' => 'required|string|max:255|unique:schools',
         ]);
 
-        $school = School::create([
-            'id' => Str::uuid(),
-            'name' => $validatedData['name'],
-            'slug' => Str::slug($validatedData['name']),
-            'subdomain' => $validatedData['subdomain'],
-            'address' => $validatedData['address'],
-            'email' => $validatedData['email'],
-            'phone' => '1234567890', // Add a dummy phone number
-        ]);
+        [$school, $user] = DB::transaction(function () use ($validatedData, $rbacService) {
+            $acronym = $this->generateSchoolAcronym($validatedData['name']);
+            $nextCode = (int) School::query()->lockForUpdate()->max('code_sequence');
+            $nextCode = $nextCode > 0 ? $nextCode + 1 : 1;
 
-        $user = User::create([
-            'id' => Str::uuid(),
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'password' => Hash::make($validatedData['password']),
-            'role' => 'admin',
-            'school_id' => $school->id,
-            'status' => 'active',
-        ]);
+            $school = School::create([
+                'id' => Str::uuid(),
+                'name' => $validatedData['name'],
+                'acronym' => $acronym,
+                'code_sequence' => $nextCode,
+                'slug' => Str::slug($validatedData['name']),
+                'subdomain' => $validatedData['subdomain'],
+                'address' => $validatedData['address'],
+                'email' => $validatedData['email'],
+                'phone' => '1234567890', // Add a dummy phone number
+            ]);
 
-        $rbacService->bootstrapForSchool($school, $user);
-        $user->load('roles');
+            $user = User::create([
+                'id' => Str::uuid(),
+                'name' => $validatedData['name'],
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'role' => 'admin',
+                'school_id' => $school->id,
+                'status' => 'active',
+            ]);
+
+            $rbacService->bootstrapForSchool($school, $user);
+            $user->load('roles');
+
+            return [$school, $user];
+        });
 
         $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
 
@@ -489,5 +500,22 @@ class SchoolController extends Controller
         } elseif (! str_contains($url, '://')) {
             Storage::disk('public')->delete(ltrim($url, '/'));
         }
+    }
+
+    private function generateSchoolAcronym(string $name): string
+    {
+        $words = collect(preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY));
+
+        $acronym = $words
+            ->map(fn (string $word) => mb_substr($word, 0, 1))
+            ->implode('');
+
+        $acronym = Str::upper(Str::of($acronym)->replaceMatches('/[^A-Z]/', ''));
+
+        if ($acronym === '') {
+            $acronym = Str::upper(mb_substr($name, 0, 3));
+        }
+
+        return Str::limit($acronym ?: 'SCH', 5, '');
     }
 }
