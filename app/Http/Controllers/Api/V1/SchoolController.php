@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
+use App\Models\Student;
+use App\Models\SchoolParent;
+use App\Models\Staff;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -465,9 +468,37 @@ class SchoolController extends Controller
                 ? $user->parents->sum('students_count')
                 : 0;
 
+            $schoolId = optional($user->school)->id ?? $user->school_id;
+
+            $studentCount = $schoolId
+                ? Student::query()->where('school_id', $schoolId)->count()
+                : 0;
+
+            $parentCount = $schoolId
+                ? SchoolParent::query()->where('school_id', $schoolId)->count()
+                : 0;
+
+            $teacherCount = 0;
+            if ($schoolId) {
+                $teacherQuery = Staff::query()->where('school_id', $schoolId);
+                $teacherCount = (clone $teacherQuery)
+                    ->where(function ($query) {
+                        $query->whereNull('role')
+                            ->orWhereRaw('LOWER(role) LIKE ?', ['%teacher%']);
+                    })
+                    ->count();
+
+                if ($teacherCount === 0) {
+                    $teacherCount = $teacherQuery->count();
+                }
+            }
+
             return response()->json([
                 'user' => $user,
                 'linked_students_count' => $linkedStudentsCount,
+                'student_count' => $studentCount,
+                'parent_count' => $parentCount,
+                'teacher_count' => $teacherCount,
             ]);
         }
 
