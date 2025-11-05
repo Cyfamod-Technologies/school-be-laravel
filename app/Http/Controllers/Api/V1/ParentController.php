@@ -47,7 +47,19 @@ class ParentController extends Controller
      */
     public function index(Request $request)
     {
-        $parents = $request->user()->school->parents()->withCount('students')
+        $parents = $request->user()->school->parents()
+            ->select([
+                'parents.id',
+                'parents.user_id',
+                'parents.first_name',
+                'parents.last_name',
+                'parents.phone',
+            ])
+            ->selectRaw('(
+                SELECT COUNT(*)
+                FROM students
+                WHERE students.parent_id = parents.id
+            ) as students_count')
             ->when($request->has('search'), function ($query) use ($request) {
                 $query->where('first_name', 'like', '%' . $request->search . '%')
                     ->orWhere('last_name', 'like', '%' . $request->search . '%')
@@ -61,9 +73,19 @@ class ParentController extends Controller
     public function all(Request $request)
     {
         $parents = $request->user()->school->parents()
-            ->withCount('students')
             ->with(['user:id,email,school_id'])
-            ->select('id', 'user_id', 'first_name', 'last_name', 'phone')
+            ->select([
+                'parents.id',
+                'parents.user_id',
+                'parents.first_name',
+                'parents.last_name',
+                'parents.phone',
+            ])
+            ->selectRaw('(
+                SELECT COUNT(*)
+                FROM students
+                WHERE students.parent_id = parents.id
+            ) as students_count')
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
