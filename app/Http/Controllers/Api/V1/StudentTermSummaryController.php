@@ -30,10 +30,13 @@ class StudentTermSummaryController extends Controller
             ->where('term_id', $termId)
             ->first();
 
+        $defaultTeacher = 'This student is good.';
+        $defaultPrincipal = 'This student is hardworking.';
+
         return response()->json([
             'data' => [
-                'class_teacher_comment' => $termSummary?->overall_comment,
-                'principal_comment' => $termSummary?->principal_comment,
+                'class_teacher_comment' => $termSummary?->overall_comment ?? $defaultTeacher,
+                'principal_comment' => $termSummary?->principal_comment ?? $defaultPrincipal,
             ],
         ]);
     }

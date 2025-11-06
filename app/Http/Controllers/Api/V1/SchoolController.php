@@ -184,9 +184,21 @@ class SchoolController extends Controller
         }
 
         if (in_array($user->role, ['admin', 'super_admin'], true) && $user->school) {
-            /** @var \App\Services\Rbac\RbacService $rbac */
-            $rbac = app(RbacService::class);
-            $rbac->bootstrapForSchool($user->school, $user);
+            $guard = config('permission.default_guard', 'sanctum');
+            $hasSchoolRole = $user->roles()
+                ->where('roles.guard_name', $guard)
+                ->where(function ($query) use ($user) {
+                    return $query
+                        ->whereNull('roles.school_id')
+                        ->orWhere('roles.school_id', $user->school_id);
+                })
+                ->exists();
+
+            if (! $hasSchoolRole) {
+                /** @var \App\Services\Rbac\RbacService $rbac */
+                $rbac = app(RbacService::class);
+                $rbac->bootstrapForSchool($user->school, $user);
+            }
         }
 
         $registrar = app(\Spatie\Permission\PermissionRegistrar::class);

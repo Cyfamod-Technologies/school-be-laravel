@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\ClassTeacher;
 use App\Models\GradingScale;
 use App\Models\Result;
@@ -77,6 +78,14 @@ class ResultViewController extends Controller
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
+        $classSize = Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
+            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
+
         $classSizeFromResults = $subjectStatisticsData['class_size'] ?? 0;
         if ($classSizeFromResults > 0) {
             $classSize = $classSizeFromResults;
@@ -94,6 +103,10 @@ class ResultViewController extends Controller
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
             ->when($term, fn ($query) => $query->where('term_id', $term->id))
             ->first();
+
+        $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
+        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? 0;
+        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? 0;
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -130,14 +143,6 @@ class ResultViewController extends Controller
             ->all();
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
-
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
 
         $nextTerm = null;
         if ($term && $session) {
@@ -181,8 +186,8 @@ class ResultViewController extends Controller
             'resultsRows' => $subjectRows->all(),
             'termSummary' => $termSummary,
             'attendance' => [
-                'present' => $termSummary?->days_present,
-                'absent' => $termSummary?->days_absent,
+                'present' => $attendancePresent,
+                'absent' => $attendanceAbsent,
             ],
             'aggregate' => [
                 'total_obtained' => $overallStats['total_obtained'],
@@ -212,6 +217,26 @@ class ResultViewController extends Controller
         ];
 
         return view('result', $data);
+    }
+
+    private function computeAttendanceCounts(Student $student, ?Session $session, ?Term $term): array
+    {
+        if (! $session || ! $term) {
+            return ['present' => null, 'absent' => null];
+        }
+
+        $counts = Attendance::query()
+            ->selectRaw("SUM(CASE WHEN status IN ('present', 'late') THEN 1 ELSE 0 END) as present_count")
+            ->selectRaw("SUM(CASE WHEN status IN ('absent', 'excused') THEN 1 ELSE 0 END) as absent_count")
+            ->where('student_id', $student->id)
+            ->where('session_id', $session->id)
+            ->where('term_id', $term->id)
+            ->first();
+
+        return [
+            'present' => $counts ? (int) ($counts->present_count ?? 0) : null,
+            'absent' => $counts ? (int) ($counts->absent_count ?? 0) : null,
+        ];
     }
 
     private function buildComponentColumns(Collection $results): Collection
