@@ -21,6 +21,8 @@ class ResultViewController extends Controller
 {
     public function show(Request $request, Student $student)
     {
+        $this->ensurePermission($request, 'students.results.print');
+        
         $user = $request->user();
         $student->loadMissing([
             'school',

@@ -69,7 +69,8 @@ class StudentController extends Controller
         Student::fixLegacyForeignKeys();
         $perPage = max((int) $request->input('per_page', 10), 1);
 
-        $query = $request->user()->school->students()
+        $query = Student::query()
+            ->where('school_id', $request->user()->school_id)
             ->with($this->studentRelations())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->input('search');
