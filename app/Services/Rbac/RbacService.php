@@ -23,6 +23,7 @@ class RbacService
         ['name' => 'students.view', 'description' => 'List and view students'],
         ['name' => 'students.create', 'description' => 'Create students'],
         ['name' => 'students.update', 'description' => 'Update students'],
+        ['name' => 'students.edit', 'description' => 'Edit students'],
         ['name' => 'students.delete', 'description' => 'Delete students'],
         ['name' => 'students.import', 'description' => 'Bulk import students'],
         ['name' => 'students.promote', 'description' => 'Promote students'],
