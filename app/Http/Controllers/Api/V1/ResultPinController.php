@@ -17,6 +17,7 @@ class ResultPinController extends Controller
 
     public function index(Request $request, Student $student)
     {
+        $this->ensurePermission($request, 'result.pin.view');
         $this->authorizeStudent($request, $student);
 
         $pins = $student->result_pins()
@@ -32,6 +33,7 @@ class ResultPinController extends Controller
 
     public function store(Request $request, Student $student)
     {
+        $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
         $this->authorizeStudent($request, $student);
 
         $validated = $request->validate([
@@ -67,6 +69,7 @@ class ResultPinController extends Controller
 
     public function bulkGenerate(Request $request)
     {
+        $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
@@ -129,6 +132,7 @@ class ResultPinController extends Controller
 
     public function indexAll(Request $request)
     {
+        $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
         $user = $request->user();
         $school = $user->school;
 
@@ -179,6 +183,7 @@ class ResultPinController extends Controller
 
     public function invalidate(Request $request, ResultPin $resultPin)
     {
+        $this->ensurePermission($request, ['result.pin.invalidate', 'result.pin.manage']);
         $this->authorizePin($request, $resultPin);
 
         $pin = $this->service->invalidate($resultPin);

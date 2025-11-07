@@ -16,6 +16,7 @@ class SubjectAssignmentController extends Controller
 {
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'subject.assignments.class');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -74,6 +75,7 @@ class SubjectAssignmentController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'subject.assignments.class');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -141,6 +143,7 @@ class SubjectAssignmentController extends Controller
 
     public function update(Request $request, SubjectAssignment $assignment)
     {
+        $this->ensurePermission($request, 'subject.assignments.class');
         $this->authorizeAssignment($request, $assignment);
 
         $validated = $request->validate([
@@ -203,6 +206,7 @@ class SubjectAssignmentController extends Controller
 
     public function destroy(Request $request, SubjectAssignment $assignment)
     {
+        $this->ensurePermission($request, 'subject.assignments.class');
         $this->authorizeAssignment($request, $assignment);
         $assignment->delete();
 

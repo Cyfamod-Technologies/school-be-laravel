@@ -12,6 +12,7 @@ class SubjectController extends Controller
 {
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'subjects.view');
         $perPage = max((int) $request->input('per_page', 15), 1);
         $allowedSorts = ['name', 'code', 'created_at'];
         $sortBy = $request->input('sortBy', 'name');
@@ -40,6 +41,7 @@ class SubjectController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'subjects.create');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -89,6 +91,7 @@ class SubjectController extends Controller
 
     public function update(Request $request, Subject $subject)
     {
+        $this->ensurePermission($request, 'subjects.update');
         $this->authorizeSubjectAccess($request, $subject);
 
         $validated = $request->validate([
@@ -140,6 +143,7 @@ class SubjectController extends Controller
 
     public function destroy(Request $request, Subject $subject)
     {
+        $this->ensurePermission($request, 'subjects.delete');
         $this->authorizeSubjectAccess($request, $subject);
 
         $hasTeacherAssignments = $subject->subject_teacher_assignments()->exists();

@@ -30,6 +30,9 @@ class RbacService
 
         ['name' => 'parents.view', 'description' => 'List and view parents'],
         ['name' => 'parents.manage', 'description' => 'Create or update parents'],
+        ['name' => 'parents.create', 'description' => 'Create parents / guardians'],
+        ['name' => 'parents.update', 'description' => 'Update parents / guardians'],
+        ['name' => 'parents.delete', 'description' => 'Delete parents / guardians'],
 
         ['name' => 'staff.view', 'description' => 'List and view staff'],
         ['name' => 'staff.create', 'description' => 'Create staff'],
@@ -38,8 +41,20 @@ class RbacService
         ['name' => 'staff.attendance', 'description' => 'Manage staff attendance'],
 
         ['name' => 'classes.manage', 'description' => 'Manage classes and arms'],
+        ['name' => 'classes.create', 'description' => 'Create classes'],
+        ['name' => 'classes.update', 'description' => 'Update classes'],
+        ['name' => 'classes.delete', 'description' => 'Delete classes'],
+        ['name' => 'class-arms.create', 'description' => 'Create class arms'],
+        ['name' => 'class-arms.update', 'description' => 'Update class arms'],
+        ['name' => 'class-arms.delete', 'description' => 'Delete class arms'],
+        ['name' => 'subjects.view', 'description' => 'View subjects'],
+        ['name' => 'subjects.create', 'description' => 'Create subjects'],
+        ['name' => 'subjects.update', 'description' => 'Update subjects'],
+        ['name' => 'subjects.delete', 'description' => 'Delete subjects'],
         ['name' => 'subjects.manage', 'description' => 'Manage subjects'],
-        ['name' => 'subject.assignments', 'description' => 'Assign subjects to classes and staff'],
+        ['name' => 'subject.assignments.class', 'description' => 'Assign subjects to classes'],
+        ['name' => 'subject.assignments.teacher', 'description' => 'Assign teachers to subjects'],
+        ['name' => 'class-teachers.manage', 'description' => 'Assign teachers to classes'],
         ['name' => 'results.view', 'description' => 'View student results'],
         ['name' => 'results.enter', 'description' => 'Enter or update student results'],
         ['name' => 'results.delete', 'description' => 'Delete student result entries'],
@@ -47,6 +62,7 @@ class RbacService
         ['name' => 'sessions.manage', 'description' => 'Manage academic sessions and terms'],
         ['name' => 'assessment.manage', 'description' => 'Configure assessment components'],
         ['name' => 'skills.manage', 'description' => 'Manage skill categories and ratings'],
+        ['name' => 'settings.manage', 'description' => 'Manage school settings'],
 
         ['name' => 'attendance.students', 'description' => 'Manage student attendance'],
         ['name' => 'attendance.staff', 'description' => 'Manage staff attendance'],
@@ -56,6 +72,10 @@ class RbacService
         ['name' => 'fees.bank-details', 'description' => 'Manage bank details'],
 
         ['name' => 'result.pin.manage', 'description' => 'Manage result pins'],
+        ['name' => 'result.pin.view', 'description' => 'View result pins'],
+        ['name' => 'result.pin.generate', 'description' => 'Generate result pins'],
+        ['name' => 'result.pin.regenerate', 'description' => 'Regenerate result pins'],
+        ['name' => 'result.pin.invalidate', 'description' => 'Invalidate result pins'],
         ['name' => 'analytics.academics', 'description' => 'View academic analytics dashboard'],
 
         ['name' => 'promotions.history', 'description' => 'View promotion history'],
@@ -82,6 +102,11 @@ class RbacService
             'students.view',
             'students.update',
             'attendance.students',
+            'subjects.view',
+            'subject.assignments.teacher',
+            'class-teachers.manage',
+            'results.view',
+            'results.enter',
         ],
         'accountant' => [
             'dashboard.view',
