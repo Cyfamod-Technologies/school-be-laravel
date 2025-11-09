@@ -403,9 +403,14 @@ class RbacService
             $registrar->forgetCachedPermissions();
         }
     }
-}
 
-['name' => 'sessions.manage', 'description' => 'Manage academic sessions',
+    /**
+     * Core permissions structure with hierarchical relationships.
+     *
+     * @var array<array<string, mixed>>
+     */
+    private array $corePermissions = [
+        ['name' => 'sessions.manage', 'description' => 'Manage academic sessions',
             'children' => ['terms.manage'],
         ],
         [

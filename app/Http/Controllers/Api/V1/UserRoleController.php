@@ -82,19 +82,23 @@ class UserRoleController extends Controller
             $user->syncRoles($roleModels);
         });
 
-        $primaryRole = $roleModels->pluck('name')->filter()->sort()->first();
-        $enumRoles = collect(['staff', 'parent', 'super_admin', 'accountant', 'admin', 'teacher']);
+        $rolePriority = collect([
+            'super_admin',
+            'admin',
+            'teacher',
+            'accountant',
+            'staff',
+            'parent',
+        ]);
 
-        if (! $primaryRole || ! $enumRoles->contains($primaryRole)) {
-            $primaryRole = $roleModels
-                ->pluck('name')
-                ->filter(fn ($name) => $enumRoles->contains($name))
-                ->sort()
-                ->first();
-        }
+        $assignedRoles = $roleModels->pluck('name');
+
+        $primaryRole = $rolePriority->first(function ($role) use ($assignedRoles) {
+            return $assignedRoles->contains($role);
+        });
 
         if (! $primaryRole) {
-            $primaryRole = $enumRoles->contains($user->role) ? $user->role : 'staff';
+            $primaryRole = 'staff';
         }
 
         $user->forceFill(['role' => $primaryRole])->save();
