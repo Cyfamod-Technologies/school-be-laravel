@@ -210,7 +210,7 @@ class TeacherAssignmentScope
 
         $entries = [];
 
-        $registerAssignment = function ($assignment, bool $includeSubjects = false) use (&$entries): void {
+        $registerAssignment = function ($assignment, bool $includeSubjects = false, bool $isClassTeacher = false) use (&$entries): void {
             if (! $assignment->school_class_id) {
                 return;
             }
@@ -232,7 +232,13 @@ class TeacherAssignmentScope
                     'session' => $this->formatSession($assignment),
                     'term' => $this->formatTerm($assignment),
                     'subjects' => [],
+                    'is_class_teacher' => false,
                 ];
+            }
+
+            // Mark as class teacher if this is a class teacher assignment
+            if ($isClassTeacher) {
+                $entries[$key]['is_class_teacher'] = true;
             }
 
             if ($includeSubjects && $assignment->subject) {
@@ -245,15 +251,34 @@ class TeacherAssignmentScope
         };
 
         foreach ($this->subjectAssignments as $assignment) {
-            $registerAssignment($assignment, true);
+            $registerAssignment($assignment, true, false);
         }
 
         foreach ($this->classAssignments as $assignment) {
-            $registerAssignment($assignment, false);
+            $registerAssignment($assignment, false, true);
         }
 
         return collect($entries)
             ->map(function (array $entry) {
+                // If this is a class teacher assignment, fetch all subjects for the class
+                if ($entry['is_class_teacher'] && $entry['class']) {
+                    $classId = $entry['class']['id'];
+                    $classSubjects = \App\Models\SchoolClass::find($classId)?->subjects ?? collect();
+
+                    foreach ($classSubjects as $subject) {
+                        // Only add if not already present (subject teacher assignments take precedence)
+                        if (! array_key_exists($subject->id, $entry['subjects'])) {
+                            $entry['subjects'][$subject->id] = [
+                                'id' => $subject->id,
+                                'name' => $subject->name,
+                                'code' => $subject->code,
+                            ];
+                        }
+                    }
+                }
+
+                // Remove the is_class_teacher flag before returning
+                unset($entry['is_class_teacher']);
                 $entry['subjects'] = array_values($entry['subjects']);
 
                 return $entry;

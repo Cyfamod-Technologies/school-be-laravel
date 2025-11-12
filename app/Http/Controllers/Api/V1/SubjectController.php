@@ -4,15 +4,30 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SubjectController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     public function index(Request $request)
     {
-        $this->ensurePermission($request, 'subjects.view');
+        $user = $request->user();
+        $schoolId = $user->school_id;
+
+        // Check permission - teachers can view subjects they're assigned to even without subjects.view permission
+        $scope = $this->teacherAccess->forUser($user);
+        $isTeacher = $scope->isTeacher();
+
+        if (! $isTeacher) {
+            $this->ensurePermission($request, 'subjects.view');
+        }
+
         $perPage = max((int) $request->input('per_page', 15), 1);
         $allowedSorts = ['name', 'code', 'created_at'];
         $sortBy = $request->input('sortBy', 'name');
@@ -22,8 +37,8 @@ class SubjectController extends Controller
             $sortBy = 'name';
         }
 
-        $subjects = Subject::query()
-            ->where('school_id', $request->user()->school_id)
+        $query = Subject::query()
+            ->where('school_id', $schoolId)
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->input('search');
 
@@ -31,8 +46,27 @@ class SubjectController extends Controller
                     $inner->where('name', 'like', "%{$search}%")
                         ->orWhere('code', 'like', "%{$search}%");
                 });
-            })
-            ->orderBy($sortBy, $sortDirection)
+            });
+
+        // For teachers, filter to only show subjects they're assigned to
+        if ($isTeacher) {
+            $subjectAssignments = $scope->subjectAssignments();
+            $allowedSubjectIds = $subjectAssignments->pluck('subject_id')->unique()->filter();
+
+            if ($allowedSubjectIds->isEmpty()) {
+                // Teacher has no subject assignments, return empty result
+                return response()->json([
+                    'data' => [],
+                    'current_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                ]);
+            }
+
+            $query->whereIn('id', $allowedSubjectIds->toArray());
+        }
+
+        $subjects = $query->orderBy($sortBy, $sortDirection)
             ->paginate($perPage)
             ->withQueryString();
 
