@@ -79,6 +79,9 @@ class StudentController extends Controller
                     $subQuery->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('admission_no', 'like', "%{$search}%")
+                        // Support full name search (first_name + last_name)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                        ->orWhereRaw("CONCAT(last_name, ' ', first_name) LIKE ?", ["%{$search}%"])
                         ->orWhereHas('school_class', function ($classQuery) use ($search) {
                             $classQuery->where('name', 'like', "%{$search}%");
                         })
@@ -87,7 +90,10 @@ class StudentController extends Controller
                         })
                         ->orWhereHas('parent', function ($parentQuery) use ($search) {
                             $parentQuery->where('first_name', 'like', "%{$search}%")
-                                ->orWhere('last_name', 'like', "%{$search}%");
+                                ->orWhere('last_name', 'like', "%{$search}%")
+                                // Support parent full name search
+                                ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                                ->orWhereRaw("CONCAT(last_name, ' ', first_name) LIKE ?", ["%{$search}%"]);
                         });
                 });
             })
