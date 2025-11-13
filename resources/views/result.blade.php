@@ -134,6 +134,7 @@
             font-size: 12px;
             letter-spacing: 0.3px;
             text-align: center;
+            font-weight: bold;
         }
 
         .table-two td {
@@ -151,7 +152,7 @@
         }
 
         .section-title {
-            font-weight: 600;
+            font-weight: bold;
             margin-bottom: 8px;
             text-transform: uppercase;
             font-size: 13px;
@@ -206,7 +207,7 @@
             font-size: 12px;
             letter-spacing: 0.4px;
             text-transform: uppercase;
-            font-weight: 600;
+            font-weight: bold;
         }
 
         .skill-table {
@@ -228,7 +229,7 @@
         .grade-line {
             font-size: 13px;
             color: #0f172a;
-            font-weight: 600;
+            font-weight: bold;
             text-transform: uppercase;
         }
 
@@ -256,7 +257,7 @@
         .rating-key-table td:first-child {
             width: 18%;
             text-align: center;
-            font-weight: 600;
+            font-weight: bold;
         }
 
         .rating-key-table tr:first-child td:first-child {
@@ -309,9 +310,21 @@
                 font-size: 11px;
             }
 
-            .table-two th,
+            .table-two th {
+                padding: 4px 6px;
+                font-weight: bold !important;
+                font-size: 10px;
+            }
+
             .table-two td {
                 padding: 4px 6px;
+            }
+
+            .section-title,
+            .skill-card-title,
+            .grade-line,
+            .rating-key-table td:first-child {
+                font-weight: bold !important;
             }
 
             .school-heading {
@@ -481,7 +494,7 @@
                 </div>
                    <table class="rating-key-table">
                         <tr>
-                            <td colspan="2" style="font-weight:600;text-transform:uppercase;text-align:center;background:#0f172a;color:#ffffff;">Key to Ratings</td>
+                            <td colspan="2" style="font-weight:bold;text-transform:uppercase;text-align:center;background:#0f172a;color:#ffffff;">Key to Ratings</td>
                         </tr>
                         <tr>
                             <td>5</td>
