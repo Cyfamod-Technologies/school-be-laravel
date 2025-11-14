@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\UserRoleController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\StaffSelfController;
 use App\Http\Controllers\Api\V1\TeacherDashboardController;
+use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\ResultViewController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -48,6 +49,16 @@ Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate
 Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
+
+    Route::prefix('student')->group(function () {
+        Route::post('login', [StudentAuthController::class, 'login']);
+
+        Route::middleware('auth:student')->group(function () {
+            Route::post('logout', [StudentAuthController::class, 'logout']);
+            Route::get('profile', [StudentAuthController::class, 'profile']);
+            Route::get('sessions', [StudentAuthController::class, 'sessions']);
+        });
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [SchoolController::class, 'logout']);
