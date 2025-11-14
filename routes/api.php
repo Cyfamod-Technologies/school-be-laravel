@@ -181,6 +181,8 @@ Route::prefix('api/v1')->group(function () {
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
+            Route::get('cards/print', [ResultPinController::class, 'printCards'])
+                ->name('result-pins.cards.print');
         });
 
         Route::prefix('promotions')->group(function () {

@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ResultPin;
 use App\Models\Student;
 use App\Services\ResultPinService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class ResultPinController extends Controller
 {
@@ -192,6 +194,123 @@ class ResultPinController extends Controller
             'message' => 'Result PIN invalidated successfully.',
             'data' => $this->transformPin($pin),
         ]);
+    }
+
+    public function printCards(Request $request)
+    {
+        $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
+
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'school_class_id' => ['nullable', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'student_id' => ['nullable', 'uuid'],
+            'autoprint' => ['sometimes'],
+        ]);
+
+        $user = $request->user();
+        $school = $user?->school;
+
+        if (! $school) {
+            abort(403, 'You are not linked to any school.');
+        }
+
+        if (empty($validated['student_id']) && empty($validated['school_class_id'])) {
+            return response()->view('result-pin-cards-error', [
+                'message' => 'Select a student or class before printing scratch cards.',
+            ], 422);
+        }
+
+        $pinsQuery = ResultPin::query()
+            ->with([
+                'student.school',
+                'student.school_class',
+                'student.class_arm',
+                'session',
+                'term',
+            ])
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereHas('student', fn ($query) => $query->where('school_id', $school->id));
+
+        if (! empty($validated['student_id'])) {
+            $pinsQuery->where('student_id', $validated['student_id']);
+        } else {
+            $pinsQuery->whereHas('student', function ($query) use ($validated) {
+                if (! empty($validated['school_class_id'])) {
+                    $query->where('school_class_id', $validated['school_class_id']);
+                }
+                if (! empty($validated['class_arm_id'])) {
+                    $query->where('class_arm_id', $validated['class_arm_id']);
+                }
+            });
+        }
+
+        $pins = $pinsQuery
+            ->join('students', 'students.id', '=', 'result_pins.student_id')
+            ->select('result_pins.*')
+            ->orderByRaw('LOWER(students.last_name) asc')
+            ->orderByRaw('LOWER(students.first_name) asc')
+            ->get();
+
+        if ($pins->isEmpty()) {
+            return response()->view('result-pin-cards-error', [
+                'message' => 'No result PINs were found for the selected filters. Generate PINs first, then try printing again.',
+            ], 422);
+        }
+
+        $session = $pins->first()->session;
+        $term = $pins->first()->term;
+
+        $cards = $pins->map(function (ResultPin $pin) {
+            $student = $pin->student;
+            $className = optional($student->school_class)->name;
+            $armName = optional($student->class_arm)->name;
+            $classLabel = trim(collect([$className, $armName])->filter()->implode(' - '));
+            $studentName = trim(collect([
+                $student?->first_name,
+                $student?->middle_name,
+                $student?->last_name,
+            ])->filter()->implode(' '));
+
+            return [
+                'student_name' => $studentName ?: 'Student',
+                'admission_no' => $student?->admission_no,
+                'class_label' => $classLabel ?: 'Class not set',
+                'pin_code' => $pin->pin_code,
+                'expires_at' => $pin->expires_at ? $pin->expires_at->format('jS M, Y') : 'No expiry',
+            ];
+        });
+
+        return view('result-pin-cards', [
+            'school' => $school,
+            'sessionName' => $session?->name,
+            'termName' => $term?->name,
+            'cards' => $cards,
+            'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+            'autoPrint' => $request->boolean('autoprint'),
+            'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),
+        ]);
+    }
+
+    private function resolveMediaUrl(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://', 'data:'])) {
+            return $path;
+        }
+
+        $trimmed = ltrim($path, '/');
+
+        if (Str::startsWith($trimmed, 'storage/')) {
+            return asset($trimmed);
+        }
+
+        return asset('storage/' . $trimmed);
     }
 
     private function authorizeStudent(Request $request, Student $student): void
