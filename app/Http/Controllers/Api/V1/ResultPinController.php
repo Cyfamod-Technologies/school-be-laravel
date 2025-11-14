@@ -288,6 +288,7 @@ class ResultPinController extends Controller
             'sessionName' => $session?->name,
             'termName' => $term?->name,
             'cards' => $cards,
+            'cardPages' => $cards->chunk(6)->values(),
             'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
             'autoPrint' => $request->boolean('autoprint'),
             'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),

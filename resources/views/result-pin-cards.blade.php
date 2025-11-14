@@ -28,6 +28,13 @@
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
             margin-bottom: 24px;
         }
+        .card-page {
+            page-break-after: always;
+            margin-bottom: 24px;
+        }
+        .card-page:last-child {
+            page-break-after: auto;
+        }
         .cards {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -42,6 +49,9 @@
             box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
             overflow: hidden;
             min-height: 220px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            color-adjust: exact;
         }
         .card::after {
             content: "";
@@ -99,8 +109,10 @@
         @media print {
             body { background: #fff; padding: 0; }
             .header, .summary { display: none; }
+            .card-page { page-break-after: always; }
+            .card-page:last-child { page-break-after: auto; }
             .cards { grid-template-columns: repeat(2, 1fr); padding: 12px; }
-            .card { box-shadow: none; }
+            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; }
             @page { size: A4; margin: 10mm; }
         }
     </style>
@@ -117,27 +129,33 @@
     <strong>Generated:</strong> {{ $generatedAt }}<br>
     <strong>Total Cards:</strong> {{ count($cards) }}
 </div>
-<div class="cards">
-    @foreach($cards as $card)
-        <div class="card">
-            <div class="card-logo">
-                @if(!empty($schoolLogoUrl))
-                    <img src="{{ $schoolLogoUrl }}" alt="School Logo">
-                @else
-                    <div style="width:48px;height:48px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:600;">LOGO</div>
-                @endif
-                <strong>{{ strtoupper($school->name ?? 'Your School') }}</strong>
-            </div>
-            <div class="card-details">
-                <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
-                <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
-                <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
-            </div>
-            <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
-            <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
+@foreach($cardPages as $pageCards)
+    <div class="card-page">
+        <div class="cards">
+            @foreach($pageCards as $card)
+                <div class="card">
+                    <div class="card-logo">
+                        @if(!empty($schoolLogoUrl))
+                            <img src="{{ $schoolLogoUrl }}" alt="School Logo">
+                        @else
+                            <div style="width:48px;height:48px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:600;">LOGO</div>
+                        @endif
+                        <strong>{{ strtoupper($school->name ?? 'Your School') }} <br>  RESULT ACCESS CARD</strong>
+                    </div>
+                    <div class="card-details">
+                        <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
+                        <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
+                        <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
+                        <div><strong>Session:</strong> {{ $sessionName ?? 'N/A' }} - <strong>Term:</strong> {{ $termName ?? 'N/A' }}</div>
+                        <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
+                    </div>
+                    <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
+                    <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
+                </div>
+            @endforeach
         </div>
-    @endforeach
-</div>
+    </div>
+@endforeach
 <div class="footer">
     Protect this card. Keep the PIN confidential. Scratch only when ready to check results.
 </div>
