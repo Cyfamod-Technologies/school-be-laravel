@@ -363,6 +363,9 @@ class SchoolController extends Controller
         $sessionId = $data['current_session_id'] ?? null;
         $termId = $data['current_term_id'] ?? null;
 
+        $previousSessionId = $school->current_session_id;
+        $previousTermId = $school->current_term_id;
+
         if (array_key_exists('current_session_id', $data) && $sessionId !== null) {
             $session = Session::where('id', $sessionId)
                 ->where('school_id', $school->id)
@@ -399,8 +402,28 @@ class SchoolController extends Controller
 
         $school->fill($data);
 
+        $termChangedWithinSameSession = false;
+
+        if (array_key_exists('current_term_id', $data)) {
+            $newSessionId = $sessionId ?? $school->current_session_id;
+            $newTermId = $termId ?? $school->current_term_id;
+
+            if ($newTermId !== null && $newTermId !== $previousTermId && $newSessionId === $previousSessionId && $newSessionId !== null) {
+                $termChangedWithinSameSession = true;
+            }
+        }
+
         if ($school->isDirty()) {
             $school->save();
+
+            if ($termChangedWithinSameSession) {
+                \App\Models\Student::query()
+                    ->where('school_id', $school->id)
+                    ->where('current_session_id', $school->current_session_id)
+                    ->update([
+                        'current_term_id' => $school->current_term_id,
+                    ]);
+            }
         }
 
         return response()->json([
