@@ -190,9 +190,14 @@ class SchoolController extends Controller
         }
 
         if (config('features.email_verification') && ! $user->email_verified_at) {
-            throw ValidationException::withMessages([
-                'email' => ['Please verify your email address before logging in.'],
-            ]);
+            $role = strtolower((string) ($user->role ?? ''));
+
+            // Only enforce email verification for the initial school admin / super admin.
+            if (in_array($role, ['admin', 'super_admin'], true)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Please verify your email address before logging in.'],
+                ]);
+            }
         }
 
         $rbac = app(RbacService::class);
