@@ -170,10 +170,24 @@ class ResultViewController extends Controller
             abort(403, 'You are not allowed to view this student result.');
         }
 
-        $sessionId = $this->normalizeContextId($requestedSessionId)
-            ?? $this->normalizeContextId($student->current_session_id);
-        $termId = $this->normalizeContextId($requestedTermId)
-            ?? $this->normalizeContextId($student->current_term_id);
+        $sessionId = $this->normalizeContextId($requestedSessionId);
+        $termId = $this->normalizeContextId($requestedTermId);
+
+        // Prefer explicit session/term, then school's current context, then student's
+        $school = $student->school;
+        if (! $sessionId && $school && $school->current_session_id) {
+            $sessionId = $this->normalizeContextId($school->current_session_id);
+        }
+        if (! $termId && $school && $school->current_term_id) {
+            $termId = $this->normalizeContextId($school->current_term_id);
+        }
+
+        if (! $sessionId) {
+            $sessionId = $this->normalizeContextId($student->current_session_id);
+        }
+        if (! $termId) {
+            $termId = $this->normalizeContextId($student->current_term_id);
+        }
 
         $session = $sessionId
             ? Session::query()
