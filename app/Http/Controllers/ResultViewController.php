@@ -336,6 +336,22 @@ class ResultViewController extends Controller
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
 
+        // Auto-generate fallback comments for teacher and principal
+        $teacherComment = $termSummary?->overall_comment;
+        $principalComment = $termSummary?->principal_comment;
+
+        if ($teacherComment === null) {
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null
+            );
+        }
+
+        if ($principalComment === null) {
+            $principalComment = $this->generatePrincipalComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null
+            );
+        }
+
         $data = [
             'student' => $student,
             'schoolName' => optional($student->school)->name ?? 'School',
@@ -378,8 +394,8 @@ class ResultViewController extends Controller
                 'position' => $overallStats['position'],
                 'class_average' => $overallStats['class_average'],
                 'final_grade' => $termSummary?->final_grade,
-                'class_teacher_comment' => $termSummary?->overall_comment,
-                'principal_comment' => $termSummary?->principal_comment,
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
             ],
             'gradeRanges' => $gradeRanges
                 ->map(function ($range) {
@@ -399,6 +415,56 @@ class ResultViewController extends Controller
         ];
 
         return $data;
+    }
+
+    private function generateTeacherComment(?float $average): string
+    {
+        if ($average === null) {
+            return 'This student is good.';
+        }
+
+        if ($average >= 85) {
+            return 'Excellent performance. Keep it up.';
+        }
+
+        if ($average >= 70) {
+            return 'Very good performance. Keep working hard.';
+        }
+
+        if ($average >= 55) {
+            return 'Good effort. There is room for improvement.';
+        }
+
+        if ($average >= 45) {
+            return 'Fair performance. Encourage more focus and hard work.';
+        }
+
+        return 'Below expectation. Close monitoring and extra support are recommended.';
+    }
+
+    private function generatePrincipalComment(?float $average): string
+    {
+        if ($average === null) {
+            return 'This student is hardworking.';
+        }
+
+        if ($average >= 85) {
+            return 'An outstanding result. The school is proud of this performance.';
+        }
+
+        if ($average >= 70) {
+            return 'A very good result. Maintain this level of commitment.';
+        }
+
+        if ($average >= 55) {
+            return 'A good result. Greater consistency will yield even better outcomes.';
+        }
+
+        if ($average >= 45) {
+            return 'A fair result. Increased effort and diligence are advised.';
+        }
+
+        return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
     }
 
     private function normalizeContextId(mixed $value): ?string
