@@ -32,7 +32,7 @@ return new class extends Migration
             $table->uuid('school_class_id');
             $table->uuid('class_arm_id');
             $table->uuid('class_section_id')->nullable();
-            $table->uuid('parent_id');
+            $table->uuid('parent_id')->nullable();
             $table->date('admission_date');
             $table->string('photo_url', 512)->nullable();
             $table->string('address')->nullable();
@@ -46,7 +46,7 @@ return new class extends Migration
             $table->foreign('school_class_id')->references('id')->on('classes')->onDelete('restrict');
             $table->foreign('class_arm_id')->references('id')->on('class_arms')->onDelete('restrict');
             $table->foreign('class_section_id')->references('id')->on('class_sections')->onDelete('set null');
-            $table->foreign('parent_id')->references('id')->on('parents')->onDelete('restrict');
+            $table->foreign('parent_id')->references('id')->on('parents')->onDelete('set null');
         });
     }
 

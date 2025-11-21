@@ -25,6 +25,7 @@ use App\Models\User;
  * @property Carbon|null $revoked_at
  * @property string|null $created_by
  * @property int $use_count
+ * @property int|null $max_usage
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -46,6 +47,7 @@ class ResultPin extends Model
         'expires_at' => 'datetime',
         'revoked_at' => 'datetime',
         'use_count' => 'int',
+        'max_usage' => 'int',
     ];
 
     protected $fillable = [
@@ -59,6 +61,7 @@ class ResultPin extends Model
         'revoked_at',
         'created_by',
         'use_count',
+        'max_usage',
     ];
 
     protected static function booted(): void

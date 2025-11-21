@@ -41,8 +41,24 @@ class SchoolClass extends Model
 		'school_id',
 		'name',
 		'slug',
-		'description'
+		'description',
+		'order'
 	];
+
+	protected $casts = [
+		'order' => 'int'
+	];
+
+	/**
+	 * The "booted" method of the model.
+	 */
+	protected static function booted(): void
+	{
+		// Default ordering by 'order' column
+		static::addGlobalScope('order', function ($builder) {
+			$builder->orderBy('order', 'asc');
+		});
+	}
 
 	public function school()
 	{

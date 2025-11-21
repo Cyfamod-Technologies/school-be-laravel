@@ -31,14 +31,22 @@ class AcademicSessionController extends Controller
      *       )
      *     )
      */
-    public function index()
+    public function index(Request $request)
     {
-    $schoolId = auth()->user()->school_id;
-    $sessions = Session::where('school_id', $schoolId)->get();
+        $user = $request->user();
 
-    return response()->json($sessions);   
-    
-}
+        if (! $user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        // Allow all authenticated users of the school (including teachers)
+        // to view the list of sessions; only restrict create/update/delete
+        // to users with the sessions.manage permission.
+        $schoolId = $user->school_id;
+        $sessions = Session::where('school_id', $schoolId)->get();
+
+        return response()->json($sessions);
+    }
 
     /**
      * @OA\Post(
@@ -68,7 +76,8 @@ class AcademicSessionController extends Controller
      */
     public function store(Request $request)
     {
-        $schoolId = auth()->user()->school_id;
+        $this->ensurePermission($request, 'sessions.manage');
+        $schoolId = $request->user()->school_id;
     
         $validator = Validator::make($request->all(), [
             'name' => [
@@ -128,8 +137,15 @@ class AcademicSessionController extends Controller
  * )
  */
 
-    public function show(Session $session)
+    public function show(Request $request, Session $session)
     {
+        $this->ensurePermission($request, 'sessions.manage');
+        
+        // Verify session belongs to user's school
+        if ($session->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+        
         return response()->json($session);
     }
 
@@ -170,7 +186,15 @@ class AcademicSessionController extends Controller
 
      public function update(Request $request, Session $session)
      {
-         $schoolId = auth()->user()->school_id;
+         $this->ensurePermission($request, 'sessions.manage');
+         
+         $user = $request->user();
+         $schoolId = $user->school_id;
+         
+         // Verify session belongs to user's school
+         if ($session->school_id !== $schoolId) {
+             return response()->json(['message' => 'Not Found'], 404);
+         }
      
          $validator = Validator::make($request->all(), [
              'name' => [
@@ -236,8 +260,15 @@ class AcademicSessionController extends Controller
      *      )
      * )
      */
-    public function destroy(Session $session)
+    public function destroy(Request $request, Session $session)
     {
+        $this->ensurePermission($request, 'sessions.manage');
+        
+        // Verify session belongs to user's school
+        if ($session->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+        
         if ($session->terms()->exists()) {
             return response()->json(['error' => 'Cannot delete session with linked terms.'], 400);
         }
@@ -342,7 +373,44 @@ class AcademicSessionController extends Controller
         $term = $session->terms()->create($validated);
         return response()->json(['message' => 'Term created successfully', 'data' => $term], 201);
     }
-    
+
+    /**
+     * @OA\Get(
+     *      path="/v1/terms/{id}",
+     *      operationId="getTermById",
+     *      tags={"school-v1.1"},
+     *      summary="Get term information",
+     *      description="Returns term data",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Term id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successful operation"
+     *       ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
+     */
+    public function showTerm(Request $request, Term $term)
+    {
+        if ($term->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        return response()->json(
+            $term->loadMissing('session:id,name')
+        );
+    }
+
 
     /**
      * @OA\Put(

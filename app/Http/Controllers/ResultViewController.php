@@ -3,15 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
+use App\Models\ClassArm;
+use App\Models\ClassSection;
 use App\Models\ClassTeacher;
 use App\Models\GradingScale;
 use App\Models\Result;
+use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\TermSummary;
 use Carbon\Carbon;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -20,7 +25,139 @@ class ResultViewController extends Controller
 {
     public function show(Request $request, Student $student)
     {
-        $user = $request->user();
+        $this->ensurePermission($request, 'students.results.print');
+
+        $data = $this->buildResultPageData(
+            $student,
+            $request->input('session_id'),
+            $request->input('term_id'),
+            optional($request->user()->school)->id
+        );
+
+        return view('result', $data);
+    }
+
+    public function bulkPrint(Request $request)
+    {
+        $this->ensurePermission($request, 'students.results.print');
+
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'school_class_id' => ['required', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'class_section_id' => ['nullable', 'uuid'],
+        ]);
+
+        $schoolId = optional($request->user()->school)->id;
+
+        if (! $schoolId) {
+            abort(403, 'You are not linked to any school.');
+        }
+
+        $students = Student::query()
+            ->with([
+                'school',
+                'school_class',
+                'class_arm',
+                'class_section',
+                'parent',
+            ])
+            ->where('school_id', $schoolId)
+            ->where('school_class_id', $validated['school_class_id'])
+            ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+            ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
+            ->get();
+
+        $pages = $students
+            ->map(function (Student $record) use ($validated, $schoolId) {
+                try {
+                    return $this->buildResultPageData(
+                        $record,
+                        $validated['session_id'],
+                        $validated['term_id'],
+                        $schoolId
+                    );
+                } catch (\Exception $e) {
+                    // Skip students without results or with errors instead of failing entire bulk print
+                    // Log the error for debugging but continue with other students
+                    \Log::info("Skipped student {$record->id} in bulk print: " . $e->getMessage());
+                    return null;
+                }
+            })
+            ->filter() // Remove null entries (students without results)
+            ->values();
+
+        $session = Session::query()
+            ->where('school_id', $schoolId)
+            ->find($validated['session_id']);
+
+        $term = Term::query()
+            ->where('school_id', $schoolId)
+            ->find($validated['term_id']);
+
+        $class = SchoolClass::query()
+            ->where('school_id', $schoolId)
+            ->find($validated['school_class_id']);
+
+        // If no students have results, return an error with context
+        if ($pages->isEmpty()) {
+            $sessionName = $session?->name ?? 'Unknown Session';
+            $termName = $term?->name ?? 'Unknown Term';
+            $className = $class?->name ?? 'Unknown Class';
+
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => "No results found for any students in {$className} for {$sessionName} - {$termName}. Please ensure results have been added before attempting to print. Total students checked: {$students->count()}",
+                    'session_id' => $validated['session_id'],
+                    'term_id' => $validated['term_id'],
+                    'class_id' => $validated['school_class_id'],
+                    'students_checked' => $students->count(),
+                ], 422)
+            );
+        }
+
+        $classArm = null;
+        if (! empty($validated['class_arm_id'])) {
+            $classArm = ClassArm::query()
+                ->whereKey($validated['class_arm_id'])
+                ->whereHas('school_class', fn ($query) => $query->where('school_id', $schoolId))
+                ->first();
+        }
+
+        $classSection = null;
+        if (! empty($validated['class_section_id'])) {
+            $classSection = ClassSection::query()
+                ->whereKey($validated['class_section_id'])
+                ->whereHas('class_arm.school_class', fn ($query) => $query->where('school_id', $schoolId))
+                ->first();
+        }
+
+        return view('result-bulk', [
+            'pages' => $pages,
+            'filters' => [
+                'session' => $session?->name,
+                'term' => $term?->name,
+                'class' => $class?->name,
+                'class_arm' => $classArm?->name,
+                'class_section' => $classSection?->name,
+                'student_count' => $pages->count(), // Count of students WITH results
+                'total_students' => $students->count(), // Total students in class
+            ],
+            'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+        ]);
+    }
+
+    public function buildResultPageData(
+        Student $student,
+        ?string $requestedSessionId = null,
+        ?string $requestedTermId = null,
+        ?string $requestingSchoolId = null
+    ) {
         $student->loadMissing([
             'school',
             'school_class',
@@ -29,12 +166,28 @@ class ResultViewController extends Controller
             'parent',
         ]);
 
-        if ($user && optional($user->school)->id !== $student->school_id) {
+        if ($requestingSchoolId !== null && $requestingSchoolId !== $student->school_id) {
             abort(403, 'You are not allowed to view this student result.');
         }
 
-        $sessionId = (string) $request->input('session_id', $student->current_session_id);
-        $termId = (string) $request->input('term_id', $student->current_term_id);
+        $sessionId = $this->normalizeContextId($requestedSessionId);
+        $termId = $this->normalizeContextId($requestedTermId);
+
+        // Prefer explicit session/term, then school's current context, then student's
+        $school = $student->school;
+        if (! $sessionId && $school && $school->current_session_id) {
+            $sessionId = $this->normalizeContextId($school->current_session_id);
+        }
+        if (! $termId && $school && $school->current_term_id) {
+            $termId = $this->normalizeContextId($school->current_term_id);
+        }
+
+        if (! $sessionId) {
+            $sessionId = $this->normalizeContextId($student->current_session_id);
+        }
+        if (! $termId) {
+            $termId = $this->normalizeContextId($student->current_term_id);
+        }
 
         $session = $sessionId
             ? Session::query()
@@ -71,11 +224,46 @@ class ResultViewController extends Controller
             ])
             ->get();
 
+        if ($results->isEmpty()) {
+            $hasAnyResults = Result::query()
+                ->where('student_id', $student->id)
+                ->exists();
+
+            if (! $hasAnyResults) {
+                $studentName = trim(collect([
+                    $student->first_name,
+                    $student->middle_name,
+                    $student->last_name,
+                ])->filter()->implode(' '));
+
+                $message = $studentName
+                    ? "Results have not been added for {$studentName} in the selected session/term."
+                    : 'Results have not been added for this student in the selected session/term.';
+
+                throw new HttpResponseException(
+                    response()->json([
+                        'message' => $message,
+                        'student_id' => $student->id,
+                        'session_id' => $sessionId,
+                        'term_id' => $termId,
+                    ], 422)
+                );
+            }
+        }
+
         $gradeRanges = $this->resolveGradeRanges($student->school_id, $session?->id);
         $componentColumns = $this->buildComponentColumns($results);
         $subjectStatisticsData = $this->computeSubjectStatistics($student, $session?->id, $term?->id, $results);
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
+
+        $classSize = Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
+            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
 
         $classSizeFromResults = $subjectStatisticsData['class_size'] ?? 0;
         if ($classSizeFromResults > 0) {
@@ -94,6 +282,10 @@ class ResultViewController extends Controller
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
             ->when($term, fn ($query) => $query->where('term_id', $term->id))
             ->first();
+
+        $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
+        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? 0;
+        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? 0;
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -131,14 +323,6 @@ class ResultViewController extends Controller
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
 
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
-
         $nextTerm = null;
         if ($term && $session) {
             $nextTerm = Term::query()
@@ -149,6 +333,25 @@ class ResultViewController extends Controller
                 ->first();
         }
 
+        $sessionName = $session?->name ?? optional($student->session)->name;
+        $termName = $term?->name ?? optional($student->term)->name;
+
+        // Auto-generate fallback comments for teacher and principal
+        $teacherComment = $termSummary?->overall_comment;
+        $principalComment = $termSummary?->principal_comment;
+
+        if ($teacherComment === null) {
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null
+            );
+        }
+
+        if ($principalComment === null) {
+            $principalComment = $this->generatePrincipalComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null
+            );
+        }
+
         $data = [
             'student' => $student,
             'schoolName' => optional($student->school)->name ?? 'School',
@@ -156,8 +359,8 @@ class ResultViewController extends Controller
             'schoolPhone' => optional($student->school)->phone,
             'schoolEmail' => optional($student->school)->email,
             'schoolLogoUrl' => $this->resolveMediaUrl(optional($student->school)->logo_url),
-            'sessionName' => $session?->name,
-            'termName' => $term?->name,
+            'sessionName' => $sessionName,
+            'termName' => $termName,
             'termStart' => $term?->start_date?->format('jS F Y'),
             'termEnd' => $term?->end_date?->format('jS F Y'),
             'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
@@ -181,8 +384,8 @@ class ResultViewController extends Controller
             'resultsRows' => $subjectRows->all(),
             'termSummary' => $termSummary,
             'attendance' => [
-                'present' => $termSummary?->days_present,
-                'absent' => $termSummary?->days_absent,
+                'present' => $attendancePresent,
+                'absent' => $attendanceAbsent,
             ],
             'aggregate' => [
                 'total_obtained' => $overallStats['total_obtained'],
@@ -191,8 +394,8 @@ class ResultViewController extends Controller
                 'position' => $overallStats['position'],
                 'class_average' => $overallStats['class_average'],
                 'final_grade' => $termSummary?->final_grade,
-                'class_teacher_comment' => $termSummary?->overall_comment,
-                'principal_comment' => $termSummary?->principal_comment,
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
             ],
             'gradeRanges' => $gradeRanges
                 ->map(function ($range) {
@@ -211,7 +414,88 @@ class ResultViewController extends Controller
             'principalSignatureUrl' => optional($student->school)->signature_url,
         ];
 
-        return view('result', $data);
+        return $data;
+    }
+
+    private function generateTeacherComment(?float $average): string
+    {
+        if ($average === null) {
+            return 'This student is good.';
+        }
+
+        if ($average >= 85) {
+            return 'Excellent performance. Keep it up.';
+        }
+
+        if ($average >= 70) {
+            return 'Very good performance. Keep working hard.';
+        }
+
+        if ($average >= 55) {
+            return 'Good effort. There is room for improvement.';
+        }
+
+        if ($average >= 45) {
+            return 'Fair performance. Encourage more focus and hard work.';
+        }
+
+        return 'Below expectation. Close monitoring and extra support are recommended.';
+    }
+
+    private function generatePrincipalComment(?float $average): string
+    {
+        if ($average === null) {
+            return 'This student is hardworking.';
+        }
+
+        if ($average >= 85) {
+            return 'An outstanding result. The school is proud of this performance.';
+        }
+
+        if ($average >= 70) {
+            return 'A very good result. Maintain this level of commitment.';
+        }
+
+        if ($average >= 55) {
+            return 'A good result. Greater consistency will yield even better outcomes.';
+        }
+
+        if ($average >= 45) {
+            return 'A fair result. Increased effort and diligence are advised.';
+        }
+
+        return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
+    }
+
+    private function normalizeContextId(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $string = trim((string) $value);
+
+        return $string === '' ? null : $string;
+    }
+
+    private function computeAttendanceCounts(Student $student, ?Session $session, ?Term $term): array
+    {
+        if (! $session || ! $term) {
+            return ['present' => null, 'absent' => null];
+        }
+
+        $counts = Attendance::query()
+            ->selectRaw("SUM(CASE WHEN status IN ('present', 'late') THEN 1 ELSE 0 END) as present_count")
+            ->selectRaw("SUM(CASE WHEN status IN ('absent', 'excused') THEN 1 ELSE 0 END) as absent_count")
+            ->where('student_id', $student->id)
+            ->where('session_id', $session->id)
+            ->where('term_id', $term->id)
+            ->first();
+
+        return [
+            'present' => $counts ? (int) ($counts->present_count ?? 0) : null,
+            'absent' => $counts ? (int) ($counts->absent_count ?? 0) : null,
+        ];
     }
 
     private function buildComponentColumns(Collection $results): Collection

@@ -30,10 +30,13 @@ class StudentTermSummaryController extends Controller
             ->where('term_id', $termId)
             ->first();
 
+        $defaultTeacher = $this->generateTeacherComment($termSummary);
+        $defaultPrincipal = $this->generatePrincipalComment($termSummary);
+
         return response()->json([
             'data' => [
-                'class_teacher_comment' => $termSummary?->overall_comment,
-                'principal_comment' => $termSummary?->principal_comment,
+                'class_teacher_comment' => $termSummary?->overall_comment ?? $defaultTeacher,
+                'principal_comment' => $termSummary?->principal_comment ?? $defaultPrincipal,
             ],
         ]);
     }
@@ -101,5 +104,59 @@ class StudentTermSummaryController extends Controller
         if (! $user || $user->school_id !== $student->school_id) {
             abort(403, 'You are not allowed to manage records for this student.');
         }
+    }
+
+    private function generateTeacherComment(?TermSummary $summary): string
+    {
+        if (! $summary || $summary->average_score === null) {
+            return 'This student is good.';
+        }
+
+        $average = (float) $summary->average_score;
+
+        if ($average >= 85) {
+            return 'Excellent performance. Keep it up.';
+        }
+
+        if ($average >= 70) {
+            return 'Very good performance. Keep working hard.';
+        }
+
+        if ($average >= 55) {
+            return 'Good effort. There is room for improvement.';
+        }
+
+        if ($average >= 45) {
+            return 'Fair performance. Encourage more focus and hard work.';
+        }
+
+        return 'Below expectation. Close monitoring and extra support are recommended.';
+    }
+
+    private function generatePrincipalComment(?TermSummary $summary): string
+    {
+        if (! $summary || $summary->average_score === null) {
+            return 'This student is hardworking.';
+        }
+
+        $average = (float) $summary->average_score;
+
+        if ($average >= 85) {
+            return 'An outstanding result. The school is proud of this performance.';
+        }
+
+        if ($average >= 70) {
+            return 'A very good result. Maintain this level of commitment.';
+        }
+
+        if ($average >= 55) {
+            return 'A good result. Greater consistency will yield even better outcomes.';
+        }
+
+        if ($average >= 45) {
+            return 'A fair result. Increased effort and diligence are advised.';
+        }
+
+        return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
     }
 }

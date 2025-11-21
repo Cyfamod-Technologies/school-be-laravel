@@ -86,7 +86,9 @@ return [
     |
     */
 
-    'table' => env('SESSION_TABLE', 'sessions'),
+    // Use a dedicated table name for Laravel's internal session storage to
+    // avoid conflicts with the academic "sessions" table used in the app.
+    'table' => env('SESSION_TABLE', 'app_sessions'),
 
     /*
     |--------------------------------------------------------------------------

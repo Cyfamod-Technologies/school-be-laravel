@@ -105,11 +105,17 @@ describe('Result PIN management', function () {
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
+            'max_usage' => 5,
         ])->assertCreated()
             ->assertJsonPath('data.student_id', $this->student->id)
-            ->assertJsonPath('data.status', 'active');
+            ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('data.max_usage', 5);
 
-        expect(ResultPin::query()->where('student_id', $this->student->id)->count())->toBe(1);
+        $pin = ResultPin::query()->where('student_id', $this->student->id)->first();
+
+        expect($pin)->not->toBeNull()
+            ->and($pin->max_usage)->toBe(5)
+            ->and($pin->use_count)->toBe(0);
     });
 
     it('prevents duplicate active pins unless regenerate is true', function () {
@@ -128,22 +134,26 @@ describe('Result PIN management', function () {
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
+            'max_usage' => 5,
         ])->assertCreated();
 
         $existing = ResultPin::first();
         $oldCode = $existing->pin_code;
+        expect($existing->max_usage)->toBe(5);
 
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
             'regenerate' => true,
+            'max_usage' => 3,
         ])->assertCreated();
 
         $existing->refresh();
 
         expect(ResultPin::query()->where('student_id', $this->student->id)->count())->toBe(1)
             ->and($existing->status)->toBe('active')
-            ->and($existing->pin_code)->not->toBe($oldCode);
+            ->and($existing->pin_code)->not->toBe($oldCode)
+            ->and($existing->max_usage)->toBe(3);
     });
 
     it('invalidates an existing pin', function () {
@@ -191,9 +201,12 @@ describe('Result PIN management', function () {
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
             'school_class_id' => $this->class->id,
+            'max_usage' => 4,
         ])->assertOk();
 
         expect(ResultPin::query()->where('session_id', $this->session->id)->where('term_id', $this->term->id)->count())
+            ->toBe($this->students->count())
+            ->and(ResultPin::query()->where('session_id', $this->session->id)->where('term_id', $this->term->id)->where('max_usage', 4)->count())
             ->toBe($this->students->count());
     });
 

@@ -46,8 +46,14 @@ class PromotionService
         $targetClassArmId = Arr::get($payload, 'target_class_arm_id');
         $targetSectionId = Arr::get($payload, 'target_section_id');
 
+        // If a target class arm is explicitly provided, ensure it exists
+        // for the target class. Otherwise, keep the student's existing arm.
         if ($targetClassArmId) {
-            $student->class_arm()->where('school_class_id', $targetClass->id)->findOrFail($targetClassArmId);
+            $student->class_arm()
+                ->where('school_class_id', $targetClass->id)
+                ->findOrFail($targetClassArmId);
+        } else {
+            $targetClassArmId = $student->class_arm_id;
         }
 
         $previousState = [
@@ -69,8 +75,8 @@ class PromotionService
         $student->current_session_id = $targetSession->id;
         $student->current_term_id = $targetTermId;
         $student->school_class_id = $targetClass->id;
-        $student->class_arm_id = $targetClassArmId ?: null;
-        $student->class_section_id = $targetSectionId ?: null;
+        $student->class_arm_id = $targetClassArmId;
+        $student->class_section_id = $targetSectionId ?: $student->class_section_id;
         $student->save();
 
         $log = PromotionLog::create([

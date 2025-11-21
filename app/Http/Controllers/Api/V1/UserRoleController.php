@@ -46,6 +46,31 @@ class UserRoleController extends Controller
             ],
         ]);
 
+        // Check if user currently has teacher role
+        $userCurrentRoles = $this->withTeamContext($schoolId, function () use ($user, $schoolId) {
+            return $user->roles()
+                ->where('roles.school_id', $schoolId)
+                ->where('roles.guard_name', config('permission.default_guard', 'sanctum'))
+                ->get();
+        });
+
+        $hasTeacherRole = $userCurrentRoles->contains(function ($role) {
+            return strtolower($role->name) === 'teacher';
+        });
+
+        // If user has teacher role, ensure it's included in the new roles
+        if ($hasTeacherRole) {
+            $teacherRole = Role::query()
+                ->where('roles.school_id', $schoolId)
+                ->where('roles.guard_name', config('permission.default_guard', 'sanctum'))
+                ->where('name', 'teacher')
+                ->first();
+
+            if ($teacherRole && !in_array($teacherRole->id, $validated['roles'])) {
+                $validated['roles'][] = $teacherRole->id;
+            }
+        }
+
         $roleModels = Role::query()
             ->where('roles.school_id', $schoolId)
             ->where('roles.guard_name', config('permission.default_guard', 'sanctum'))
@@ -57,19 +82,23 @@ class UserRoleController extends Controller
             $user->syncRoles($roleModels);
         });
 
-        $primaryRole = $roleModels->pluck('name')->filter()->sort()->first();
-        $enumRoles = collect(['staff', 'parent', 'super_admin', 'accountant', 'admin']);
+        $rolePriority = collect([
+            'super_admin',
+            'admin',
+            'teacher',
+            'accountant',
+            'staff',
+            'parent',
+        ]);
 
-        if (! $primaryRole || ! $enumRoles->contains($primaryRole)) {
-            $primaryRole = $roleModels
-                ->pluck('name')
-                ->filter(fn ($name) => $enumRoles->contains($name))
-                ->sort()
-                ->first();
-        }
+        $assignedRoles = $roleModels->pluck('name');
+
+        $primaryRole = $rolePriority->first(function ($role) use ($assignedRoles) {
+            return $assignedRoles->contains($role);
+        });
 
         if (! $primaryRole) {
-            $primaryRole = $enumRoles->contains($user->role) ? $user->role : 'staff';
+            $primaryRole = 'staff';
         }
 
         $user->forceFill(['role' => $primaryRole])->save();

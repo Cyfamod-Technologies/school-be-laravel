@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Services\Teachers\TeacherAccessService;
 
 /**
  * @OA\Tag(
@@ -18,6 +19,10 @@ use Illuminate\Validation\Rule;
  */
 class StudentController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -60,10 +65,12 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'students.view');
         Student::fixLegacyForeignKeys();
         $perPage = max((int) $request->input('per_page', 10), 1);
 
-        $students = $request->user()->school->students()
+        $query = Student::query()
+            ->where('school_id', $request->user()->school_id)
             ->with($this->studentRelations())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->input('search');
@@ -72,6 +79,9 @@ class StudentController extends Controller
                     $subQuery->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('admission_no', 'like', "%{$search}%")
+                        // Support full name search (first_name + last_name)
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                        ->orWhereRaw("CONCAT(last_name, ' ', first_name) LIKE ?", ["%{$search}%"])
                         ->orWhereHas('school_class', function ($classQuery) use ($search) {
                             $classQuery->where('name', 'like', "%{$search}%");
                         })
@@ -80,7 +90,10 @@ class StudentController extends Controller
                         })
                         ->orWhereHas('parent', function ($parentQuery) use ($search) {
                             $parentQuery->where('first_name', 'like', "%{$search}%")
-                                ->orWhere('last_name', 'like', "%{$search}%");
+                                ->orWhere('last_name', 'like', "%{$search}%")
+                                // Support parent full name search
+                                ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                                ->orWhereRaw("CONCAT(last_name, ' ', first_name) LIKE ?", ["%{$search}%"]);
                         });
                 });
             })
@@ -116,9 +129,12 @@ class StudentController extends Controller
                     $direction = strtolower($request->input('sortDirection', 'asc')) === 'desc' ? 'desc' : 'asc';
                     $query->orderBy($column, $direction);
                 }
-            })
-            ->paginate($perPage)
-            ->withQueryString();
+            });
+
+        $scope = $this->teacherAccess->forUser($request->user());
+        $scope->restrictStudentQuery($query);
+
+        $students = $query->paginate($perPage)->withQueryString();
 
         return response()->json($students);
     }
@@ -178,6 +194,7 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'students.create');
         Student::fixLegacyForeignKeys();
         $school = $request->user()->school;
 
@@ -208,7 +225,7 @@ class StudentController extends Controller
             'school_class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'parent_id' => 'required|exists:parents,id',
+            'parent_id' => 'nullable|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
             'photo' => 'nullable|image|max:4096',
@@ -216,15 +233,34 @@ class StudentController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher()) {
+            abort(403, 'Teachers cannot create student records.');
+        }
+
         $session = \App\Models\Session::findOrFail($validated['current_session_id']);
 
         $studentData = $validated;
         $studentData['id'] = (string) Str::uuid();
         $studentData['school_id'] = $school->id;
         $studentData['status'] = strtolower($studentData['status']);
+        if (! array_key_exists('parent_id', $studentData) || ! $studentData['parent_id']) {
+            $studentData['parent_id'] = null;
+        }
 
         if (array_key_exists('class_section_id', $studentData) && ! $studentData['class_section_id']) {
             $studentData['class_section_id'] = null;
+        }
+
+        foreach (['house', 'club'] as $field) {
+            if (array_key_exists($field, $studentData)) {
+                $value = $studentData[$field];
+                if (is_string($value)) {
+                    $value = trim($value);
+                }
+                $studentData[$field] = $value === '' ? null : $value;
+            }
         }
 
         if ($request->hasFile('photo')) {
@@ -284,9 +320,16 @@ class StudentController extends Controller
      */
     public function show(Request $request, Student $student)
     {
+        $this->ensurePermission($request, 'students.view');
         Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to view this student.');
         }
 
         return response()->json([
@@ -363,9 +406,16 @@ class StudentController extends Controller
      */
     public function update(Request $request, Student $student)
     {
+        $this->ensurePermission($request, ['students.update', 'students.edit']);
         Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to update this student.');
         }
 
         $this->prepareRelationshipInput($request);
@@ -396,7 +446,7 @@ class StudentController extends Controller
             'school_class_id' => 'required|exists:classes,id',
             'class_arm_id' => 'required|exists:class_arms,id',
             'class_section_id' => 'nullable|exists:class_sections,id',
-            'parent_id' => 'required|exists:parents,id',
+            'parent_id' => 'nullable|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
@@ -404,6 +454,20 @@ class StudentController extends Controller
 
         if (array_key_exists('class_section_id', $validated) && ! $validated['class_section_id']) {
             $validated['class_section_id'] = null;
+        }
+
+        if (array_key_exists('parent_id', $validated) && ! $validated['parent_id']) {
+            $validated['parent_id'] = null;
+        }
+
+        foreach (['house', 'club'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = $validated[$field];
+                if (is_string($value)) {
+                    $value = trim($value);
+                }
+                $validated[$field] = $value === '' ? null : $value;
+            }
         }
 
         if ($request->hasFile('photo')) {
@@ -470,8 +534,16 @@ class StudentController extends Controller
      */
     public function destroy(Request $request, Student $student)
     {
+        $this->ensurePermission($request, 'students.delete');
+        Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to delete this student.');
         }
 
         if ($student->results()->exists() || $student->attendances()->exists() || $student->fee_payments()->exists()) {

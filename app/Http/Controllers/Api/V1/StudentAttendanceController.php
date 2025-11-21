@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Student;
 use App\Support\SimplePdfBuilder;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,9 +18,13 @@ use Illuminate\Validation\Rule;
 class StudentAttendanceController extends Controller
 {
     private const STATUSES = ['present', 'absent', 'late', 'excused'];
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
 
     public function index(Request $request): JsonResponse
     {
+        $this->ensurePermission($request, 'attendance.students');
         $query = $this->baseQuery($request);
 
         $perPage = min($request->integer('per_page', 50), 200);
@@ -36,6 +41,7 @@ class StudentAttendanceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->ensurePermission($request, 'attendance.students');
         $validated = $request->validate([
             'date' => ['required', 'date'],
             'session_id' => ['nullable', 'uuid'],
@@ -73,6 +79,18 @@ class StudentAttendanceController extends Controller
                 'message' => 'One or more students could not be found in your school.',
                 'missing_student_ids' => $missing,
             ], 422);
+        }
+
+        $scope = $this->teacherAccess->forUser($user);
+
+        if ($scope->isTeacher()) {
+            foreach ($studentIds as $studentId) {
+                $student = $students->get($studentId);
+
+                if (! $student || ! $scope->allowsStudent($student)) {
+                    abort(403, 'You are not allowed to record attendance for one or more students.');
+                }
+            }
         }
 
         $date = Carbon::parse($validated['date'])->toDateString();
@@ -157,6 +175,7 @@ class StudentAttendanceController extends Controller
 
     public function update(Attendance $attendance, Request $request): JsonResponse
     {
+        $this->ensurePermission($request, 'attendance.students');
         $this->authorizeAttendance($attendance, $request);
 
         $validated = $request->validate([
@@ -213,6 +232,7 @@ class StudentAttendanceController extends Controller
 
     public function destroy(Attendance $attendance, Request $request): JsonResponse
     {
+        $this->ensurePermission($request, 'attendance.students');
         $this->authorizeAttendance($attendance, $request);
         $attendance->delete();
 
@@ -223,6 +243,7 @@ class StudentAttendanceController extends Controller
 
     public function report(Request $request): JsonResponse
     {
+        $this->ensurePermission($request, 'attendance.students');
         $query = $this->baseQuery($request);
 
         $statusBreakdown = (clone $query)
@@ -309,6 +330,7 @@ class StudentAttendanceController extends Controller
 
     public function exportCsv(Request $request)
     {
+        $this->ensurePermission($request, 'attendance.students');
         $query = $this->baseQuery($request);
 
         $records = $query
@@ -357,6 +379,7 @@ class StudentAttendanceController extends Controller
 
     public function exportPdf(Request $request)
     {
+        $this->ensurePermission($request, 'attendance.students');
         $query = $this->baseQuery($request);
 
         $records = $query
@@ -408,6 +431,9 @@ class StudentAttendanceController extends Controller
                 'recorder:id,name',
             ])
             ->whereHas('student', fn ($q) => $q->where('school_id', $user->school_id));
+
+        $scope = $this->teacherAccess->forUser($user);
+        $scope->restrictAttendanceQuery($query);
 
         return $this->applyFilters($query, $request);
     }
@@ -534,6 +560,12 @@ class StudentAttendanceController extends Controller
         $attendance->loadMissing('student');
 
         if (! $attendance->student || $attendance->student->school_id !== $user->school_id) {
+            abort(403, 'You are not authorized to modify this attendance record.');
+        }
+
+        $scope = $this->teacherAccess->forUser($user);
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($attendance->student)) {
             abort(403, 'You are not authorized to modify this attendance record.');
         }
     }

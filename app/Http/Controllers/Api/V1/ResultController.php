@@ -9,6 +9,7 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Term;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -18,8 +19,14 @@ use Illuminate\Validation\ValidationException;
 
 class ResultController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'results.view');
+
         $school = optional($request->user())->school;
 
         if (! $school) {
@@ -95,6 +102,9 @@ class ResultController extends Controller
 
         $query->orderByDesc('updated_at');
 
+        $scope = $this->teacherAccess->forUser($request->user());
+        $scope->restrictResultQuery($query);
+
         $results = $query->paginate($perPage)->withQueryString();
 
         return response()->json($results);
@@ -102,6 +112,8 @@ class ResultController extends Controller
 
     public function batchUpsert(Request $request)
     {
+        $this->ensurePermission($request, 'results.enter');
+
         $school = optional($request->user())->school;
 
         if (! $school) {
@@ -206,6 +218,21 @@ class ResultController extends Controller
             throw ValidationException::withMessages([
                 'assessment_component_id' => ['One or more assessment components were not found for this school: ' . $missing->implode(', ')],
             ]);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher()) {
+            foreach ($entries as $entry) {
+                $student = $students->get($entry['student_id']);
+                $entrySession = $entry['session_id'] ?? $defaultSessionId ?? $student->current_session_id;
+                $entryTerm = $entry['term_id'] ?? $defaultTermId ?? $student->current_term_id;
+                $entryComponentId = $entry['assessment_component_id'] ?? $defaultComponentId;
+
+                if (! $scope->allowsStudentSubject($student, $entry['subject_id'], $entrySession, $entryTerm, $entryComponentId)) {
+                    abort(403, 'You are not allowed to record results for one or more students or subjects.');
+                }
+            }
         }
 
         $created = 0;

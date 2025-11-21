@@ -18,6 +18,7 @@ class ClassTeacherAssignmentController extends Controller
 {
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'class-teachers.manage');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -83,6 +84,7 @@ class ClassTeacherAssignmentController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'class-teachers.manage');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -133,6 +135,7 @@ class ClassTeacherAssignmentController extends Controller
 
     public function show(Request $request, ClassTeacher $classTeacher)
     {
+        $this->ensurePermission($request, 'class-teachers.manage');
         $this->authorizeAssignment($request, $classTeacher);
 
         return response()->json([
@@ -154,6 +157,7 @@ class ClassTeacherAssignmentController extends Controller
 
     public function update(Request $request, ClassTeacher $classTeacher)
     {
+        $this->ensurePermission($request, 'class-teachers.manage');
         $this->authorizeAssignment($request, $classTeacher);
 
         $validated = $request->validate([
@@ -212,6 +216,7 @@ class ClassTeacherAssignmentController extends Controller
 
     public function destroy(Request $request, ClassTeacher $classTeacher)
     {
+        $this->ensurePermission($request, 'class-teachers.manage');
         $this->authorizeAssignment($request, $classTeacher);
         $classTeacher->delete();
 

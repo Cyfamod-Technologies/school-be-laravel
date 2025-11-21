@@ -16,9 +16,12 @@ class Handler extends ExceptionHandler
 
     public function render(Request $request, Throwable $e): JsonResponse|\Illuminate\Http\Response
     {
-        // If this is an API call (prefix api/*) or the client expects JSON...
-        if ($request->is('api/*') || $request->expectsJson()) {
+        // If this is an API call (prefix api/*), X-Requested-With header is present, or the client expects JSON...
+        $isApiRequest = $request->is('api/*') 
+            || $request->header('X-Requested-With') === 'XMLHttpRequest'
+            || $request->expectsJson();
 
+        if ($isApiRequest) {
             // Determine status
             $status = $e instanceof HttpExceptionInterface
                 ? $e->getStatusCode()

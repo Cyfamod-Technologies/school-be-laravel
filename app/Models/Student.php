@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\BloodGroup;
 use RuntimeException;
+use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 
 /**
  * Class Student
@@ -29,8 +33,8 @@ use RuntimeException;
  * @property string|null $nationality
  * @property string|null $state_of_origin
  * @property string|null $lga_of_origin
- * @property string $house
- * @property string $club
+ * @property string|null $house
+ * @property string|null $club
  * @property string $current_session_id
  * @property string $current_term_id
  * @property string $school_class_id
@@ -63,8 +67,10 @@ use RuntimeException;
  *
  * @package App\Models
  */
-class Student extends Model
+class Student extends Model implements AuthenticatableContract
 {
+    use HasApiTokens, AuthenticatableTrait;
+
     protected $table = 'students';
     public $incrementing = false;
     protected $keyType = 'string';
@@ -101,6 +107,12 @@ class Student extends Model
         'status',
         'address',
         'medical_information',
+        'portal_password',
+        'portal_password_changed_at',
+    ];
+
+    protected $hidden = [
+        'portal_password',
     ];
 
     protected static array $uuidForeignKeys = [
@@ -382,15 +394,30 @@ class Student extends Model
         return $this->belongsTo(Session::class, 'current_session_id');
     }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class, 'current_term_id');
-	}
+    public function term()
+    {
+        return $this->belongsTo(Term::class, 'current_term_id');
+    }
 
 	public function blood_group()
-	{
-		return $this->belongsTo(BloodGroup::class);
-	}
+    {
+        return $this->belongsTo(BloodGroup::class);
+    }
+
+    public function setPortalPasswordAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['portal_password'] = null;
+            return;
+        }
+
+        if (is_string($value) && Str::startsWith($value, '$2y$')) {
+            $this->attributes['portal_password'] = $value;
+            return;
+        }
+
+        $this->attributes['portal_password'] = Hash::make($value);
+    }
 
     public function attendances()
     {

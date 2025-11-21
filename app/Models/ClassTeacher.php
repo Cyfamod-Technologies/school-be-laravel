@@ -7,8 +7,9 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Support\Str;
 
 /**
  * Class ClassTeacher
@@ -77,5 +78,70 @@ class ClassTeacher extends Model
 	public function term()
 	{
 		return $this->belongsTo(Term::class);
+	}
+
+	protected function normalizeUuid(?string $value): ?string
+	{
+		return Str::isUuid($value ?? '') ? $value : null;
+	}
+
+	public function getStaffIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setStaffIdAttribute($value): void
+	{
+		$this->attributes['staff_id'] = $this->normalizeUuid($value);
+	}
+
+	public function getSchoolClassIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setSchoolClassIdAttribute($value): void
+	{
+		$this->attributes['school_class_id'] = $this->normalizeUuid($value);
+	}
+
+	public function getClassArmIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setClassArmIdAttribute($value): void
+	{
+		$this->attributes['class_arm_id'] = $this->normalizeUuid($value);
+	}
+
+	public function getClassSectionIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setClassSectionIdAttribute($value): void
+	{
+		$this->attributes['class_section_id'] = $this->normalizeUuid($value);
+	}
+
+	public function getSessionIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setSessionIdAttribute($value): void
+	{
+		$this->attributes['session_id'] = $this->normalizeUuid($value);
+	}
+
+	public function getTermIdAttribute($value): ?string
+	{
+		return $this->normalizeUuid($value);
+	}
+
+	public function setTermIdAttribute($value): void
+	{
+		$this->attributes['term_id'] = $this->normalizeUuid($value);
 	}
 }

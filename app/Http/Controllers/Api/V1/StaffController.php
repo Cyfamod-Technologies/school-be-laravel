@@ -17,6 +17,8 @@ class StaffController extends Controller
 {
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'staff.view');
+
         $perPage = max((int) $request->input('per_page', 10), 1);
         $sortBy = $request->input('sortBy', 'full_name');
         $sortDirection = strtolower($request->input('sortDirection', 'asc')) === 'desc' ? 'desc' : 'asc';
@@ -50,6 +52,8 @@ class StaffController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'staff.create');
+
         $school = $request->user()->school;
 
         $validated = $request->validate([
@@ -70,6 +74,7 @@ class StaffController extends Controller
         ]);
 
         $temporaryPassword = '123456';
+        $systemRole = $this->determineSystemRole($validated['role']);
 
         $user = User::create([
             'id' => (string) Str::uuid(),
@@ -77,25 +82,21 @@ class StaffController extends Controller
             'name' => $validated['full_name'],
             'email' => $validated['email'],
             'password' => Hash::make($temporaryPassword),
-            'role' => 'staff',
+            'role' => $systemRole,
             'phone' => $validated['phone'],
         ]);
 
-        $staffRole = Role::query()->updateOrCreate(
-            [
-                'name' => 'staff',
-                'school_id' => $school->id,
-            ],
-            [
-                'guard_name' => config('permission.default_guard', 'sanctum'),
-                'description' => 'School staff',
-            ]
-        );
+        $primaryRole = $this->resolveRoleModel($school->id, $systemRole);
+        $staffRole = $this->resolveRoleModel($school->id, 'staff');
 
-        $this->withTeamContext($school->id, function () use ($user, $staffRole) {
-            if (! $user->hasRole($staffRole)) {
-                $user->assignRole($staffRole);
+        $this->withTeamContext($school->id, function () use ($user, $primaryRole, $staffRole, $systemRole) {
+            $roles = [$primaryRole];
+
+            if ($systemRole !== 'staff') {
+                $roles[] = $staffRole;
             }
+
+            $user->syncRoles(collect($roles)->unique('id'));
         });
 
         $photoUrl = null;
@@ -129,6 +130,7 @@ class StaffController extends Controller
 
     public function show(Request $request, Staff $staff)
     {
+        $this->ensurePermission($request, 'staff.view');
         $this->authorizeStaffAccess($request, $staff);
 
         return response()->json([
@@ -140,7 +142,15 @@ class StaffController extends Controller
 
     public function update(Request $request, Staff $staff)
     {
+        $this->ensurePermission($request, 'staff.update');
         $this->authorizeStaffAccess($request, $staff);
+        $staff->loadMissing('user');
+
+        foreach (['full_name', 'email', 'phone', 'role', 'gender', 'address', 'qualifications', 'employment_start_date'] as $field) {
+            if ($request->has($field) && $request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
 
         $validated = $request->validate([
             'full_name' => 'sometimes|required|string|max:255',
@@ -193,6 +203,10 @@ class StaffController extends Controller
             $staffUpdates['employment_start_date'] = $validated['employment_start_date'];
         }
 
+        $systemRole = array_key_exists('role', $validated)
+            ? $this->determineSystemRole($validated['role'])
+            : null;
+
         if ($request->hasFile('photo')) {
             if ($staff->photo_url) {
                 $previousPath = str_replace('/storage/', '', $staff->photo_url);
@@ -222,6 +236,23 @@ class StaffController extends Controller
             $staff->user->update($userUpdates);
         }
 
+        if ($systemRole) {
+            $staff->user->forceFill(['role' => $systemRole])->save();
+
+            $primaryRole = $this->resolveRoleModel($staff->school_id, $systemRole);
+            $staffRole = $this->resolveRoleModel($staff->school_id, 'staff');
+
+            $this->withTeamContext($staff->school_id, function () use ($staff, $primaryRole, $staffRole, $systemRole) {
+                $roles = [$primaryRole];
+
+                if ($systemRole !== 'staff') {
+                    $roles[] = $staffRole;
+                }
+
+                $staff->user->syncRoles(collect($roles)->unique('id'));
+            });
+        }
+
         return response()->json([
             'data' => $staff->fresh()->load('user.roles'),
         ]);
@@ -229,6 +260,7 @@ class StaffController extends Controller
 
     public function destroy(Request $request, Staff $staff)
     {
+        $this->ensurePermission($request, 'staff.delete');
         $this->authorizeStaffAccess($request, $staff);
 
         $user = $staff->user;
@@ -250,6 +282,44 @@ class StaffController extends Controller
     protected function authorizeStaffAccess(Request $request, Staff $staff): void
     {
         abort_unless($staff->school_id === $request->user()->school_id, 404);
+    }
+
+    private function determineSystemRole(?string $label): string
+    {
+        $normalized = Str::of((string) $label)->lower();
+
+        if ($normalized->contains('teach')) {
+            return 'teacher';
+        }
+
+        if ($normalized->contains('account')) {
+            return 'accountant';
+        }
+
+        return 'staff';
+    }
+
+    private function resolveRoleModel(string $schoolId, string $roleName): Role
+    {
+        $guard = config('permission.default_guard', 'sanctum');
+
+        $description = match ($roleName) {
+            'teacher' => 'Teacher',
+            'accountant' => 'Accountant',
+            'staff' => 'School staff',
+            default => Str::headline($roleName),
+        };
+
+        return Role::query()->updateOrCreate(
+            [
+                'name' => $roleName,
+                'school_id' => $schoolId,
+            ],
+            [
+                'guard_name' => $guard,
+                'description' => $description,
+            ]
+        );
     }
 
     /**

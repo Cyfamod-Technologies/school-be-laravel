@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\Request;
 
 use App\Models\SchoolClass;
@@ -17,6 +18,10 @@ use Illuminate\Validation\Rule;
  */
 class ClassController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     /**
      * @OA\Get(
      *      path="/v1/classes",
@@ -30,10 +35,32 @@ class ClassController extends Controller
      *       )
      *     )
      */
-    public function index()
+    public function index(Request $request)
     {
-        $schoolId = auth()->user()->school_id;
-        $classes = SchoolClass::where('school_id', $schoolId)->get();
+        $user = $request->user();
+        $schoolId = $user->school_id;
+        
+        // Check permission - teachers can view classes they're assigned to even without classes.manage
+        $scope = $this->teacherAccess->forUser($user);
+        $isTeacher = $scope->isTeacher();
+        
+        if (! $isTeacher) {
+            $this->ensurePermission($request, 'classes.manage');
+        }
+        
+        $query = SchoolClass::where('school_id', $schoolId);
+        
+        // For teachers, filter to only show classes they're assigned to
+        if ($isTeacher) {
+            $allowedClassIds = $scope->allowedClassIds();
+            if ($allowedClassIds->isEmpty()) {
+                // Teacher has no assignments, return empty array
+                return response()->json([]);
+            }
+            $query->whereIn('id', $allowedClassIds->toArray());
+        }
+        
+        $classes = $query->orderBy('order')->get();
 
         return response()->json($classes);
     }
@@ -61,6 +88,7 @@ class ClassController extends Controller
      */
     public function store(Request $request)
     {
+        $this->ensurePermission($request, ['classes.create', 'classes.manage']);
         $request->validate([
             'name' => [
                 'required',
@@ -78,6 +106,7 @@ class ClassController extends Controller
             'name' => $request->name,
             'slug' => Str::slug($request->name),
             'school_id' => $request->school_id,
+            'order' => SchoolClass::where('school_id', $request->school_id)->count(),
         ]);
 
         return response()->json($class, 201);
@@ -107,6 +136,7 @@ class ClassController extends Controller
      */
     public function show(SchoolClass $schoolClass)
     {
+        $this->ensurePermission(request(), 'classes.manage');
         return $schoolClass;
     }
 
@@ -141,6 +171,7 @@ class ClassController extends Controller
      */
     public function update(Request $request, SchoolClass $schoolClass)
     {
+        $this->ensurePermission($request, ['classes.update', 'classes.manage']);
         $request->validate([
             'name' => [
                 'required',
@@ -184,6 +215,7 @@ class ClassController extends Controller
      */
     public function destroy(SchoolClass $schoolClass)
     {
+        $this->ensurePermission(request(), ['classes.delete', 'classes.manage']);
         if ($schoolClass->class_arms()->exists() || $schoolClass->students()->exists()) {
             return response()->json(['error' => 'Cannot delete class with associated arms or students.'], 422);
         }
@@ -217,6 +249,7 @@ class ClassController extends Controller
      */
     public function indexArms(SchoolClass $schoolClass)
     {
+        $this->ensurePermission(request(), 'classes.manage');
         return $schoolClass->class_arms;
     }
 
@@ -251,6 +284,7 @@ class ClassController extends Controller
      */
     public function storeArm(Request $request, SchoolClass $schoolClass)
     {
+        $this->ensurePermission($request, ['class-arms.create', 'classes.manage']);
         $request->validate([
             'name' => [
                 'required',
@@ -304,6 +338,7 @@ class ClassController extends Controller
      */
     public function showArm(SchoolClass $schoolClass, string $armId)
     {
+        $this->ensurePermission(request(), 'classes.manage');
         return $schoolClass->class_arms()->findOrFail($armId);
     }
 
@@ -348,6 +383,7 @@ class ClassController extends Controller
      */
     public function updateArm(Request $request, SchoolClass $schoolClass, string $armId)
     {
+        $this->ensurePermission($request, ['class-arms.update', 'classes.manage']);
         $arm = $schoolClass->class_arms()->findOrFail($armId);
 
         $request->validate([
@@ -402,6 +438,7 @@ class ClassController extends Controller
      */
     public function destroyArm(SchoolClass $schoolClass, string $armId)
     {
+        $this->ensurePermission(request(), ['class-arms.delete', 'classes.manage']);
         $arm = $schoolClass->class_arms()->findOrFail($armId);
 
         if ($arm->students()->exists()) {

@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ResultPin;
 use App\Models\Student;
 use App\Services\ResultPinService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class ResultPinController extends Controller
 {
@@ -17,6 +19,7 @@ class ResultPinController extends Controller
 
     public function index(Request $request, Student $student)
     {
+        $this->ensurePermission($request, 'result.pin.view');
         $this->authorizeStudent($request, $student);
 
         $pins = $student->result_pins()
@@ -32,6 +35,7 @@ class ResultPinController extends Controller
 
     public function store(Request $request, Student $student)
     {
+        $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
         $this->authorizeStudent($request, $student);
 
         $validated = $request->validate([
@@ -39,17 +43,24 @@ class ResultPinController extends Controller
             'term_id' => ['required', 'uuid'],
             'expires_at' => ['nullable', 'date'],
             'regenerate' => ['sometimes', 'boolean'],
+            'max_usage' => ['nullable', 'integer', 'min:1'],
         ]);
+
+        $options = [
+            'expires_at' => $validated['expires_at'] ?? null,
+            'regenerate' => (bool) ($validated['regenerate'] ?? false),
+        ];
+
+        if ($request->exists('max_usage')) {
+            $options['max_usage'] = $validated['max_usage'];
+        }
 
         $pin = $this->service->generateForStudent(
             $student,
             $validated['session_id'],
             $validated['term_id'],
             $request->user()->id,
-            [
-                'expires_at' => $validated['expires_at'] ?? null,
-                'regenerate' => (bool) ($validated['regenerate'] ?? false),
-            ]
+            $options
         );
 
         return response()->json([
@@ -60,6 +71,7 @@ class ResultPinController extends Controller
 
     public function bulkGenerate(Request $request)
     {
+        $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
@@ -69,6 +81,7 @@ class ResultPinController extends Controller
             'student_ids.*' => ['uuid'],
             'regenerate' => ['sometimes', 'boolean'],
             'expires_at' => ['nullable', 'date'],
+            'max_usage' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $user = $request->user();
@@ -93,16 +106,22 @@ class ResultPinController extends Controller
         }
 
         $pins = [];
+        $options = [
+            'expires_at' => $validated['expires_at'] ?? null,
+            'regenerate' => (bool) ($validated['regenerate'] ?? false),
+        ];
+
+        if ($request->exists('max_usage')) {
+            $options['max_usage'] = $validated['max_usage'];
+        }
+
         foreach ($students as $student) {
             $pins[] = $this->service->generateForStudent(
                 $student,
                 $validated['session_id'],
                 $validated['term_id'],
                 $user->id,
-                [
-                    'expires_at' => $validated['expires_at'] ?? null,
-                    'regenerate' => (bool) ($validated['regenerate'] ?? false),
-                ]
+                $options
             );
         }
 
@@ -115,6 +134,7 @@ class ResultPinController extends Controller
 
     public function indexAll(Request $request)
     {
+        $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
         $user = $request->user();
         $school = $user->school;
 
@@ -165,6 +185,7 @@ class ResultPinController extends Controller
 
     public function invalidate(Request $request, ResultPin $resultPin)
     {
+        $this->ensurePermission($request, ['result.pin.invalidate', 'result.pin.manage']);
         $this->authorizePin($request, $resultPin);
 
         $pin = $this->service->invalidate($resultPin);
@@ -173,6 +194,124 @@ class ResultPinController extends Controller
             'message' => 'Result PIN invalidated successfully.',
             'data' => $this->transformPin($pin),
         ]);
+    }
+
+    public function printCards(Request $request)
+    {
+        $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
+
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'school_class_id' => ['nullable', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'student_id' => ['nullable', 'uuid'],
+            'autoprint' => ['sometimes'],
+        ]);
+
+        $user = $request->user();
+        $school = $user?->school;
+
+        if (! $school) {
+            abort(403, 'You are not linked to any school.');
+        }
+
+        if (empty($validated['student_id']) && empty($validated['school_class_id'])) {
+            return response()->view('result-pin-cards-error', [
+                'message' => 'Select a student or class before printing scratch cards.',
+            ], 422);
+        }
+
+        $pinsQuery = ResultPin::query()
+            ->with([
+                'student.school',
+                'student.school_class',
+                'student.class_arm',
+                'session',
+                'term',
+            ])
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereHas('student', fn ($query) => $query->where('school_id', $school->id));
+
+        if (! empty($validated['student_id'])) {
+            $pinsQuery->where('student_id', $validated['student_id']);
+        } else {
+            $pinsQuery->whereHas('student', function ($query) use ($validated) {
+                if (! empty($validated['school_class_id'])) {
+                    $query->where('school_class_id', $validated['school_class_id']);
+                }
+                if (! empty($validated['class_arm_id'])) {
+                    $query->where('class_arm_id', $validated['class_arm_id']);
+                }
+            });
+        }
+
+        $pins = $pinsQuery
+            ->join('students', 'students.id', '=', 'result_pins.student_id')
+            ->select('result_pins.*')
+            ->orderByRaw('LOWER(students.last_name) asc')
+            ->orderByRaw('LOWER(students.first_name) asc')
+            ->get();
+
+        if ($pins->isEmpty()) {
+            return response()->view('result-pin-cards-error', [
+                'message' => 'No result PINs were found for the selected filters. Generate PINs first, then try printing again.',
+            ], 422);
+        }
+
+        $session = $pins->first()->session;
+        $term = $pins->first()->term;
+
+        $cards = $pins->map(function (ResultPin $pin) {
+            $student = $pin->student;
+            $className = optional($student->school_class)->name;
+            $armName = optional($student->class_arm)->name;
+            $classLabel = trim(collect([$className, $armName])->filter()->implode(' - '));
+            $studentName = trim(collect([
+                $student?->first_name,
+                $student?->middle_name,
+                $student?->last_name,
+            ])->filter()->implode(' '));
+
+            return [
+                'student_name' => $studentName ?: 'Student',
+                'admission_no' => $student?->admission_no,
+                'class_label' => $classLabel ?: 'Class not set',
+                'pin_code' => $pin->pin_code,
+                'expires_at' => $pin->expires_at ? $pin->expires_at->format('jS M, Y') : 'No expiry',
+            ];
+        });
+
+        return view('result-pin-cards', [
+            'school' => $school,
+            'sessionName' => $session?->name,
+            'termName' => $term?->name,
+            'cards' => $cards,
+            'cardPages' => $cards->chunk(6)->values(),
+            'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+            'autoPrint' => $request->boolean('autoprint'),
+            'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),
+        ]);
+    }
+
+    private function resolveMediaUrl(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://', 'data:'])) {
+            return $path;
+        }
+
+        $trimmed = ltrim($path, '/');
+
+        if (Str::startsWith($trimmed, 'storage/')) {
+            return asset($trimmed);
+        }
+
+        return asset('storage/' . $trimmed);
     }
 
     private function authorizeStudent(Request $request, Student $student): void
@@ -244,6 +383,8 @@ class ResultPinController extends Controller
             'revoked_at' => optional($pin->revoked_at)->toISOString(),
             'created_at' => optional($pin->created_at)->toISOString(),
             'updated_at' => optional($pin->updated_at)->toISOString(),
+            'use_count' => $pin->use_count,
+            'max_usage' => $pin->max_usage,
             'student_name' => $studentName,
             'session_name' => $sessionName,
             'term_name' => $termName,

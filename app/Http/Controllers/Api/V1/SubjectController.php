@@ -4,14 +4,30 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SubjectController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     public function index(Request $request)
     {
+        $user = $request->user();
+        $schoolId = $user->school_id;
+
+        // Check permission - teachers can view subjects they're assigned to even without subjects.view permission
+        $scope = $this->teacherAccess->forUser($user);
+        $isTeacher = $scope->isTeacher();
+
+        if (! $isTeacher) {
+            $this->ensurePermission($request, 'subjects.view');
+        }
+
         $perPage = max((int) $request->input('per_page', 15), 1);
         $allowedSorts = ['name', 'code', 'created_at'];
         $sortBy = $request->input('sortBy', 'name');
@@ -21,8 +37,8 @@ class SubjectController extends Controller
             $sortBy = 'name';
         }
 
-        $subjects = Subject::query()
-            ->where('school_id', $request->user()->school_id)
+        $query = Subject::query()
+            ->where('school_id', $schoolId)
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->input('search');
 
@@ -30,8 +46,43 @@ class SubjectController extends Controller
                     $inner->where('name', 'like', "%{$search}%")
                         ->orWhere('code', 'like', "%{$search}%");
                 });
-            })
-            ->orderBy($sortBy, $sortDirection)
+            });
+
+        // For teachers, filter to only show subjects they're assigned to
+        if ($isTeacher) {
+            $allowedSubjectIds = collect();
+
+            // Get subjects from direct subject teacher assignments
+            $subjectAssignments = $scope->subjectAssignments();
+            $directSubjectIds = $subjectAssignments->pluck('subject_id')->unique()->filter();
+            $allowedSubjectIds = $allowedSubjectIds->merge($directSubjectIds);
+
+            // Get subjects from class teacher assignments (all subjects in those classes)
+            $classAssignments = $scope->classAssignments();
+            foreach ($classAssignments as $classAssignment) {
+                if ($classAssignment->school_class_id) {
+                    $classSubjects = \App\Models\SchoolClass::find($classAssignment->school_class_id)?->subjects ?? collect();
+                    $classSubjectIds = $classSubjects->pluck('id')->filter();
+                    $allowedSubjectIds = $allowedSubjectIds->merge($classSubjectIds);
+                }
+            }
+
+            $allowedSubjectIds = $allowedSubjectIds->unique()->filter();
+
+            if ($allowedSubjectIds->isEmpty()) {
+                // Teacher has no subject assignments, return empty result
+                return response()->json([
+                    'data' => [],
+                    'current_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                ]);
+            }
+
+            $query->whereIn('id', $allowedSubjectIds->toArray());
+        }
+
+        $subjects = $query->orderBy($sortBy, $sortDirection)
             ->paginate($perPage)
             ->withQueryString();
 
@@ -40,6 +91,7 @@ class SubjectController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'subjects.create');
         $school = $request->user()->school;
 
         if (! $school) {
@@ -89,6 +141,7 @@ class SubjectController extends Controller
 
     public function update(Request $request, Subject $subject)
     {
+        $this->ensurePermission($request, 'subjects.update');
         $this->authorizeSubjectAccess($request, $subject);
 
         $validated = $request->validate([
@@ -140,6 +193,7 @@ class SubjectController extends Controller
 
     public function destroy(Request $request, Subject $subject)
     {
+        $this->ensurePermission($request, 'subjects.delete');
         $this->authorizeSubjectAccess($request, $subject);
 
         $hasTeacherAssignments = $subject->subject_teacher_assignments()->exists();

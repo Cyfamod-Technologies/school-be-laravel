@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\SchoolController;
 use App\Http\Controllers\Api\V1\SchoolRegistrationController;
+use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\AcademicSessionController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\SubjectController;
@@ -27,11 +28,16 @@ use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\BankDetailController;
+use App\Http\Controllers\Api\V1\PermissionHierarchyController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UserRoleController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\StaffSelfController;
+use App\Http\Controllers\Api\V1\TeacherDashboardController;
+use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\ResultViewController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -45,6 +51,23 @@ Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate
 Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
+    Route::get('/email/verify', [EmailVerificationController::class, 'verify'])
+        ->name('api.v1.email.verify');
+
+    Route::post('/password/forgot', [PasswordResetController::class, 'request']);
+    Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+
+        Route::prefix('student')->group(function () {
+            Route::post('login', [StudentAuthController::class, 'login']);
+
+            Route::middleware('auth:student')->group(function () {
+                Route::post('logout', [StudentAuthController::class, 'logout']);
+                Route::get('profile', [StudentAuthController::class, 'profile']);
+                Route::get('sessions', [StudentAuthController::class, 'sessions']);
+                Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
+                Route::get('results/download', [StudentAuthController::class, 'downloadResult']);
+            });
+        });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [SchoolController::class, 'logout']);
@@ -67,6 +90,9 @@ Route::prefix('api/v1')->group(function () {
         Route::delete('permissions/{permission}', [PermissionController::class, 'destroy'])
             ->whereNumber('permission')
             ->name('permissions.destroy');
+
+        Route::get('permissions/hierarchy', [PermissionHierarchyController::class, 'index'])
+            ->name('permissions.hierarchy.index');
 
         // RBAC - Roles
         Route::get('roles', [RoleController::class, 'index'])
@@ -97,6 +123,7 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('sessions', AcademicSessionController::class);
         Route::get('sessions/{session}/terms', [AcademicSessionController::class, 'getTermsForSession']);
         Route::post('sessions/{session}/terms', [AcademicSessionController::class, 'storeTerm']);
+        Route::get('terms/{term}', [AcademicSessionController::class, 'showTerm']);
         Route::put('terms/{term}', [AcademicSessionController::class, 'updateTerm']);
         Route::delete('terms/{term}', [AcademicSessionController::class, 'destroyTerm']);
 
@@ -139,6 +166,8 @@ Route::prefix('api/v1')->group(function () {
         });
         Route::get('students/{student}/results/print', [ResultViewController::class, 'show'])
             ->whereUuid('student');
+        Route::get('results/bulk/print', [ResultViewController::class, 'bulkPrint'])
+            ->name('results.bulk.print');
         Route::prefix('students/{student}')
             ->whereUuid('student')
             ->group(function () {
@@ -172,6 +201,8 @@ Route::prefix('api/v1')->group(function () {
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
+            Route::get('cards/print', [ResultPinController::class, 'printCards'])
+                ->name('result-pins.cards.print');
         });
 
         Route::prefix('promotions')->group(function () {
@@ -252,6 +283,13 @@ Route::prefix('api/v1')->group(function () {
             Route::get('bank-details/default/get', [BankDetailController::class, 'getDefault'])
                 ->name('bank-details.get-default');
         });
+
+        Route::get('staff/me', [StaffSelfController::class, 'show'])
+            ->name('staff.me.show');
+        Route::put('staff/me', [StaffSelfController::class, 'update'])
+            ->name('staff.me.update');
+        Route::get('staff/dashboard', [TeacherDashboardController::class, 'show'])
+            ->name('staff.dashboard');
 
         // Staff Routes
         Route::apiResource('staff', \App\Http\Controllers\Api\V1\StaffController::class);

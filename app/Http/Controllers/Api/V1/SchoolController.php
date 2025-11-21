@@ -5,18 +5,26 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
+use App\Mail\VerifyEmail;
+use App\Models\EmailVerificationToken;
 use App\Models\School;
 use App\Models\Session;
 use App\Models\Term;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
+use App\Models\Student;
+use App\Models\SchoolParent;
+use App\Models\Staff;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Services\Rbac\RbacService;
+use Spatie\Permission\PermissionRegistrar;
+use Throwable;
 
 /**
  * @OA\Info(
@@ -95,13 +103,14 @@ class SchoolController extends Controller
             $acronym = $this->generateSchoolAcronym($validatedData['name']);
             $nextCode = (int) School::query()->lockForUpdate()->max('code_sequence');
             $nextCode = $nextCode > 0 ? $nextCode + 1 : 1;
+            $slug = $this->generateUniqueSchoolSlug($validatedData['name']);
 
             $school = School::create([
                 'id' => Str::uuid(),
                 'name' => $validatedData['name'],
                 'acronym' => $acronym,
                 'code_sequence' => $nextCode,
-                'slug' => Str::slug($validatedData['name']),
+                'slug' => $slug,
                 'subdomain' => $validatedData['subdomain'],
                 'address' => $validatedData['address'],
                 'email' => $validatedData['email'],
@@ -124,12 +133,13 @@ class SchoolController extends Controller
             return [$school, $user];
         });
 
-        $loginUrl = str_replace('://', '://' . $school->subdomain . '.', config('app.url'));
+        $this->handleEmailVerification($user);
 
         return response()->json([
             'message' => 'School registered successfully.',
             'school' => $school,
             'user' => $user,
+            'verification_required' => config('features.email_verification'),
         ], 201);
     }
 
@@ -179,25 +189,66 @@ class SchoolController extends Controller
             ]);
         }
 
-        if (in_array($user->role, ['admin', 'super_admin'], true) && $user->school) {
-            /** @var \App\Services\Rbac\RbacService $rbac */
-            $rbac = app(RbacService::class);
-            $rbac->bootstrapForSchool($user->school, $user);
+        if (config('features.email_verification') && ! $user->email_verified_at) {
+            $role = strtolower((string) ($user->role ?? ''));
+
+            // Only enforce email verification for the initial school admin / super admin.
+            if (in_array($role, ['admin', 'super_admin'], true)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Please verify your email address before logging in.'],
+                ]);
+            }
         }
 
-        $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
-        $previousTeamId = method_exists($registrar, 'getPermissionsTeamId')
-            ? $registrar->getPermissionsTeamId()
-            : null;
+        $rbac = app(RbacService::class);
 
-        $registrar->setPermissionsTeamId($user->school_id);
+        if (in_array($user->role, ['admin', 'super_admin'], true) && $user->school) {
+            $guard = config('permission.default_guard', 'sanctum');
+            $hasSchoolRole = $this->withTeamContext($user->school_id, function () use ($user, $guard) {
+                return $user->roles()
+                    ->where('roles.guard_name', $guard)
+                    ->where(function ($query) use ($user) {
+                        return $query
+                            ->whereNull('roles.school_id')
+                            ->orWhere('roles.school_id', $user->school_id);
+                    })
+                    ->exists();
+            });
 
-        $hasAllowedRole = $user->hasAnyRole(['admin', 'staff', 'super_admin']);
+            if (! $hasSchoolRole) {
+                $rbac->bootstrapForSchool($user->school, $user);
+            }
+        }
 
-        $registrar->setPermissionsTeamId($previousTeamId);
+        $hasAllowedRole = $this->withTeamContext($user->school_id, function () use ($user) {
+            $guard = config('permission.default_guard', 'sanctum');
+            return $user->roles()
+                ->where('roles.guard_name', $guard)
+                ->where(function ($query) use ($user) {
+                    return $query
+                        ->whereNull('roles.school_id')
+                        ->orWhere('roles.school_id', $user->school_id);
+                })
+                ->exists();
+        });
 
         if (! $hasAllowedRole) {
             return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        if ($user->school) {
+            $this->withTeamContext($user->school_id, function () use ($user, $rbac) {
+                $rbac->syncCorePermissions($user->school);
+                $rbac->ensureOperationalRoles($user->school);
+
+                if ($user->hasRole('admin')) {
+                    $rbac->syncAdminPermissions($user->school);
+                }
+
+                if ($user->hasRole('super_admin')) {
+                    $rbac->syncSuperAdminPermissions($user->school);
+                }
+            });
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
@@ -317,6 +368,9 @@ class SchoolController extends Controller
         $sessionId = $data['current_session_id'] ?? null;
         $termId = $data['current_term_id'] ?? null;
 
+        $previousSessionId = $school->current_session_id;
+        $previousTermId = $school->current_term_id;
+
         if (array_key_exists('current_session_id', $data) && $sessionId !== null) {
             $session = Session::where('id', $sessionId)
                 ->where('school_id', $school->id)
@@ -353,8 +407,28 @@ class SchoolController extends Controller
 
         $school->fill($data);
 
+        $termChangedWithinSameSession = false;
+
+        if (array_key_exists('current_term_id', $data)) {
+            $newSessionId = $sessionId ?? $school->current_session_id;
+            $newTermId = $termId ?? $school->current_term_id;
+
+            if ($newTermId !== null && $newTermId !== $previousTermId && $newSessionId === $previousSessionId && $newSessionId !== null) {
+                $termChangedWithinSameSession = true;
+            }
+        }
+
         if ($school->isDirty()) {
             $school->save();
+
+            if ($termChangedWithinSameSession) {
+                \App\Models\Student::query()
+                    ->where('school_id', $school->id)
+                    ->where('current_session_id', $school->current_session_id)
+                    ->update([
+                        'current_term_id' => $school->current_term_id,
+                    ]);
+            }
         }
 
         return response()->json([
@@ -439,17 +513,95 @@ class SchoolController extends Controller
      * )
      */
     public function showSchoolAdminProfile(Request $request)
-        {
-            $user = $request->user();            // same as Auth::user()
-            $school = $user->school;             // eager-load if you want
+    {
+        $user = $request->user();
+        $schoolId = optional($user->school)->id ?? $user->school_id;
 
-            return response()->json([
-                'user'   => $user->loadMissing([
-                    'school.currentSession:id,name,slug,start_date,end_date,status',
-                    'school.currentTerm:id,name,session_id,start_date,end_date,status',
-                ]),
-            ]);
+        $user->loadMissing([
+            'school.currentSession:id,name,slug,start_date,end_date,status',
+            'school.currentTerm:id,name,session_id,start_date,end_date,status',
+            'parents' => function ($query) {
+                $query
+                    ->select([
+                        'id',
+                        'user_id',
+                        'school_id',
+                        'first_name',
+                        'last_name',
+                        'phone',
+                    ])
+                    ->withCount('students');
+            },
+            'staff:id,school_id,user_id,full_name,phone,role,gender,address,qualifications,employment_start_date,photo_url',
+            'roles' => function ($relation) use ($schoolId) {
+                $relation
+                    ->where('roles.guard_name', config('permission.default_guard', 'sanctum'))
+                    ->when($schoolId, function ($query) use ($schoolId) {
+                        $query
+                            ->whereNull('roles.school_id')
+                            ->orWhere('roles.school_id', $schoolId);
+                    })
+                    ->with(['permissions' => function ($permissions) use ($schoolId) {
+                        $permissions
+                            ->where('permissions.guard_name', config('permission.default_guard', 'sanctum'))
+                            ->when($schoolId, function ($query) use ($schoolId) {
+                                $query
+                                    ->whereNull('permissions.school_id')
+                                    ->orWhere('permissions.school_id', $schoolId);
+                            });
+                    }]);
+            },
+        ]);
+
+        $linkedStudentsCount = $user->parents
+            ? $user->parents->sum('students_count')
+            : 0;
+
+        $studentCount = $schoolId
+            ? Student::query()->where('school_id', $schoolId)->count()
+            : 0;
+
+        $parentCount = $schoolId
+            ? SchoolParent::query()->where('school_id', $schoolId)->count()
+            : 0;
+
+        $teacherCount = 0;
+        if ($schoolId) {
+            $teacherQuery = Staff::query()->where('school_id', $schoolId);
+            $teacherCount = (clone $teacherQuery)
+                ->where(function ($query) {
+                    $query->whereNull('role')
+                        ->orWhereRaw('LOWER(role) LIKE ?', ['%teacher%']);
+                })
+                ->count();
+
+            if ($teacherCount === 0) {
+                $teacherCount = $teacherQuery->count();
+            }
         }
+
+        $permissionNames = $schoolId
+            ? $this->withTeamContext($schoolId, function () use ($user) {
+                return $user->getAllPermissions()
+                    ->pluck('name')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+            })
+            : [];
+
+        $userData = $user->toArray();
+        $userData['permissions'] = $permissionNames;
+
+        return response()->json([
+            'user' => $userData,
+            'linked_students_count' => $linkedStudentsCount,
+            'student_count' => $studentCount,
+            'parent_count' => $parentCount,
+            'teacher_count' => $teacherCount,
+        ]);
+    }
 
 
     /**
@@ -502,6 +654,32 @@ class SchoolController extends Controller
         }
     }
 
+    private function generateUniqueSchoolSlug(string $name): string
+    {
+        $baseSlug = Str::slug($name);
+        if ($baseSlug === '') {
+            $baseSlug = 'school';
+        }
+
+        $existingSlugs = School::query()
+            ->where('slug', 'like', $baseSlug.'%')
+            ->lockForUpdate()
+            ->pluck('slug')
+            ->all();
+
+        if (! in_array($baseSlug, $existingSlugs, true)) {
+            return $baseSlug;
+        }
+
+        $suffix = 1;
+        do {
+            $candidate = $baseSlug.'-'.$suffix;
+            $suffix++;
+        } while (in_array($candidate, $existingSlugs, true));
+
+        return $candidate;
+    }
+
     private function generateSchoolAcronym(string $name): string
     {
         $words = collect(preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY));
@@ -517,5 +695,68 @@ class SchoolController extends Controller
         }
 
         return Str::limit($acronym ?: 'SCH', 5, '');
+    }
+
+    /**
+     * Execute a callback within the context of the authenticated school for permission checks.
+     *
+     * @template TReturn
+     *
+     * @param  callable():TReturn  $callback
+     * @return TReturn
+     */
+    private function withTeamContext(?string $schoolId, callable $callback)
+    {
+        if (! $schoolId) {
+            return $callback();
+        }
+
+        /** @var PermissionRegistrar $registrar */
+        $registrar = app(PermissionRegistrar::class);
+        $previousTeamId = method_exists($registrar, 'getPermissionsTeamId')
+            ? $registrar->getPermissionsTeamId()
+            : null;
+
+        $registrar->setPermissionsTeamId($schoolId);
+
+        try {
+            return $callback();
+        } finally {
+            $registrar->setPermissionsTeamId($previousTeamId);
+        }
+    }
+
+    private function handleEmailVerification(User $user): void
+    {
+        if (! config('features.email_verification')) {
+            if (! $user->email_verified_at) {
+                $user->forceFill([
+                    'email_verified_at' => now(),
+                ])->save();
+            }
+
+            return;
+        }
+
+        $tokenValue = Str::random(64);
+        $hashedToken = hash('sha256', $tokenValue);
+        $ttlMinutes = max((int) config('features.email_verification_ttl_minutes', 1440), 5);
+        $expiresAt = now()->addMinutes($ttlMinutes);
+
+        EmailVerificationToken::where('user_id', $user->id)->delete();
+
+        EmailVerificationToken::create([
+            'user_id' => $user->id,
+            'token' => $hashedToken,
+            'expires_at' => $expiresAt,
+        ]);
+
+        $verificationUrl = url('/api/v1/email/verify?token=' . $tokenValue);
+
+        try {
+            Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl, $expiresAt));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 }

@@ -35,8 +35,13 @@ class ResultPinService
         }
 
         $regenerate = (bool) Arr::get($options, 'regenerate', false);
+        $hasMaxUsage = array_key_exists('max_usage', $options);
+        $maxUsage = $hasMaxUsage ? Arr::get($options, 'max_usage') : null;
+        if ($hasMaxUsage && $maxUsage !== null) {
+            $maxUsage = (int) $maxUsage;
+        }
 
-        return DB::transaction(function () use ($student, $session, $term, $createdBy, $expiresAt, $regenerate) {
+        return DB::transaction(function () use ($student, $session, $term, $createdBy, $expiresAt, $regenerate, $hasMaxUsage, $maxUsage) {
             $existing = ResultPin::query()
                 ->where('student_id', $student->id)
                 ->where('session_id', $session->id)
@@ -58,6 +63,9 @@ class ResultPinService
                 $existing->revoked_at = null;
                 $existing->created_by = $createdBy;
                 $existing->use_count = 0;
+                if ($hasMaxUsage) {
+                    $existing->max_usage = $maxUsage;
+                }
                 $existing->save();
 
                 return $existing->fresh();
@@ -72,6 +80,7 @@ class ResultPinService
                 'expires_at' => $expiresAt,
                 'created_by' => $createdBy,
                 'use_count' => 0,
+                'max_usage' => $hasMaxUsage ? $maxUsage : null,
             ]);
         });
     }

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('term_summaries', function (Blueprint $table) {
             if (! Schema::hasColumn('term_summaries', 'principal_comment')) {
-                $table->text('principal_comment')->nullable()->after('overall_comment');
+                $table->text('principal_comment')->nullable()->default('This student is hardworking.')->after('overall_comment');
             }
         });
     }
