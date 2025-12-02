@@ -50,6 +50,12 @@ class ResultViewController extends Controller
         ]);
 
         $schoolId = optional($request->user()->school)->id;
+        if (! $schoolId && ! empty($validated['school_class_id'])) {
+            // Fallback for admins/super admins without a linked school record: infer school from the class.
+            $schoolId = SchoolClass::query()
+                ->whereKey($validated['school_class_id'])
+                ->value('school_id');
+        }
 
         if (! $schoolId) {
             abort(403, 'You are not linked to any school.');
