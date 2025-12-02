@@ -25,7 +25,7 @@ class ResultViewController extends Controller
 {
     public function show(Request $request, Student $student)
     {
-        $this->ensurePermission($request, 'students.results.print');
+        // Temporarily allow all users to view/print single student results (permission check disabled).
 
         $data = $this->buildResultPageData(
             $student,
@@ -39,7 +39,7 @@ class ResultViewController extends Controller
 
     public function bulkPrint(Request $request)
     {
-        $this->ensurePermission($request, 'students.results.print');
+        // Temporarily allow all users to bulk print results (permission check disabled).
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
