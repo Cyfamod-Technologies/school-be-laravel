@@ -11,7 +11,7 @@
         }
     ],
     "paths": {
-        "/v1/sessions": {
+        "/api/v1/sessions": {
             "get": {
                 "tags": [
                     "school-v1.1"
@@ -68,7 +68,7 @@
                 }
             }
         },
-        "/v1/sessions/{id}": {
+        "/api/v1/sessions/{id}": {
             "get": {
                 "tags": [
                     "school-v1.1"
@@ -184,7 +184,7 @@
                 }
             }
         },
-        "/v1/sessions/{id}/terms": {
+        "/api/v1/sessions/{id}/terms": {
             "get": {
                 "tags": [
                     "school-v1.1"
@@ -263,7 +263,34 @@
                 }
             }
         },
-        "/v1/terms/{id}": {
+        "/api/v1/terms/{id}": {
+            "get": {
+                "tags": [
+                    "school-v1.1"
+                ],
+                "summary": "Get term information",
+                "description": "Returns term data",
+                "operationId": "getTermById",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Term id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            },
             "put": {
                 "tags": [
                     "school-v1.1"
@@ -349,7 +376,7 @@
                 }
             }
         },
-        "/v1/classes": {
+        "/api/v1/classes": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -402,7 +429,7 @@
                 }
             }
         },
-        "/v1/classes/{id}": {
+        "/api/v1/classes/{id}": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -495,7 +522,7 @@
                 }
             }
         },
-        "/v1/classes/{classId}/arms": {
+        "/api/v1/classes/{classId}/arms": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -564,7 +591,7 @@
                 }
             }
         },
-        "/v1/classes/{classId}/arms/{armId}": {
+        "/api/v1/classes/{classId}/arms/{armId}": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -688,7 +715,7 @@
                 }
             }
         },
-        "/v1/classes/{classId}/arms/{armId}/sections": {
+        "/api/v1/classes/{classId}/arms/{armId}/sections": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -775,7 +802,7 @@
                 }
             }
         },
-        "/v1/classes/{classId}/arms/{armId}/sections/{sectionId}": {
+        "/api/v1/classes/{classId}/arms/{armId}/sections/{sectionId}": {
             "get": {
                 "tags": [
                     "school-v1.2"
@@ -922,7 +949,87 @@
                 }
             }
         },
-        "/v1/parents": {
+        "/api/v1/locations/countries": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List countries",
+                "operationId": "9734c082c6956b2e4d17657db35d8890",
+                "responses": {
+                    "200": {
+                        "description": "Countries returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/locations/states": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List states",
+                "operationId": "5a6a2cd2e7123fd9b886bb5c0b8215d9",
+                "parameters": [
+                    {
+                        "name": "country_id",
+                        "in": "query",
+                        "description": "Filter states by country",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "States returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/locations/states/{state}/lgas": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List LGAs for a state",
+                "operationId": "95c526c65167ec5fb2c57fc6db610fb5",
+                "parameters": [
+                    {
+                        "name": "state",
+                        "in": "path",
+                        "description": "State ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "LGAs returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/locations/blood-groups": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List blood groups",
+                "operationId": "a2f28cbba89f35de80bc191fe257ef44",
+                "responses": {
+                    "200": {
+                        "description": "Blood groups returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/parents": {
             "get": {
                 "tags": [
                     "school-v1.3"
@@ -1005,7 +1112,7 @@
                 }
             }
         },
-        "/v1/parents/{id}": {
+        "/api/v1/parents/{id}": {
             "get": {
                 "tags": [
                     "school-v1.3"
@@ -1136,13 +1243,373 @@
                 }
             }
         },
-        "/v1/register-school": {
+        "/api/v1/students/{student}/result-pins": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List result PINs for a student",
+                "description": "Returns a student's result PINs filtered by session and term.",
+                "operationId": "e90a79bf25c3667c25dfdc6b211ef80b",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List returned"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Generate a result PIN for a student",
+                "operationId": "b39cca4cc635a929bd72660612e1a176",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_id",
+                                    "term_id"
+                                ],
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "term_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "expires_at": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2025-12-31T23:59:59Z"
+                                    },
+                                    "regenerate": {
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "max_usage": {
+                                        "type": "integer",
+                                        "example": 3
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "PIN generated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/result-pins/bulk": {
+            "post": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Bulk-generate result PINs",
+                "description": "Generate result PINs for many students using class or explicit student filters.",
+                "operationId": "a4b7cf7ac22f588f9703d088413ce893",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_id",
+                                    "term_id"
+                                ],
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "term_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "school_class_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_arm_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "student_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                        }
+                                    },
+                                    "regenerate": {
+                                        "type": "boolean",
+                                        "example": false
+                                    },
+                                    "expires_at": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2025-12-31T23:59:59Z"
+                                    },
+                                    "max_usage": {
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Bulk generation completed"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/result-pins": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List result PINs across the school",
+                "description": "Requires session_id and term_id; supports filtering by student, class, arm, and status.",
+                "operationId": "bf2c9ea68d9a145b565949d1fc85d3d3",
+                "parameters": [
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "student_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "school_class_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "class_arm_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List returned"
+                    },
+                    "422": {
+                        "description": "Missing required filters"
+                    }
+                }
+            }
+        },
+        "/api/v1/result-pins/{resultPin}/invalidate": {
+            "put": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Invalidate a result PIN",
+                "operationId": "aaba4276592d351c65c53e1b6a387ef7",
+                "parameters": [
+                    {
+                        "name": "resultPin",
+                        "in": "path",
+                        "description": "Result PIN ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PIN invalidated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/result-pins/cards/print": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Print scratch cards for result PINs",
+                "description": "Renders printable cards for a student or class for a given session/term.",
+                "operationId": "575b984228d0f23a33890b8b49af4a03",
+                "parameters": [
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "student_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "school_class_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "class_arm_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Printable HTML view"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/register-school": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Register a new school",
-                "operationId": "86c065ad7c08e79dba5a1b38acff7cc6",
+                "operationId": "d488d2d37d460c84a9de0eb5dc4ddf2a",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -1307,13 +1774,13 @@
                 }
             }
         },
-        "/v1/login": {
+        "/api/v1/login": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Login as a school admin",
-                "operationId": "9b5e2e33a3e012c5d925e05f9a4f1521",
+                "operationId": "dd88ccaa8c0202be7608c248fcbc5b6d",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -1368,13 +1835,13 @@
                 }
             }
         },
-        "/v1/logout": {
+        "/api/v1/logout": {
             "post": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Logout the authenticated user",
-                "operationId": "3aca6d185fca08cdefc9194b0d8d4160",
+                "operationId": "f68497443ec1640d78b54128c8a98fde",
                 "responses": {
                     "200": {
                         "description": "Successfully logged out",
@@ -1403,13 +1870,13 @@
                 ]
             }
         },
-        "/v1/school": {
+        "/api/v1/school": {
             "get": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Get the authenticated school's profile",
-                "operationId": "9b804cbf107ffc421fc6ed5068edf802",
+                "operationId": "eb99dd3df5dc9bbcedb966a4e4def6c8",
                 "responses": {
                     "200": {
                         "description": "School profile returned"
@@ -1429,7 +1896,7 @@
                     "school-v1.0"
                 ],
                 "summary": "Update school profile",
-                "operationId": "bba8cf7d40e5dacce03cc880a8f17541",
+                "operationId": "1602f246e0f93bb4ded0cfd660dbaadc",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -1481,13 +1948,13 @@
                 ]
             }
         },
-        "/v1/user": {
+        "/api/v1/user": {
             "get": {
                 "tags": [
                     "school-v1.0"
                 ],
                 "summary": "Get the authenticated School Admin's profile",
-                "operationId": "1361145f662b9723cff15438ab9d4c18",
+                "operationId": "6120743e9f3be5b66367b8a113fc3eac",
                 "responses": {
                     "200": {
                         "description": "User profile returned"
@@ -1507,7 +1974,7 @@
                     "school-v1.0"
                 ],
                 "summary": "Update School Admin profile",
-                "operationId": "dc8fa0fcbec90acdeb7034fba4f980bc",
+                "operationId": "4dec2e60c995935023fc14baeb4f8ffc",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -1559,7 +2026,174 @@
                 ]
             }
         },
-        "/v1/students": {
+        "/api/v1/settings/skill-types": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List skill types",
+                "description": "Returns skill types for the authenticated school. Supports filtering by skill_category_id.",
+                "operationId": "6cd47bd3a91e2d0dd5ea04fd81517eed",
+                "parameters": [
+                    {
+                        "name": "skill_category_id",
+                        "in": "query",
+                        "description": "Filter by skill category",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List returned"
+                    },
+                    "422": {
+                        "description": "User not linked to a school"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Create a skill type",
+                "operationId": "382fcb5aed2d155abd11acc6e0eb5c9d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "skill_category_id",
+                                    "name"
+                                ],
+                                "properties": {
+                                    "skill_category_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Teamwork"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Ability to collaborate effectively"
+                                    },
+                                    "weight": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 10.5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Skill type created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/settings/skill-types/{skillType}": {
+            "put": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Update a skill type",
+                "operationId": "e086716e254fc334be2c7bd951d17684",
+                "parameters": [
+                    {
+                        "name": "skillType",
+                        "in": "path",
+                        "description": "Skill type ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "skill_category_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Creativity"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Problem solving and originality"
+                                    },
+                                    "weight": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Skill type updated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Delete a skill type",
+                "operationId": "0f457929483a6feb8dcab8e73447b068",
+                "parameters": [
+                    {
+                        "name": "skillType",
+                        "in": "path",
+                        "description": "Skill type ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Skill type deleted"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/students": {
             "get": {
                 "tags": [
                     "school-v1.4"
@@ -1617,7 +2251,7 @@
                                 "properties": {
                                     "admission_no": {
                                         "type": "string",
-                                        "example": "2023/123"
+                                        "example": "NC001-2024/2025/1"
                                     },
                                     "first_name": {
                                         "type": "string",
@@ -1716,7 +2350,7 @@
                 }
             }
         },
-        "/v1/students/{id}": {
+        "/api/v1/students/{id}": {
             "get": {
                 "tags": [
                     "school-v1.4"
@@ -1773,7 +2407,7 @@
                                 "properties": {
                                     "admission_no": {
                                         "type": "string",
-                                        "example": "2023/123"
+                                        "example": "NC001-2024/2025/1"
                                     },
                                     "first_name": {
                                         "type": "string",
@@ -1904,6 +2538,508 @@
                     }
                 }
             }
+        },
+        "/api/v1/students/{student}/skill-ratings": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List skill ratings for a student",
+                "description": "Returns the student's skill ratings filtered by session and term.",
+                "operationId": "bf112465892bf1275c907d9e1c9c399d",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID (defaults to student's current session)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID (defaults to student's current term)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List returned successfully"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Create a skill rating for a student",
+                "description": "Records a new skill rating for the given session and term.",
+                "operationId": "988de1260d9a663f5ad04d9c42bcf3f3",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "skill_type_id",
+                                    "rating_value"
+                                ],
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "term_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "skill_type_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "rating_value": {
+                                        "type": "integer",
+                                        "maximum": 5,
+                                        "minimum": 1,
+                                        "example": 4
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Skill rating created"
+                    },
+                    "409": {
+                        "description": "Duplicate rating"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/skill-types": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "List available skill types for a student",
+                "description": "Returns skill types scoped to the student's school.",
+                "operationId": "097d55a2c97d99a3bc7dd4b46fe71e08",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Skill types returned"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/skill-ratings/{skillRating}": {
+            "put": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Update a student's skill rating",
+                "description": "Updates session, term, skill type, or rating value for an existing record.",
+                "operationId": "221d6dfba0ad1de187bb017bdd7c2aec",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "skillRating",
+                        "in": "path",
+                        "description": "Skill rating ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "term_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "skill_type_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "rating_value": {
+                                        "type": "integer",
+                                        "maximum": 5,
+                                        "minimum": 1,
+                                        "example": 5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Skill rating updated"
+                    },
+                    "404": {
+                        "description": "Skill rating not found for student"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Delete a student's skill rating",
+                "operationId": "5c759591a331b40b33b1935f8a9207fd",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "skillRating",
+                        "in": "path",
+                        "description": "Skill rating ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Skill rating deleted"
+                    },
+                    "404": {
+                        "description": "Skill rating not found for student"
+                    },
+                    "422": {
+                        "description": "Term closed for updates"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/term-summary": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Fetch a student's term summary comments",
+                "description": "Returns class teacher and principal comments for the provided session/term or the student's current session/term.",
+                "operationId": "b5c6fd5289791ee2377164b266ef7718",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID (defaults to student's current session)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID (defaults to student's current term)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Term summary returned"
+                    },
+                    "422": {
+                        "description": "Missing session or term"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Update term summary comments for a student",
+                "description": "Creates or updates class teacher and principal comments for a specific session and term.",
+                "operationId": "fb56951fdf1298279fecd0e81ac97064",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_id",
+                                    "term_id"
+                                ],
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "term_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "class_teacher_comment": {
+                                        "type": "string",
+                                        "example": "Showing steady improvement."
+                                    },
+                                    "principal_comment": {
+                                        "type": "string",
+                                        "example": "Keep up the good work."
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Comments updated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/results/print": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Print a student's result",
+                "description": "Renders the printable result sheet for the selected student, session, and term.",
+                "operationId": "9434527f51622d2ff01786a445f8e4f7",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID to print (defaults to student's current session)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID to print (defaults to student's current term)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Printable HTML view"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/results/bulk/print": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Bulk print class results",
+                "description": "Generates printable result sheets for a class (optionally filtered by arm/section).",
+                "operationId": "e80288e73e6c4b4f099fa71bbe0eb8c1",
+                "parameters": [
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "school_class_id",
+                        "in": "query",
+                        "description": "Class ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "class_arm_id",
+                        "in": "query",
+                        "description": "Arm ID",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "class_section_id",
+                        "in": "query",
+                        "description": "Section ID",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Printable HTML view or JSON error"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
         }
     },
     "tags": [
@@ -1921,7 +3057,7 @@
         },
         {
             "name": "school-v1.4",
-            "description": "student Management"
+            "description": "v1.4 – Student Management, Skills & Results"
         },
         {
             "name": "school-v1.0",

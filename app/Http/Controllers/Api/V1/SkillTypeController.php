@@ -11,6 +11,23 @@ use Illuminate\Validation\Rule;
 
 class SkillTypeController extends Controller
 {
+    /**
+     * @OA\Get(
+     *     path="/api/v1/settings/skill-types",
+     *     tags={"school-v1.4"},
+     *     summary="List skill types",
+     *     description="Returns skill types for the authenticated school. Supports filtering by skill_category_id.",
+     *     @OA\Parameter(
+     *         name="skill_category_id",
+     *         in="query",
+     *         required=false,
+     *         description="Filter by skill category",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="List returned"),
+     *     @OA\Response(response=422, description="User not linked to a school")
+     * )
+     */
     public function index(Request $request)
     {
         $school = $request->user()->school;
@@ -44,6 +61,25 @@ class SkillTypeController extends Controller
         return response()->json(['data' => $types]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/settings/skill-types",
+     *     tags={"school-v1.4"},
+     *     summary="Create a skill type",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"skill_category_id","name"},
+     *             @OA\Property(property="skill_category_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="name", type="string", example="Teamwork"),
+     *             @OA\Property(property="description", type="string", example="Ability to collaborate effectively"),
+     *             @OA\Property(property="weight", type="number", format="float", example=10.5)
+     *         )
+     *     ),
+     *     @OA\Response(response=201, description="Skill type created"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function store(Request $request)
     {
         $school = $request->user()->school;
@@ -76,6 +112,32 @@ class SkillTypeController extends Controller
         ], 201);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/settings/skill-types/{skillType}",
+     *     tags={"school-v1.4"},
+     *     summary="Update a skill type",
+     *     @OA\Parameter(
+     *         name="skillType",
+     *         in="path",
+     *         required=true,
+     *         description="Skill type ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=false,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="skill_category_id", type="string", format="uuid"),
+     *             @OA\Property(property="name", type="string", example="Creativity"),
+     *             @OA\Property(property="description", type="string", example="Problem solving and originality"),
+     *             @OA\Property(property="weight", type="number", format="float", example=5.0)
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Skill type updated"),
+     *     @OA\Response(response=403, description="Forbidden"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function update(Request $request, SkillType $skillType)
     {
         $this->authorizeType($request, $skillType);
@@ -113,6 +175,22 @@ class SkillTypeController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Delete(
+     *     path="/api/v1/settings/skill-types/{skillType}",
+     *     tags={"school-v1.4"},
+     *     summary="Delete a skill type",
+     *     @OA\Parameter(
+     *         name="skillType",
+     *         in="path",
+     *         required=true,
+     *         description="Skill type ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="Skill type deleted"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function destroy(Request $request, SkillType $skillType)
     {
         $this->authorizeType($request, $skillType);

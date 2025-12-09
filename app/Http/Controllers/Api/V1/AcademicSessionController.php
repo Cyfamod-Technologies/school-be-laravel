@@ -20,7 +20,7 @@ class AcademicSessionController extends Controller
 {
     /**
      * @OA\Get(
-     *      path="/v1/sessions",
+     *      path="/api/v1/sessions",
      *      operationId="getSessionsList",
      *      tags={"school-v1.1"},
      *      summary="Get list of sessions",
@@ -50,7 +50,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Post(
-     *      path="/v1/sessions",
+     *      path="/api/v1/sessions",
      *      operationId="storeSession",
      *      tags={"school-v1.1"},
      *      summary="Store new session",
@@ -115,7 +115,7 @@ class AcademicSessionController extends Controller
     
 /**
  * @OA\Get(
- *     path="/v1/sessions/{id}",
+ *     path="/api/v1/sessions/{id}",
  *     operationId="getSessionById",
  *     tags={"school-v1.1"},
  *     summary="Get session information",
@@ -151,7 +151,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Put(
-     *     path="/v1/sessions/{id}",
+     *     path="/api/v1/sessions/{id}",
      *     operationId="updateSession",
      *     tags={"school-v1.1"},
      *     summary="Update existing session",
@@ -236,7 +236,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Delete(
-     *      path="/v1/sessions/{id}",
+     *      path="/api/v1/sessions/{id}",
      *      operationId="deleteSession",
      *      tags={"school-v1.1"},
      *      summary="Delete existing session",
@@ -279,7 +279,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Get(
-     *      path="/v1/sessions/{id}/terms",
+     *      path="/api/v1/sessions/{id}/terms",
      *      operationId="getTermsForSession",
      *      tags={"school-v1.1"},
      *      summary="Get list of terms for a session",
@@ -306,7 +306,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Post(
-     *      path="/v1/sessions/{id}/terms",
+     *      path="/api/v1/sessions/{id}/terms",
      *      operationId="storeTerm",
      *      tags={"school-v1.1"},
      *      summary="Store new term",
@@ -376,7 +376,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Get(
-     *      path="/v1/terms/{id}",
+     *      path="/api/v1/terms/{id}",
      *      operationId="getTermById",
      *      tags={"school-v1.1"},
      *      summary="Get term information",
@@ -414,7 +414,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Put(
-     *      path="/v1/terms/{id}",
+     *      path="/api/v1/terms/{id}",
      *      operationId="updateTerm",
      *      tags={"school-v1.1"},
      *      summary="Update existing term",
@@ -479,7 +479,7 @@ class AcademicSessionController extends Controller
 
     /**
      * @OA\Delete(
-     *      path="/v1/terms/{id}",
+     *      path="/api/v1/terms/{id}",
      *      operationId="deleteTerm",
      *      tags={"school-v1.1"},
      *      summary="Delete existing term",

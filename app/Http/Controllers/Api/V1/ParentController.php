@@ -24,7 +24,7 @@ class ParentController extends Controller
      */
     /**
      * @OA\Get(
-     *      path="/v1/parents",
+     *      path="/api/v1/parents",
      *      operationId="getParentsList",
      *      tags={"school-v1.3"},
      *      summary="Get list of parents",
@@ -103,7 +103,7 @@ class ParentController extends Controller
      */
     /**
      * @OA\Post(
-     *      path="/v1/parents",
+     *      path="/api/v1/parents",
      *      operationId="storeParent",
      *      tags={"school-v1.3"},
      *      summary="Store new parent",
@@ -197,7 +197,7 @@ class ParentController extends Controller
      */
     /**
      * @OA\Get(
-     *      path="/v1/parents/{id}",
+     *      path="/api/v1/parents/{id}",
      *      operationId="getParentById",
      *      tags={"school-v1.3"},
      *      summary="Get parent information",
@@ -245,7 +245,7 @@ class ParentController extends Controller
      */
     /**
      * @OA\Put(
-     *      path="/v1/parents/{id}",
+     *      path="/api/v1/parents/{id}",
      *      operationId="updateParent",
      *      tags={"school-v1.3"},
      *      summary="Update existing parent",
@@ -329,7 +329,7 @@ class ParentController extends Controller
      */
     /**
      * @OA\Delete(
-     *      path="/v1/parents/{id}",
+     *      path="/api/v1/parents/{id}",
      *      operationId="deleteParent",
      *      tags={"school-v1.3"},
      *      summary="Delete existing parent",

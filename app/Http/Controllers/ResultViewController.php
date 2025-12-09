@@ -23,6 +23,37 @@ use Illuminate\Support\Str;
 
 class ResultViewController extends Controller
 {
+    /**
+     * @OA\Get(
+     *     path="/api/v1/students/{student}/results/print",
+     *     tags={"school-v1.4"},
+     *     summary="Print a student's result",
+     *     description="Renders the printable result sheet for the selected student, session, and term.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="session_id",
+     *         in="query",
+     *         required=false,
+     *         description="Session ID to print (defaults to student's current session)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="term_id",
+     *         in="query",
+     *         required=false,
+     *         description="Term ID to print (defaults to student's current term)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="Printable HTML view"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function show(Request $request, Student $student)
     {
         // Temporarily allow all users to view/print single student results (permission check disabled).
@@ -41,6 +72,51 @@ class ResultViewController extends Controller
         return view('result', $data);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/results/bulk/print",
+     *     tags={"school-v1.4"},
+     *     summary="Bulk print class results",
+     *     description="Generates printable result sheets for a class (optionally filtered by arm/section).",
+     *     @OA\Parameter(
+     *         name="session_id",
+     *         in="query",
+     *         required=true,
+     *         description="Session ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="term_id",
+     *         in="query",
+     *         required=true,
+     *         description="Term ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="school_class_id",
+     *         in="query",
+     *         required=true,
+     *         description="Class ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="class_arm_id",
+     *         in="query",
+     *         required=false,
+     *         description="Arm ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="class_section_id",
+     *         in="query",
+     *         required=false,
+     *         description="Section ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="Printable HTML view or JSON error"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function bulkPrint(Request $request)
     {
         // Temporarily allow all users to bulk print results (permission check disabled).

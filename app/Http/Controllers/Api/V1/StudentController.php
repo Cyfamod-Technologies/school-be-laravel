@@ -14,7 +14,7 @@ use App\Services\Teachers\TeacherAccessService;
 /**
  * @OA\Tag(
  *     name="school-v1.4",
- *     description="student Management"
+ *     description="v1.4 – Student Management, Skills & Results"
  * )
  */
 class StudentController extends Controller
@@ -30,7 +30,7 @@ class StudentController extends Controller
      */
     /**
      * @OA\Get(
-     *      path="/v1/students",
+     *      path="/api/v1/students",
      *      operationId="getStudentsList",
      *      tags={"school-v1.4"},
      *      summary="Get list of students",
@@ -147,7 +147,7 @@ class StudentController extends Controller
      */
     /**
      * @OA\Post(
-     *      path="/v1/students",
+     *      path="/api/v1/students",
      *      operationId="storeStudent",
      *      tags={"school-v1.4"},
      *      summary="Store new student",
@@ -290,7 +290,7 @@ class StudentController extends Controller
      */
     /**
      * @OA\Get(
-     *      path="/v1/students/{id}",
+     *      path="/api/v1/students/{id}",
      *      operationId="getStudentById",
      *      tags={"school-v1.4"},
      *      summary="Get student information",
@@ -346,7 +346,7 @@ class StudentController extends Controller
      */
     /**
      * @OA\Put(
-     *      path="/v1/students/{id}",
+     *      path="/api/v1/students/{id}",
      *      operationId="updateStudent",
      *      tags={"school-v1.4"},
      *      summary="Update existing student",
@@ -504,7 +504,7 @@ class StudentController extends Controller
      */
     /**
      * @OA\Delete(
-     *      path="/v1/students/{id}",
+     *      path="/api/v1/students/{id}",
      *      operationId="deleteStudent",
      *      tags={"school-v1.4"},
      *      summary="Delete existing student",

@@ -16,6 +16,37 @@ use Illuminate\Validation\Rule;
 
 class StudentSkillRatingController extends Controller
 {
+    /**
+     * @OA\Get(
+     *     path="/api/v1/students/{student}/skill-ratings",
+     *     tags={"school-v1.4"},
+     *     summary="List skill ratings for a student",
+     *     description="Returns the student's skill ratings filtered by session and term.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="session_id",
+     *         in="query",
+     *         required=false,
+     *         description="Session ID (defaults to student's current session)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="term_id",
+     *         in="query",
+     *         required=false,
+     *         description="Term ID (defaults to student's current term)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="List returned successfully"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function index(Request $request, Student $student): JsonResponse
     {
         $this->assertStudentAccess($request, $student);
@@ -35,6 +66,23 @@ class StudentSkillRatingController extends Controller
         return response()->json(['data' => $ratings]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/students/{student}/skill-types",
+     *     tags={"school-v1.4"},
+     *     summary="List available skill types for a student",
+     *     description="Returns skill types scoped to the student's school.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="Skill types returned"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function types(Request $request, Student $student): JsonResponse
     {
         $this->assertStudentAccess($request, $student);
@@ -58,6 +106,34 @@ class StudentSkillRatingController extends Controller
         return response()->json(['data' => $types]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/students/{student}/skill-ratings",
+     *     tags={"school-v1.4"},
+     *     summary="Create a skill rating for a student",
+     *     description="Records a new skill rating for the given session and term.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"skill_type_id","rating_value"},
+     *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="skill_type_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="rating_value", type="integer", example=4, minimum=1, maximum=5)
+     *         )
+     *     ),
+     *     @OA\Response(response=201, description="Skill rating created"),
+     *     @OA\Response(response=409, description="Duplicate rating"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function store(Request $request, Student $student): JsonResponse
     {
         $this->assertStudentAccess($request, $student);
@@ -118,6 +194,40 @@ class StudentSkillRatingController extends Controller
         ], 201);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/students/{student}/skill-ratings/{skillRating}",
+     *     tags={"school-v1.4"},
+     *     summary="Update a student's skill rating",
+     *     description="Updates session, term, skill type, or rating value for an existing record.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="skillRating",
+     *         in="path",
+     *         required=true,
+     *         description="Skill rating ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=false,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="skill_type_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="rating_value", type="integer", example=5, minimum=1, maximum=5)
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Skill rating updated"),
+     *     @OA\Response(response=404, description="Skill rating not found for student"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function update(Request $request, Student $student, SkillRating $skillRating): JsonResponse
     {
         $this->assertStudentAccess($request, $student);
@@ -184,6 +294,30 @@ class StudentSkillRatingController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Delete(
+     *     path="/api/v1/students/{student}/skill-ratings/{skillRating}",
+     *     tags={"school-v1.4"},
+     *     summary="Delete a student's skill rating",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="skillRating",
+     *         in="path",
+     *         required=true,
+     *         description="Skill rating ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=204, description="Skill rating deleted"),
+     *     @OA\Response(response=404, description="Skill rating not found for student"),
+     *     @OA\Response(response=422, description="Term closed for updates")
+     * )
+     */
     public function destroy(Request $request, Student $student, SkillRating $skillRating): JsonResponse
     {
         $this->assertStudentAccess($request, $student);

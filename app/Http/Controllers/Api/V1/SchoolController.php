@@ -37,7 +37,7 @@ class SchoolController extends Controller
 {
     /**
      * @OA\Post(
-     *      path="/v1/register-school",
+     *      path="/api/v1/register-school",
      *      summary="Register a new school",
      *      tags={"school-v1.0"},
      *      @OA\RequestBody(
@@ -145,7 +145,7 @@ class SchoolController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/v1/login",
+     *     path="/api/v1/login",
      *     summary="Login as a school admin",
      *     tags={"school-v1.0"},
      *     @OA\RequestBody(
@@ -261,7 +261,7 @@ class SchoolController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/v1/logout",
+     *     path="/api/v1/logout",
      *     summary="Logout the authenticated user",
      *     tags={"school-v1.0"},
      *     security={{"sanctum":{}}},
@@ -286,7 +286,7 @@ class SchoolController extends Controller
     }
     /**
      * @OA\Put(
-     *     path="/v1/school",
+     *     path="/api/v1/school",
      *     summary="Update school profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
@@ -442,7 +442,7 @@ class SchoolController extends Controller
 
     /**
      * @OA\Put(
-     *     path="/v1/user",
+     *     path="/api/v1/user",
      *     summary="Update School Admin profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
@@ -504,7 +504,7 @@ class SchoolController extends Controller
 
     /**
      * @OA\Get(
-     *     path="/v1/user",
+     *     path="/api/v1/user",
      *     summary="Get the authenticated School Admin's profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
@@ -606,7 +606,7 @@ class SchoolController extends Controller
 
     /**
      * @OA\Get(
-     *     path="/v1/school",
+     *     path="/api/v1/school",
      *     summary="Get the authenticated school's profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},

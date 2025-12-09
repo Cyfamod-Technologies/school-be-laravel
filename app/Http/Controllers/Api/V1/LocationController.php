@@ -10,6 +10,14 @@ use Illuminate\Http\Request;
 
 class LocationController extends Controller
 {
+    /**
+     * @OA\Get(
+     *     path="/api/v1/locations/countries",
+     *     tags={"school-v1.4"},
+     *     summary="List countries",
+     *     @OA\Response(response=200, description="Countries returned")
+     * )
+     */
     public function countries()
     {
         $countries = Country::orderBy('name')->get(['id', 'name', 'code']);
@@ -19,6 +27,21 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/locations/states",
+     *     tags={"school-v1.4"},
+     *     summary="List states",
+     *     @OA\Parameter(
+     *         name="country_id",
+     *         in="query",
+     *         required=false,
+     *         description="Filter states by country",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="States returned")
+     * )
+     */
     public function states(Request $request)
     {
         $query = State::query()->orderBy('name');
@@ -34,6 +57,21 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/locations/states/{state}/lgas",
+     *     tags={"school-v1.4"},
+     *     summary="List LGAs for a state",
+     *     @OA\Parameter(
+     *         name="state",
+     *         in="path",
+     *         required=true,
+     *         description="State ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="LGAs returned")
+     * )
+     */
     public function lgas(State $state)
     {
         $lgas = $state->local_government_areas()
@@ -45,6 +83,14 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/locations/blood-groups",
+     *     tags={"school-v1.4"},
+     *     summary="List blood groups",
+     *     @OA\Response(response=200, description="Blood groups returned")
+     * )
+     */
     public function bloodGroups()
     {
         $groups = BloodGroup::orderBy('name')->get(['id', 'name']);
@@ -54,4 +100,3 @@ class LocationController extends Controller
         ]);
     }
 }
-

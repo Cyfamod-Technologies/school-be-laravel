@@ -17,6 +17,37 @@ class ResultPinController extends Controller
     {
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/students/{student}/result-pins",
+     *     tags={"school-v1.4"},
+     *     summary="List result PINs for a student",
+     *     description="Returns a student's result PINs filtered by session and term.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="session_id",
+     *         in="query",
+     *         required=false,
+     *         description="Session ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="term_id",
+     *         in="query",
+     *         required=false,
+     *         description="Term ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="List returned"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function index(Request $request, Student $student)
     {
         $this->ensurePermission($request, 'result.pin.view');
@@ -33,6 +64,34 @@ class ResultPinController extends Controller
         return response()->json(['data' => $pins]);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/students/{student}/result-pins",
+     *     tags={"school-v1.4"},
+     *     summary="Generate a result PIN for a student",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"session_id","term_id"},
+     *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="expires_at", type="string", format="date-time", example="2025-12-31T23:59:59Z"),
+     *             @OA\Property(property="regenerate", type="boolean", example=false),
+     *             @OA\Property(property="max_usage", type="integer", example=3)
+     *         )
+     *     ),
+     *     @OA\Response(response=201, description="PIN generated"),
+     *     @OA\Response(response=403, description="Forbidden"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function store(Request $request, Student $student)
     {
         $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
@@ -69,6 +128,30 @@ class ResultPinController extends Controller
         ], 201);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/result-pins/bulk",
+     *     tags={"school-v1.4"},
+     *     summary="Bulk-generate result PINs",
+     *     description="Generate result PINs for many students using class or explicit student filters.",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"session_id","term_id"},
+     *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="school_class_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="class_arm_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+     *             @OA\Property(property="student_ids", type="array", @OA\Items(type="string", format="uuid")),
+     *             @OA\Property(property="regenerate", type="boolean", example=false),
+     *             @OA\Property(property="expires_at", type="string", format="date-time", example="2025-12-31T23:59:59Z"),
+     *             @OA\Property(property="max_usage", type="integer", example=1)
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Bulk generation completed"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function bulkGenerate(Request $request)
     {
         $this->ensurePermission($request, ['result.pin.generate', 'result.pin.manage']);
@@ -132,6 +215,22 @@ class ResultPinController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/result-pins",
+     *     tags={"school-v1.4"},
+     *     summary="List result PINs across the school",
+     *     description="Requires session_id and term_id; supports filtering by student, class, arm, and status.",
+     *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="student_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="status", in="query", required=false, @OA\Schema(type="string")),
+     *     @OA\Response(response=200, description="List returned"),
+     *     @OA\Response(response=422, description="Missing required filters")
+     * )
+     */
     public function indexAll(Request $request)
     {
         $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
@@ -183,6 +282,22 @@ class ResultPinController extends Controller
         return response()->json(['data' => $pins]);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/api/v1/result-pins/{resultPin}/invalidate",
+     *     tags={"school-v1.4"},
+     *     summary="Invalidate a result PIN",
+     *     @OA\Parameter(
+     *         name="resultPin",
+     *         in="path",
+     *         required=true,
+     *         description="Result PIN ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="PIN invalidated"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
     public function invalidate(Request $request, ResultPin $resultPin)
     {
         $this->ensurePermission($request, ['result.pin.invalidate', 'result.pin.manage']);
@@ -196,6 +311,21 @@ class ResultPinController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/result-pins/cards/print",
+     *     tags={"school-v1.4"},
+     *     summary="Print scratch cards for result PINs",
+     *     description="Renders printable cards for a student or class for a given session/term.",
+     *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="student_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Response(response=200, description="Printable HTML view"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function printCards(Request $request)
     {
         $this->ensurePermission($request, ['result.pin.view', 'result.pin.manage']);
