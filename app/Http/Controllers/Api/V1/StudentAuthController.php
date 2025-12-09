@@ -225,6 +225,19 @@ class StudentAuthController extends Controller
         ]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/api/v1/student/results/download",
+     *     tags={"school-v2.6"},
+     *     summary="Download student result",
+     *     description="Downloads the student's result for a given session and term.",
+     *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Response(response=200, description="Result file or payload returned"),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     */
     public function downloadResult(Request $request)
     {
         $student = $this->resolveStudentUser($request);
