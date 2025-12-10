@@ -129,12 +129,38 @@
             urls.push({name: "{{ $title }}", url: "{{ $url }}"});
         @endforeach
 
+        const parseVersion = (tagName) => {
+            const match = (tagName || '').match(/v(\d+(?:\.\d+)*)$/i);
+            return match ? match[1].split('.').map((part) => parseInt(part, 10)) : null;
+        };
+
+        // Keep versioned tags ordered (v1.0, v1.1, v1.2, ...).
+        const tagVersionSorter = (left, right) => {
+            const leftParts = parseVersion(left);
+            const rightParts = parseVersion(right);
+
+            if (leftParts && rightParts) {
+                const length = Math.max(leftParts.length, rightParts.length);
+                for (let i = 0; i < length; i++) {
+                    const diff = (leftParts[i] || 0) - (rightParts[i] || 0);
+                    if (diff !== 0) {
+                        return diff;
+                    }
+                }
+            } else if (leftParts || rightParts) {
+                return leftParts ? -1 : 1;
+            }
+
+            return left.localeCompare(right);
+        };
+
         // Build a system
         const ui = SwaggerUIBundle({
             dom_id: '#swagger-ui',
             urls: urls,
             "urls.primaryName": "{{ $documentationTitle }}",
             operationsSorter: {!! isset($operationsSorter) ? '"' . $operationsSorter . '"' : 'null' !!},
+            tagsSorter: tagVersionSorter,
             configUrl: {!! isset($configUrl) ? '"' . $configUrl . '"' : 'null' !!},
             validatorUrl: {!! isset($validatorUrl) ? '"' . $validatorUrl . '"' : 'null' !!},
             oauth2RedirectUrl: "{{ route('l5-swagger.'.$documentation.'.oauth2_callback', [], $useAbsolutePath) }}",
