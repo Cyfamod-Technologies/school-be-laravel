@@ -347,27 +347,29 @@ class ResultPinController extends Controller
 
         $user = $request->user();
         $school = $user?->school;
+        $schoolId = $school?->id;
 
-        if (! $school) {
-            // Fallback: try to infer school from the class if one is provided
-            if (! empty($validated['school_class_id'])) {
-                $school = SchoolClass::query()
-                    ->whereKey($validated['school_class_id'])
-                    ->with('school')
-                    ->first()
-                    ?->school;
-            }
-
-            // If still no school, try to get from the user's roles
-            if (! $school && $user) {
-                $schoolId = $user->roles()->value('school_id');
-                if ($schoolId) {
-                    $school = School::query()->find($schoolId);
-                }
-            }
+        if (! $schoolId && ! empty($validated['student_id'])) {
+            $schoolId = Student::query()
+                ->whereKey($validated['student_id'])
+                ->value('school_id');
         }
 
-        if (! $school) {
+        if (! $schoolId && ! empty($validated['school_class_id'])) {
+            $schoolId = SchoolClass::query()
+                ->whereKey($validated['school_class_id'])
+                ->value('school_id');
+        }
+
+        if (! $schoolId && $user) {
+            $schoolId = $user->roles()->value('school_id');
+        }
+
+        if (! $school && $schoolId) {
+            $school = School::query()->find($schoolId);
+        }
+
+        if (! $schoolId || ! $school) {
             abort(403, 'You are not linked to any school.');
         }
 
@@ -387,7 +389,7 @@ class ResultPinController extends Controller
             ])
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
-            ->whereHas('student', fn ($query) => $query->where('school_id', $school->id));
+            ->whereHas('student', fn ($query) => $query->where('school_id', $schoolId));
 
         if (! empty($validated['student_id'])) {
             $pinsQuery->where('student_id', $validated['student_id']);
