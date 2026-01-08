@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: school-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      # Named volumes for persistent data
+      - appdev-storage:/var/www/html/storage/app
+      - appdev-public:/var/www/html/public/storage 
+volumes:
+  dbdata:
+  appdev-storage:
+  appdev-public:
+
