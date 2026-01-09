@@ -274,15 +274,39 @@ class ClassController extends Controller
         
         if (! $isTeacher) {
             $this->ensurePermission($request, 'classes.manage');
-        } else {
-            // Teachers can only view arms for their assigned classes
-            $allowedClassIds = $scope->allowedClassIds();
-            if (! $allowedClassIds->contains($schoolClass->id)) {
-                abort(403, 'You do not have access to this class.');
-            }
+            return $schoolClass->class_arms;
         }
         
-        return $schoolClass->class_arms;
+        // Teachers can only view arms for their assigned classes
+        $allowedClassIds = $scope->allowedClassIds();
+        if (! $allowedClassIds->contains($schoolClass->id)) {
+            abort(403, 'You do not have access to this class.');
+        }
+        
+        // For teachers, filter to only show arms they're assigned to
+        $assignments = $scope->subjectAssignments()
+            ->concat($scope->classAssignments())
+            ->where('school_class_id', $schoolClass->id)
+            ->unique(fn ($assignment) => $assignment->class_arm_id ?? 'all');
+        
+        $allowedArmIds = $assignments
+            ->filter(fn ($assignment) => $assignment->class_arm_id)
+            ->pluck('class_arm_id')
+            ->unique()
+            ->values();
+        
+        // If teacher has class assignments without specific arm restrictions, return all arms
+        $hasUnrestrictedClassAssignment = $assignments
+            ->first(fn ($assignment) => ! $assignment->class_arm_id);
+        
+        if ($hasUnrestrictedClassAssignment) {
+            return $schoolClass->class_arms;
+        }
+        
+        // Return only the arms the teacher is assigned to
+        return $schoolClass->class_arms
+            ->filter(fn ($arm) => $allowedArmIds->contains($arm->id))
+            ->values();
     }
 
     /**
