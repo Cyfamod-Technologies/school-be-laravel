@@ -123,6 +123,21 @@ class User extends Authenticatable
 					->withTimestamps();
 	}
 
+	public function quizAttempts()
+	{
+		return $this->hasMany(QuizAttempt::class, 'student_id');
+	}
+
+	public function quizResults()
+	{
+		return $this->hasMany(QuizResult::class, 'student_id');
+	}
+
+	public function enrollments()
+	{
+		return $this->hasMany(StudentEnrollment::class, 'student_id');
+	}
+
 	protected static function booted()
 	{
 		static::creating(function (self $model) {

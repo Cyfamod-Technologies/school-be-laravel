@@ -38,6 +38,10 @@ use App\Http\Controllers\Api\V1\TeacherDashboardController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\ResultViewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\QuizController;
+use App\Http\Controllers\Api\V1\QuizAttemptController;
+use App\Http\Controllers\Api\V1\QuizAnswerController;
+use App\Http\Controllers\Api\V1\QuizResultController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -331,6 +335,35 @@ Route::prefix('api/v1')->group(function () {
             Route::get('states', [LocationController::class, 'states']);
             Route::get('states/{state}/lgas', [LocationController::class, 'lgas'])->whereUuid('state');
             Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
+        });
+
+        // CBT (Computer-Based Test) Routes
+        Route::prefix('cbt')->group(function () {
+            // Quiz Management
+            Route::apiResource('quizzes', QuizController::class)->parameters(['quizzes' => 'quiz']);
+            Route::post('quizzes/{quiz}/publish', [QuizController::class, 'publish'])->whereUuid('quiz');
+            Route::post('quizzes/{quiz}/close', [QuizController::class, 'close'])->whereUuid('quiz');
+            Route::get('quizzes/{quiz}/questions', [QuizController::class, 'getQuestions'])->whereUuid('quiz');
+
+            // Quiz Attempts
+            Route::apiResource('quiz-attempts', QuizAttemptController::class)
+                ->parameters(['quiz-attempts' => 'attempt'])
+                ->except(['create', 'edit']);
+            Route::post('quiz-attempts/{attempt}/submit', [QuizAttemptController::class, 'submit'])->whereUuid('attempt');
+            Route::get('quiz-attempts/history/{user}', [QuizAttemptController::class, 'history'])->whereUuid('user');
+
+            // Quiz Answers
+            Route::apiResource('quiz-answers', QuizAnswerController::class)
+                ->parameters(['quiz-answers' => 'answer'])
+                ->except(['create', 'edit']);
+
+            // Quiz Results
+            Route::apiResource('quiz-results', QuizResultController::class)
+                ->parameters(['quiz-results' => 'result'])
+                ->only(['index', 'show']);
+            Route::get('quiz-results/{result}/review', [QuizResultController::class, 'review'])->whereUuid('result');
+            Route::post('quiz-results/{result}/export', [QuizResultController::class, 'export'])->whereUuid('result');
+            Route::get('quiz-results/analytics/performance', [QuizResultController::class, 'analytics']);
         });
     });
 });

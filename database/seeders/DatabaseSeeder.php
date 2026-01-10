@@ -18,6 +18,11 @@ class DatabaseSeeder extends Seeder
             CountryStateLgaSeeder::class,
         ]);
 
+        // Seed RBAC permissions
+        $this->call([
+            CBTPermissionSeeder::class,
+        ]);
+
         // Seed comprehensive demo school data
         $this->call([
             ComprehensiveSchoolSeeder::class,
