@@ -64,6 +64,7 @@ class QuizService
 			'total_questions' => $quiz->total_questions,
 			'passing_score' => $quiz->passing_score,
 			'show_answers' => $quiz->show_answers,
+			'show_score' => $quiz->show_score,
 			'shuffle_questions' => $quiz->shuffle_questions,
 			'shuffle_options' => $quiz->shuffle_options,
 			'allow_review' => $quiz->allow_review,

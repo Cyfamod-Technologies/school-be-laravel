@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $total_questions
  * @property int $passing_score
  * @property bool $show_answers
+ * @property bool $show_score
  * @property bool $shuffle_questions
  * @property bool $shuffle_options
  * @property bool $allow_review
@@ -61,6 +62,7 @@ class Quiz extends Model
 		'total_questions',
 		'passing_score',
 		'show_answers',
+		'show_score',
 		'shuffle_questions',
 		'shuffle_options',
 		'allow_review',
@@ -72,6 +74,7 @@ class Quiz extends Model
 
 	protected $casts = [
 		'show_answers' => 'boolean',
+		'show_score' => 'boolean',
 		'shuffle_questions' => 'boolean',
 		'shuffle_options' => 'boolean',
 		'allow_review' => 'boolean',
