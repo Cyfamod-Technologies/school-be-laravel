@@ -85,12 +85,14 @@ class QuizResultController extends Controller
 		return response()->json([
 			'message' => 'Results retrieved successfully',
 			'data' => $results->map(function ($result) {
+				$studentName = $this->formatStudentName($result->student);
+
 				return [
 					'id' => $result->id,
 					'attempt_id' => $result->attempt_id,
 					'quiz_id' => $result->quiz_id,
 					'student_id' => $result->student_id,
-					'student_name' => $result->student?->name,
+					'student_name' => $studentName !== '' ? $studentName : null,
 					'total_questions' => $result->total_questions,
 					'attempted_questions' => $result->attempted_questions,
 					'correct_answers' => $result->correct_answers,
@@ -172,5 +174,16 @@ class QuizResultController extends Controller
 				}),
 			],
 		]);
+	}
+
+	private function formatStudentName(?\App\Models\Student $student): string
+	{
+		if (! $student) {
+			return '';
+		}
+
+		return trim(collect([$student->first_name, $student->middle_name, $student->last_name])
+			->filter()
+			->implode(' '));
 	}
 }

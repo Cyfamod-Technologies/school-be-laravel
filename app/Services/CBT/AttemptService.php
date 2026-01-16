@@ -4,6 +4,7 @@ namespace App\Services\CBT;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\Student;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -13,7 +14,7 @@ class AttemptService
 	/**
 	 * Start a new quiz attempt
 	 */
-	public function startAttempt(Quiz $quiz, User $student): QuizAttempt
+	public function startAttempt(Quiz $quiz, User|Student $student): QuizAttempt
 	{
 		// Check if student already has an active attempt
 		$activeAttempt = $quiz->attempts()
@@ -111,13 +112,22 @@ class AttemptService
 	/**
 	 * Get student's attempt history
 	 */
-	public function getStudentAttemptHistory(User $student): array
+	public function getStudentAttemptHistory(User|Student $student): array
 	{
-		$attempts = $student->quizAttempts()
-			->with(['quiz', 'result'])
-			->where('status', '!=', 'in_progress')
-			->orderBy('end_time', 'desc')
-			->get();
+		if (method_exists($student, 'quizAttempts')) {
+			$attempts = $student->quizAttempts()
+				->with(['quiz', 'result'])
+				->where('status', '!=', 'in_progress')
+				->orderBy('end_time', 'desc')
+				->get();
+		} else {
+			$attempts = QuizAttempt::query()
+				->where('student_id', $student->id)
+				->with(['quiz', 'result'])
+				->where('status', '!=', 'in_progress')
+				->orderBy('end_time', 'desc')
+				->get();
+		}
 
 		return $attempts->map(function ($attempt) {
 			return [

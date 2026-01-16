@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
+
+use App\Models\Student;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -24,7 +26,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon $updated_at
  *
  * @property Quiz $quiz
- * @property User $student
+ * @property Student $student
  * @property Session|null $session
  * @property Term|null $term
  * @property Collection|QuizAnswer[] $answers
@@ -64,7 +66,7 @@ class QuizAttempt extends Model
 
 	public function student()
 	{
-		return $this->belongsTo(User::class, 'student_id');
+		return $this->belongsTo(Student::class, 'student_id');
 	}
 
 	public function session()

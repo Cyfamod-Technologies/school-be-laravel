@@ -157,6 +157,8 @@ class QuizAnswerController extends Controller
 			];
 		});
 
+		$studentName = $this->formatStudentName($attempt->student);
+
 		return response()->json([
 			'message' => 'Attempt answers retrieved successfully',
 			'data' => [
@@ -164,7 +166,7 @@ class QuizAnswerController extends Controller
 					'id' => $attempt->id,
 					'quiz_id' => $attempt->quiz_id,
 					'student_id' => $attempt->student_id,
-					'student_name' => $attempt->student?->name,
+					'student_name' => $studentName !== '' ? $studentName : null,
 					'status' => $attempt->status,
 					'start_time' => $attempt->start_time,
 					'end_time' => $attempt->end_time,
@@ -229,5 +231,16 @@ class QuizAnswerController extends Controller
 			'message' => 'Answer updated successfully',
 			'data' => $answer->fresh(),
 		]);
+	}
+
+	private function formatStudentName(?\App\Models\Student $student): string
+	{
+		if (! $student) {
+			return '';
+		}
+
+		return trim(collect([$student->first_name, $student->middle_name, $student->last_name])
+			->filter()
+			->implode(' '));
 	}
 }

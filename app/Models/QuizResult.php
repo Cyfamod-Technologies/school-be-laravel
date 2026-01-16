@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Student;
 
 /**
  * Class QuizResult
@@ -27,7 +28,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property QuizAttempt $attempt
  * @property Quiz $quiz
- * @property User $student
+ * @property Student $student
  *
  * @package App\Models
  */
@@ -71,6 +72,6 @@ class QuizResult extends Model
 
 	public function student()
 	{
-		return $this->belongsTo(User::class, 'student_id');
+		return $this->belongsTo(Student::class, 'student_id');
 	}
 }
