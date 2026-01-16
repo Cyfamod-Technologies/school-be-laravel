@@ -133,17 +133,36 @@ class ScoringService
 	 */
 	private function evaluateMultipleSelect(QuizQuestion $question, QuizAnswer $answer): bool
 	{
-		// For multiple select, we might need to check all correct options
-		// For now, we'll accept if student selected at least one correct option
-		if (!$answer->selected_option_id) {
+		$selectedOptionIds = [];
+
+		if ($answer->answer_text) {
+			$decoded = json_decode($answer->answer_text, true);
+			if (is_array($decoded)) {
+				$selectedOptionIds = array_values(array_filter($decoded, 'is_string'));
+			}
+		}
+
+		if (empty($selectedOptionIds) && $answer->selected_option_id) {
+			$selectedOptionIds = [$answer->selected_option_id];
+		}
+
+		if (empty($selectedOptionIds)) {
 			return false;
 		}
 
-		$selectedOption = $question->options()
-			->where('id', $answer->selected_option_id)
-			->first();
+		$correctOptionIds = $question->options()
+			->where('is_correct', true)
+			->pluck('id')
+			->all();
 
-		return $selectedOption && $selectedOption->is_correct;
+		if (empty($correctOptionIds)) {
+			return false;
+		}
+
+		sort($selectedOptionIds);
+		sort($correctOptionIds);
+
+		return $selectedOptionIds === $correctOptionIds;
 	}
 
 	/**

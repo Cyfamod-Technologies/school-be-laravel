@@ -56,6 +56,8 @@ class QuizService
 			'id' => $quiz->id,
 			'title' => $quiz->title,
 			'description' => $quiz->description,
+			'subject_id' => $quiz->subject_id,
+			'class_id' => $quiz->class_id,
 			'duration_minutes' => $quiz->duration_minutes,
 			'total_questions' => $quiz->total_questions,
 			'passing_score' => $quiz->passing_score,
@@ -64,6 +66,8 @@ class QuizService
 			'shuffle_options' => $quiz->shuffle_options,
 			'allow_review' => $quiz->allow_review,
 			'status' => $quiz->status,
+			'start_time' => $quiz->start_time,
+			'end_time' => $quiz->end_time,
 			'attempted' => $attempt ? true : false,
 			'questions' => $quiz->questions->map(function ($question) {
 				return [
@@ -160,6 +164,14 @@ class QuizService
 	public function publishQuiz(Quiz $quiz): bool
 	{
 		return $quiz->update(['status' => 'published']);
+	}
+
+	/**
+	 * Unpublish quiz
+	 */
+	public function unpublishQuiz(Quiz $quiz): bool
+	{
+		return $quiz->update(['status' => 'draft']);
 	}
 
 	/**

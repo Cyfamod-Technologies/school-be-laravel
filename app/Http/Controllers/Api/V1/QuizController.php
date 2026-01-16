@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
 use App\Services\CBT\QuizService;
+use App\Services\CBT\QuestionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class QuizController extends Controller
 {
-	public function __construct(private QuizService $quizService)
+	public function __construct(
+		private QuizService $quizService,
+		private QuestionService $questionService
+	)
 	{
 	}
 
@@ -23,6 +27,41 @@ class QuizController extends Controller
 
 		if (!$user) {
 			return response()->json(['message' => 'Unauthenticated'], 401);
+		}
+
+		$role = strtolower((string) ($user->role ?? ''));
+		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
+		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage') || $user->can('cbt.view');
+
+		if ($canManage) {
+			$query = Quiz::query()->orderBy('created_at', 'desc');
+			if ($user->school_id) {
+				$query->where('school_id', $user->school_id);
+			} else {
+				$query->where('created_by', $user->id);
+			}
+
+			$quizzes = $query->get();
+
+			return response()->json([
+				'message' => 'Quizzes retrieved successfully',
+				'data' => $quizzes->map(function ($quiz) {
+					return [
+						'id' => $quiz->id,
+						'title' => $quiz->title,
+						'description' => $quiz->description,
+						'subject_id' => $quiz->subject_id,
+						'class_id' => $quiz->class_id,
+						'duration_minutes' => $quiz->duration_minutes,
+						'total_questions' => $quiz->total_questions,
+						'passing_score' => $quiz->passing_score,
+						'status' => $quiz->status,
+						'created_at' => $quiz->created_at,
+						'updated_at' => $quiz->updated_at,
+					];
+				}),
+			]);
 		}
 
 		$quizzes = $this->quizService->getStudentQuizzes($user);
@@ -65,8 +104,13 @@ class QuizController extends Controller
 			return response()->json(['message' => 'Quiz not found'], 404);
 		}
 
-		// Check permission
-		if (!$this->quizService->canStudentTakeQuiz($user, $quiz)) {
+		$role = strtolower((string) ($user->role ?? ''));
+		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
+		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage') || $user->can('cbt.view');
+
+		// Check permission for students (admins can access drafts)
+		if (!$canManage && !$this->quizService->canStudentTakeQuiz($user, $quiz)) {
 			return response()->json(['message' => 'You do not have access to this quiz'], 403);
 		}
 
@@ -75,6 +119,99 @@ class QuizController extends Controller
 		return response()->json([
 			'message' => 'Quiz retrieved successfully',
 			'data' => $details,
+		]);
+	}
+
+	/**
+	 * Get quiz questions
+	 */
+	public function getQuestions(Request $request, string $id): JsonResponse
+	{
+		$user = $request->user();
+
+		if (!$user) {
+			return response()->json(['message' => 'Unauthenticated'], 401);
+		}
+
+		$quiz = Quiz::find($id);
+
+		if (!$quiz) {
+			return response()->json(['message' => 'Quiz not found'], 404);
+		}
+
+		$role = strtolower((string) ($user->role ?? ''));
+		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
+		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage');
+		$canView = $canManage || $user->can('cbt.view');
+		$includeCorrect = $request->boolean('include_correct') && $canManage;
+
+		if ($canView) {
+			$questions = $quiz->questions()->with('options')->orderBy('order')->get();
+
+			return response()->json([
+				'message' => 'Questions retrieved successfully',
+				'data' => $questions->map(function ($question) use ($includeCorrect) {
+					return [
+						'id' => $question->id,
+						'quiz_id' => $question->quiz_id,
+						'question_text' => $question->question_text,
+						'question_type' => $question->question_type,
+						'marks' => $question->marks,
+						'order' => $question->order,
+						'image_url' => $question->image_url,
+						'explanation' => $question->explanation,
+						'options' => $question->options->map(function ($option) use ($includeCorrect) {
+							$payload = [
+								'id' => $option->id,
+								'question_id' => $option->question_id,
+								'option_text' => $option->option_text,
+								'order' => $option->order,
+								'image_url' => $option->image_url,
+							];
+
+							if ($includeCorrect) {
+								$payload['is_correct'] = $option->is_correct;
+							}
+
+							return $payload;
+						}),
+					];
+				}),
+			]);
+		}
+
+		// Student access
+		if (!$this->quizService->canStudentTakeQuiz($user, $quiz)) {
+			return response()->json(['message' => 'You do not have access to this quiz'], 403);
+		}
+
+		$questions = $this->questionService->getShuffledQuestions($quiz);
+		$questions->load('options');
+
+		return response()->json([
+			'message' => 'Questions retrieved successfully',
+			'data' => $questions->map(function ($question) {
+				return [
+					'id' => $question->id,
+					'quiz_id' => $question->quiz_id,
+					'question_text' => $question->question_text,
+					'question_type' => $question->question_type,
+					'marks' => $question->marks,
+					'order' => $question->order,
+					'image_url' => $question->image_url,
+					'explanation' => $question->explanation,
+					'options' => $question->options->map(function ($option) {
+						return [
+							'id' => $option->id,
+							'question_id' => $option->question_id,
+							'option_text' => $option->option_text,
+							'order' => $option->order,
+							'image_url' => $option->image_url,
+						];
+					}),
+				];
+			}),
 		]);
 	}
 
@@ -207,6 +344,34 @@ class QuizController extends Controller
 
 		return response()->json([
 			'message' => 'Quiz published successfully',
+			'data' => $quiz->fresh(),
+		]);
+	}
+
+	/**
+	 * Unpublish quiz
+	 */
+	public function unpublish(Request $request, string $id): JsonResponse
+	{
+		$user = $request->user();
+
+		if (!$user) {
+			return response()->json(['message' => 'Unauthenticated'], 401);
+		}
+
+		// Check permission
+		$this->ensurePermission($request, 'cbt.manage');
+
+		$quiz = Quiz::find($id);
+
+		if (!$quiz) {
+			return response()->json(['message' => 'Quiz not found'], 404);
+		}
+
+		$this->quizService->unpublishQuiz($quiz);
+
+		return response()->json([
+			'message' => 'Quiz unpublished successfully',
 			'data' => $quiz->fresh(),
 		]);
 	}

@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\ResultViewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\QuizController;
+use App\Http\Controllers\Api\V1\QuizQuestionController;
 use App\Http\Controllers\Api\V1\QuizAttemptController;
 use App\Http\Controllers\Api\V1\QuizAnswerController;
 use App\Http\Controllers\Api\V1\QuizResultController;
@@ -363,8 +364,26 @@ Route::prefix('api/v1')->group(function () {
             // Quiz Management
             Route::apiResource('quizzes', QuizController::class)->parameters(['quizzes' => 'quiz']);
             Route::post('quizzes/{quiz}/publish', [QuizController::class, 'publish'])->whereUuid('quiz');
+            Route::post('quizzes/{quiz}/unpublish', [QuizController::class, 'unpublish'])->whereUuid('quiz');
             Route::post('quizzes/{quiz}/close', [QuizController::class, 'close'])->whereUuid('quiz');
             Route::get('quizzes/{quiz}/questions', [QuizController::class, 'getQuestions'])->whereUuid('quiz');
+
+            // Quiz Questions
+            Route::post('quizzes/{quiz}/questions', [QuizQuestionController::class, 'store'])->whereUuid('quiz');
+            Route::put('quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'update'])
+                ->whereUuid('quiz')
+                ->whereUuid('question');
+            Route::delete('quizzes/{quiz}/questions/{question}', [QuizQuestionController::class, 'destroy'])
+                ->whereUuid('quiz')
+                ->whereUuid('question');
+            Route::post('quizzes/{quiz}/questions/reorder', [QuizQuestionController::class, 'reorder'])->whereUuid('quiz');
+            Route::post('questions/{question}/options', [QuizQuestionController::class, 'storeOption'])->whereUuid('question');
+            Route::put('questions/{question}/options/{option}', [QuizQuestionController::class, 'updateOption'])
+                ->whereUuid('question')
+                ->whereUuid('option');
+            Route::delete('questions/{question}/options/{option}', [QuizQuestionController::class, 'destroyOption'])
+                ->whereUuid('question')
+                ->whereUuid('option');
 
             // Quiz Attempts
             Route::apiResource('quiz-attempts', QuizAttemptController::class)
