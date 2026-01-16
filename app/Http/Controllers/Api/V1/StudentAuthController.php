@@ -44,7 +44,8 @@ class StudentAuthController extends Controller
     {
         $credentials = $request->validate([
             'admission_no' => ['required', 'string'],
-            'password' => ['required', 'string'],
+            'password' => ['nullable', 'string', 'required_without:first_name'],
+            'first_name' => ['nullable', 'string', 'required_without:password'],
         ]);
 
         $student = Student::query()
@@ -62,10 +63,27 @@ class StudentAuthController extends Controller
             ->where('admission_no', $credentials['admission_no'])
             ->first();
 
-        if (! $student || empty($student->portal_password) || ! Hash::check($credentials['password'], $student->portal_password)) {
+        if (! $student) {
             throw ValidationException::withMessages([
-                'admission_no' => ['Invalid admission number or password.'],
+                'admission_no' => ['Invalid admission number or credentials.'],
             ]);
+        }
+
+        if (! empty($credentials['password'])) {
+            if (empty($student->portal_password) || ! Hash::check($credentials['password'], $student->portal_password)) {
+                throw ValidationException::withMessages([
+                    'admission_no' => ['Invalid admission number or credentials.'],
+                ]);
+            }
+        } else {
+            $inputName = Str::lower(trim((string) ($credentials['first_name'] ?? '')));
+            $studentName = Str::lower(trim((string) $student->first_name));
+
+            if ($inputName === '' || $inputName !== $studentName) {
+                throw ValidationException::withMessages([
+                    'admission_no' => ['Invalid admission number or credentials.'],
+                ]);
+            }
         }
 
         $student->loadMissing(['school_class.subjects:id,name']);

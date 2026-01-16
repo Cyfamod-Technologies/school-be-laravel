@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
@@ -22,6 +23,10 @@ class Controller extends BaseController
         $user = $request->user();
 
         if (! $user) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
+
+        if (! $user instanceof User) {
             abort(403, 'You do not have permission to perform this action.');
         }
 

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
+use App\Models\Student;
 use App\Services\CBT\QuizService;
 use App\Services\CBT\QuestionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Carbon\Carbon;
 
 class QuizController extends Controller
 {
@@ -29,13 +31,38 @@ class QuizController extends Controller
 			return response()->json(['message' => 'Unauthenticated'], 401);
 		}
 
+		if ($user instanceof Student) {
+			$quizzes = $this->quizService->getStudentQuizzes($user);
+
+			return response()->json([
+				'message' => 'Quizzes retrieved successfully',
+				'data' => $quizzes->map(function ($quiz) {
+					return [
+						'id' => $quiz->id,
+						'title' => $quiz->title,
+						'description' => $quiz->description,
+						'subject_id' => $quiz->subject_id,
+						'subject_name' => $quiz->subject?->name,
+						'class_id' => $quiz->class_id,
+						'duration_minutes' => $quiz->duration_minutes,
+						'total_questions' => $quiz->total_questions,
+						'passing_score' => $quiz->passing_score,
+						'status' => $quiz->status,
+						'attempted' => $quiz->attempts->isNotEmpty(),
+						'created_at' => $quiz->created_at,
+						'updated_at' => $quiz->updated_at,
+					];
+				}),
+			]);
+		}
+
 		$role = strtolower((string) ($user->role ?? ''));
 		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
 		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
 		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage') || $user->can('cbt.view');
 
 		if ($canManage) {
-			$query = Quiz::query()->orderBy('created_at', 'desc');
+			$query = Quiz::query()->with('subject:id,name')->orderBy('created_at', 'desc');
 			if ($user->school_id) {
 				$query->where('school_id', $user->school_id);
 			} else {
@@ -52,6 +79,7 @@ class QuizController extends Controller
 						'title' => $quiz->title,
 						'description' => $quiz->description,
 						'subject_id' => $quiz->subject_id,
+						'subject_name' => $quiz->subject?->name,
 						'class_id' => $quiz->class_id,
 						'duration_minutes' => $quiz->duration_minutes,
 						'total_questions' => $quiz->total_questions,
@@ -74,6 +102,7 @@ class QuizController extends Controller
 					'title' => $quiz->title,
 					'description' => $quiz->description,
 					'subject_id' => $quiz->subject_id,
+					'subject_name' => $quiz->subject?->name,
 					'class_id' => $quiz->class_id,
 					'duration_minutes' => $quiz->duration_minutes,
 					'total_questions' => $quiz->total_questions,
@@ -82,6 +111,49 @@ class QuizController extends Controller
 					'attempted' => $quiz->attempts->isNotEmpty(),
 					'created_at' => $quiz->created_at,
 					'updated_at' => $quiz->updated_at,
+				];
+			}),
+		]);
+	}
+
+	/**
+	 * List published quizzes for public selection (no auth required)
+	 */
+	public function publicIndex(Request $request): JsonResponse
+	{
+		$now = Carbon::now();
+		$query = Quiz::query()
+			->with('subject:id,name')
+			->where('status', 'published')
+			->where(function ($builder) use ($now) {
+				$builder->whereNull('start_time')->orWhere('start_time', '<=', $now);
+			})
+			->where(function ($builder) use ($now) {
+				$builder->whereNull('end_time')->orWhere('end_time', '>=', $now);
+			})
+			->orderBy('created_at', 'desc');
+
+		if ($request->filled('subject_id')) {
+			$query->where('subject_id', $request->string('subject_id'));
+		}
+
+		$quizzes = $query->get();
+
+		return response()->json([
+			'message' => 'Quizzes retrieved successfully',
+			'data' => $quizzes->map(function ($quiz) {
+				return [
+					'id' => $quiz->id,
+					'title' => $quiz->title,
+					'description' => $quiz->description,
+					'subject_id' => $quiz->subject_id,
+					'subject_name' => $quiz->subject?->name,
+					'duration_minutes' => $quiz->duration_minutes,
+					'total_questions' => $quiz->total_questions,
+					'passing_score' => $quiz->passing_score,
+					'status' => $quiz->status,
+					'start_time' => $quiz->start_time,
+					'end_time' => $quiz->end_time,
 				];
 			}),
 		]);
@@ -102,6 +174,19 @@ class QuizController extends Controller
 
 		if (!$quiz) {
 			return response()->json(['message' => 'Quiz not found'], 404);
+		}
+
+		if ($user instanceof Student) {
+			if (!$this->quizService->canStudentTakeQuiz($user, $quiz)) {
+				return response()->json(['message' => 'You do not have access to this quiz'], 403);
+			}
+
+			$details = $this->quizService->getQuizDetails($quiz, $user);
+
+			return response()->json([
+				'message' => 'Quiz retrieved successfully',
+				'data' => $details,
+			]);
 		}
 
 		$role = strtolower((string) ($user->role ?? ''));
@@ -137,6 +222,40 @@ class QuizController extends Controller
 
 		if (!$quiz) {
 			return response()->json(['message' => 'Quiz not found'], 404);
+		}
+
+		if ($user instanceof Student) {
+			if (!$this->quizService->canStudentTakeQuiz($user, $quiz)) {
+				return response()->json(['message' => 'You do not have access to this quiz'], 403);
+			}
+
+			$questions = $this->questionService->getShuffledQuestions($quiz);
+			$questions->load('options');
+
+			return response()->json([
+				'message' => 'Questions retrieved successfully',
+				'data' => $questions->map(function ($question) {
+					return [
+						'id' => $question->id,
+						'quiz_id' => $question->quiz_id,
+						'question_text' => $question->question_text,
+						'question_type' => $question->question_type,
+						'marks' => $question->marks,
+						'order' => $question->order,
+						'image_url' => $question->image_url,
+						'explanation' => $question->explanation,
+						'options' => $question->options->map(function ($option) {
+							return [
+								'id' => $option->id,
+								'question_id' => $option->question_id,
+								'option_text' => $option->option_text,
+								'order' => $option->order,
+								'image_url' => $option->image_url,
+							];
+						}),
+					];
+				}),
+			]);
 		}
 
 		$role = strtolower((string) ($user->role ?? ''));
@@ -233,7 +352,7 @@ class QuizController extends Controller
 			'title' => 'required|string|max:255',
 			'description' => 'nullable|string',
 			'subject_id' => 'nullable|exists:subjects,id',
-			'class_id' => 'nullable|exists:school_classes,id',
+			'class_id' => 'nullable|exists:classes,id',
 			'duration_minutes' => 'required|integer|min:1',
 			'total_questions' => 'required|integer|min:1',
 			'passing_score' => 'required|integer|min:0|max:100',
@@ -275,7 +394,7 @@ class QuizController extends Controller
 			'title' => 'sometimes|string|max:255',
 			'description' => 'nullable|string',
 			'subject_id' => 'nullable|exists:subjects,id',
-			'class_id' => 'nullable|exists:school_classes,id',
+			'class_id' => 'nullable|exists:classes,id',
 			'duration_minutes' => 'sometimes|integer|min:1',
 			'total_questions' => 'sometimes|integer|min:1',
 			'passing_score' => 'sometimes|integer|min:0|max:100',

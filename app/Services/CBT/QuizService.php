@@ -4,8 +4,10 @@ namespace App\Services\CBT;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
 
 class QuizService
@@ -13,18 +15,17 @@ class QuizService
 	/**
 	 * Get all quizzes for a student
 	 */
-	public function getStudentQuizzes(User $student): Collection
+	public function getStudentQuizzes(User|Student $student): Collection
 	{
-		// Get student's class enrollments with their class IDs
-		$studentClassIds = $student->enrollments()
-			->with('class_section')
-			->get()
-			->pluck('class_section.class_arm.school_class_id')
-			->unique()
-			->values();
+		$studentClassIds = $this->resolveStudentClassIds($student);
 
-		return Quiz::where('status', 'published')
-			->where(function ($query) use ($studentClassIds) {
+		$query = Quiz::where('status', 'published');
+
+		if (!empty($student->school_id)) {
+			$query->where('school_id', $student->school_id);
+		}
+
+		return $query->where(function ($query) use ($studentClassIds) {
 				// Quiz assigned to student's class
 				if ($studentClassIds->count() > 0) {
 					$query->whereIn('class_id', $studentClassIds)
@@ -35,7 +36,7 @@ class QuizService
 					$query->whereNull('class_id');
 				}
 			})
-			->with(['questions', 'attempts' => function ($query) use ($student) {
+			->with(['subject:id,name', 'questions', 'attempts' => function ($query) use ($student) {
 				$query->where('student_id', $student->id);
 			}])
 			->orderBy('created_at', 'desc')
@@ -45,7 +46,7 @@ class QuizService
 	/**
 	 * Get quiz details with questions and options
 	 */
-	public function getQuizDetails(Quiz $quiz, User $student): array
+	public function getQuizDetails(Quiz $quiz, User|Student $student): array
 	{
 		$attempt = $quiz->attempts()
 			->where('student_id', $student->id)
@@ -57,6 +58,7 @@ class QuizService
 			'title' => $quiz->title,
 			'description' => $quiz->description,
 			'subject_id' => $quiz->subject_id,
+			'subject_name' => $quiz->subject?->name,
 			'class_id' => $quiz->class_id,
 			'duration_minutes' => $quiz->duration_minutes,
 			'total_questions' => $quiz->total_questions,
@@ -94,7 +96,7 @@ class QuizService
 	/**
 	 * Check if student can take quiz
 	 */
-	public function canStudentTakeQuiz(User $student, Quiz $quiz): bool
+	public function canStudentTakeQuiz(User|Student $student, Quiz $quiz): bool
 	{
 		// Check if quiz is published
 		if ($quiz->status !== 'published') {
@@ -112,11 +114,7 @@ class QuizService
 
 		// Check if student is in correct class
 		if ($quiz->class_id) {
-			$studentClassIds = $student->enrollments()
-				->with('class_section')
-				->get()
-				->pluck('class_section.class_arm.school_class_id')
-				->unique();
+			$studentClassIds = $this->resolveStudentClassIds($student);
 			
 			if (!$studentClassIds->contains($quiz->class_id)) {
 				return false;
@@ -129,12 +127,40 @@ class QuizService
 	/**
 	 * Check if student has attempted quiz
 	 */
-	public function hasStudentAttempted(User $student, Quiz $quiz): bool
+	public function hasStudentAttempted(User|Student $student, Quiz $quiz): bool
 	{
 		return $quiz->attempts()
 			->where('student_id', $student->id)
 			->where('status', '!=', 'in_progress')
 			->exists();
+	}
+
+	/**
+	 * Resolve the student's class ids from current class or enrollments.
+	 */
+	private function resolveStudentClassIds(User|Student $student): SupportCollection
+	{
+		$classIds = collect();
+
+		if (!empty($student->school_class_id)) {
+			$classIds->push($student->school_class_id);
+		}
+
+		if (method_exists($student, 'enrollments')) {
+			$enrollments = $student->enrollments()
+				->with('class_section.class_arm')
+				->get()
+				->pluck('class_section.class_arm.school_class_id');
+			$classIds = $classIds->merge($enrollments);
+		} elseif (method_exists($student, 'student_enrollments')) {
+			$enrollments = $student->student_enrollments()
+				->with('class_section.class_arm')
+				->get()
+				->pluck('class_section.class_arm.school_class_id');
+			$classIds = $classIds->merge($enrollments);
+		}
+
+		return $classIds->filter()->unique()->values();
 	}
 
 	/**
