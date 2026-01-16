@@ -52,6 +52,10 @@ class QuizService
 			->where('student_id', $student->id)
 			->latest()
 			->first();
+		$attemptCount = $quiz->attempts()
+			->where('student_id', $student->id)
+			->where('status', '!=', 'in_progress')
+			->count();
 
 		return [
 			'id' => $quiz->id,
@@ -69,10 +73,12 @@ class QuizService
 			'shuffle_options' => $quiz->shuffle_options,
 			'allow_review' => $quiz->allow_review,
 			'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
+			'max_attempts' => $quiz->max_attempts,
 			'status' => $quiz->status,
 			'start_time' => $quiz->start_time,
 			'end_time' => $quiz->end_time,
 			'attempted' => $attempt ? true : false,
+			'attempt_count' => $attemptCount,
 			'questions' => $quiz->questions->map(function ($question) {
 				return [
 					'id' => $question->id,
@@ -105,8 +111,7 @@ class QuizService
 			return false;
 		}
 
-		// Enforce single-attempt quizzes
-		if (! $quiz->allow_multiple_attempts && $this->hasStudentAttempted($student, $quiz)) {
+		if ($this->hasStudentReachedAttemptLimit($student, $quiz)) {
 			return false;
 		}
 
@@ -142,6 +147,27 @@ class QuizService
 			->exists();
 	}
 
+	public function getStudentAttemptCount(User|Student $student, Quiz $quiz): int
+	{
+		return $quiz->attempts()
+			->where('student_id', $student->id)
+			->where('status', '!=', 'in_progress')
+			->count();
+	}
+
+	public function hasStudentReachedAttemptLimit(User|Student $student, Quiz $quiz): bool
+	{
+		if (! $quiz->allow_multiple_attempts) {
+			return $this->hasStudentAttempted($student, $quiz);
+		}
+
+		if (! $quiz->max_attempts) {
+			return false;
+		}
+
+		return $this->getStudentAttemptCount($student, $quiz) >= $quiz->max_attempts;
+	}
+
 	/**
 	 * Resolve the student's class ids from current class or enrollments.
 	 */
@@ -175,6 +201,10 @@ class QuizService
 	 */
 	public function createQuiz(array $data, User $creator): Quiz
 	{
+		if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
+			$data['max_attempts'] = 1;
+		}
+
 		$data['id'] = Str::uuid();
 		$data['created_by'] = $creator->id;
 		$data['school_id'] = $creator->school_id;
@@ -188,6 +218,10 @@ class QuizService
 	 */
 	public function updateQuiz(Quiz $quiz, array $data): bool
 	{
+		if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
+			$data['max_attempts'] = 1;
+		}
+
 		return $quiz->update($data);
 	}
 

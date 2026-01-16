@@ -49,6 +49,12 @@ class QuizAttemptController extends Controller
 					], 403);
 				}
 
+				if ($quiz->allow_multiple_attempts && $quiz->max_attempts && $this->quizService->hasStudentReachedAttemptLimit($user, $quiz)) {
+					return response()->json([
+						'message' => 'You have reached the maximum number of attempts for this quiz.',
+					], 403);
+				}
+
 				return response()->json(['message' => 'You do not have access to this quiz'], 403);
 			}
 		}
