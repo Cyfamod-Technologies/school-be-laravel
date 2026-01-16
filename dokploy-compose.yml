@@ -12,12 +12,12 @@ services:
       # Named volumes for persistent data
       - appdev-storage:/var/www/html/storage/app
       - appdev-public:/var/www/html/public/storage
-    environment:
-      - DB_CONNECTION=mariadb
-      - DB_HOST=16.16.92.252
-      - APP_URL=https://endpoint.bmp.com.ng
-      - L5_SWAGGER_BASE_PATH=https://endpoint.bmp.com.ng/api
-      - L5_SWAGGER_CONST_HOST=https://endpoint.bmp.com.ng/api
+    # environment:
+    #   - DB_CONNECTION=mariadb
+    #   - DB_HOST=16.16.92.252
+    #   - APP_URL=https://endpoint.bmp.com.ng
+    #   - L5_SWAGGER_BASE_PATH=https://endpoint.bmp.com.ng/api
+    #   - L5_SWAGGER_CONST_HOST=https://endpoint.bmp.com.ng/api
 volumes:
   appdev-storage:
   appdev-public:
