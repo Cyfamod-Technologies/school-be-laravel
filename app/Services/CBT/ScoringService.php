@@ -19,7 +19,8 @@ class ScoringService
 		$quiz = $attempt->quiz;
 		$answers = $attempt->answers()->with('question')->get();
 
-		$totalQuestions = $quiz->total_questions;
+		$questionCount = $quiz->questions()->count();
+		$totalQuestions = $questionCount > 0 ? $questionCount : $quiz->total_questions;
 		$attemptedQuestions = $answers->count();
 		$correctAnswers = 0;
 		$totalMarks = 0;
