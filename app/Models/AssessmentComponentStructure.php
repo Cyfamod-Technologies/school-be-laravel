@@ -53,7 +53,7 @@ class AssessmentComponentStructure extends Model
      * 1. Specific class + specific term
      * 2. Specific class + any term
      * 3. Any class + specific term
-     * 4. Global default (falls back to component's max_score)
+     * 4. Global default (falls back to component's weight)
      */
     public static function getMaxScore(
         string $assessmentComponentId,
@@ -87,7 +87,7 @@ class AssessmentComponentStructure extends Model
 
         // Fallback to global assessment component score
         $component = AssessmentComponent::find($assessmentComponentId);
-        return $component ? (float) $component->max_score : null;
+        return $component ? (float) $component->weight : null;
     }
 
     /**
