@@ -6,17 +6,49 @@ use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Student;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
 
 class QuizService
 {
+	public function closeExpiredQuizzes(?string $schoolId = null): void
+	{
+		$query = Quiz::query()
+			->where('status', 'published')
+			->whereNotNull('end_time')
+			->where('end_time', '<', Carbon::now());
+
+		if ($schoolId) {
+			$query->where('school_id', $schoolId);
+		}
+
+		$query->update(['status' => 'closed']);
+	}
+
+	public function publishScheduledQuizzes(?string $schoolId = null): void
+	{
+		$query = Quiz::query()
+			->where('status', 'draft')
+			->whereNotNull('start_time')
+			->where('start_time', '<=', Carbon::now());
+
+		if ($schoolId) {
+			$query->where('school_id', $schoolId);
+		}
+
+		$query->update(['status' => 'published']);
+	}
+
 	/**
 	 * Get all quizzes for a student
 	 */
 	public function getStudentQuizzes(User|Student $student): Collection
 	{
+		$this->publishScheduledQuizzes($student->school_id ?? null);
+		$this->closeExpiredQuizzes($student->school_id ?? null);
+
 		$studentClassIds = $this->resolveStudentClassIds($student);
 
 		$query = Quiz::where('status', 'published');

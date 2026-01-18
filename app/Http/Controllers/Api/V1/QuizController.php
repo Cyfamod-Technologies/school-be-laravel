@@ -31,6 +31,9 @@ class QuizController extends Controller
 			return response()->json(['message' => 'Unauthenticated'], 401);
 		}
 
+		$this->quizService->publishScheduledQuizzes($user->school_id ?? null);
+		$this->quizService->closeExpiredQuizzes($user->school_id ?? null);
+
 		if ($user instanceof Student) {
 			$quizzes = $this->quizService->getStudentQuizzes($user);
 
@@ -51,6 +54,8 @@ class QuizController extends Controller
 						'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
 						'max_attempts' => $quiz->max_attempts,
 						'status' => $quiz->status,
+						'start_time' => $quiz->start_time,
+						'end_time' => $quiz->end_time,
 						'attempted' => $quiz->attempts->where('status', '!=', 'in_progress')->isNotEmpty(),
 						'attempt_count' => $quiz->attempts->where('status', '!=', 'in_progress')->count(),
 						'created_at' => $quiz->created_at,
@@ -92,6 +97,8 @@ class QuizController extends Controller
 						'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
 						'max_attempts' => $quiz->max_attempts,
 						'status' => $quiz->status,
+						'start_time' => $quiz->start_time,
+						'end_time' => $quiz->end_time,
 						'created_at' => $quiz->created_at,
 						'updated_at' => $quiz->updated_at,
 					];
@@ -118,6 +125,8 @@ class QuizController extends Controller
 					'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
 					'max_attempts' => $quiz->max_attempts,
 					'status' => $quiz->status,
+					'start_time' => $quiz->start_time,
+					'end_time' => $quiz->end_time,
 					'attempted' => $quiz->attempts->where('status', '!=', 'in_progress')->isNotEmpty(),
 					'attempt_count' => $quiz->attempts->where('status', '!=', 'in_progress')->count(),
 					'created_at' => $quiz->created_at,
@@ -132,6 +141,9 @@ class QuizController extends Controller
 	 */
 	public function publicIndex(Request $request): JsonResponse
 	{
+		$this->quizService->publishScheduledQuizzes();
+		$this->quizService->closeExpiredQuizzes();
+
 		$now = Carbon::now();
 		$query = Quiz::query()
 			->with('subject:id,name')
@@ -397,6 +409,8 @@ class QuizController extends Controller
 			'class_id' => 'nullable|exists:classes,id',
 			'duration_minutes' => 'required|integer|min:1',
 			'passing_score' => 'required|integer|min:0|max:100',
+			'start_time' => 'nullable|date',
+			'end_time' => 'nullable|date|after_or_equal:start_time',
 			'show_answers' => 'boolean',
 			'show_score' => 'boolean',
 			'shuffle_questions' => 'boolean',
@@ -441,6 +455,8 @@ class QuizController extends Controller
 			'class_id' => 'nullable|exists:classes,id',
 			'duration_minutes' => 'sometimes|integer|min:1',
 			'passing_score' => 'sometimes|integer|min:0|max:100',
+			'start_time' => 'nullable|date',
+			'end_time' => 'nullable|date|after_or_equal:start_time',
 			'show_answers' => 'boolean',
 			'show_score' => 'boolean',
 			'shuffle_questions' => 'boolean',
