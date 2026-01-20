@@ -236,7 +236,9 @@ class StaffController extends Controller
      *             @OA\Property(property="gender", type="string", example="female"),
      *             @OA\Property(property="address", type="string"),
      *             @OA\Property(property="qualifications", type="string"),
-     *             @OA\Property(property="employment_start_date", type="string", format="date")
+     *             @OA\Property(property="employment_start_date", type="string", format="date"),
+     *             @OA\Property(property="password", type="string", format="password", example="newPassword123"),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="newPassword123")
      *         )
      *     ),
      *     @OA\Response(response=200, description="Staff updated"),
@@ -278,6 +280,7 @@ class StaffController extends Controller
             'qualifications' => 'nullable|string|max:255',
             'employment_start_date' => 'nullable|date',
             'photo' => 'nullable|image|max:2048',
+            'password' => 'nullable|string|min:8|confirmed',
         ]);
 
         $staffUpdates = [];
@@ -338,6 +341,12 @@ class StaffController extends Controller
 
         if (! empty($userUpdates)) {
             $staff->user->update($userUpdates);
+        }
+
+        if (! empty($validated['password'])) {
+            $staff->user->forceFill([
+                'password' => Hash::make($validated['password']),
+            ])->save();
         }
 
         if ($systemRole) {
