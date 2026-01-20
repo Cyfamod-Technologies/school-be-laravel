@@ -449,6 +449,7 @@ class ResultPinController extends Controller
             'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
             'autoPrint' => $request->boolean('autoprint'),
             'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),
+            'studentPortalLink' => $school->student_portal_link,
         ]);
     }
 

@@ -301,6 +301,7 @@ class SchoolController extends Controller
      *                 @OA\Property(property="logo_url", type="string"),
      *                 @OA\Property(property="established_at", type="string", format="date"),
      *                 @OA\Property(property="owner_name", type="string"),
+     *                 @OA\Property(property="student_portal_link", type="string"),
      *             )
      *         )
      *     ),
@@ -325,6 +326,7 @@ class SchoolController extends Controller
             'phone' => 'string|max:50',
             'logo_url' => 'string|max:512',
             'signature_url' => 'string|max:512',
+            'student_portal_link' => 'nullable|string|max:512',
             'logo' => 'nullable|image|max:4096',
             'signature' => 'nullable|image|max:4096',
             'established_at' => 'date',

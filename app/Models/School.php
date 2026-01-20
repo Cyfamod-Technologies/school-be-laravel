@@ -86,6 +86,7 @@ class School extends Model
 		'phone',
 		'logo_url',
 		'signature_url',
+		'student_portal_link',
 		'established_at',
 		'owner_name',
 		'status',

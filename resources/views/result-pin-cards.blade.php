@@ -100,6 +100,22 @@
             font-size: 13px;
             opacity: 0.9;
         }
+        .portal-link {
+            margin-top: 6px;
+            font-size: 10px;
+            line-height: 1.2;
+            color: rgba(255, 255, 255, 0.9);
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            max-height: 24px;
+        }
+        .portal-link a {
+            color: #fff;
+            text-decoration: none;
+        }
         .footer {
             text-align: center;
             margin-top: 32px;
@@ -166,6 +182,17 @@
                     </div>
                     <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
                     <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
+                    @php
+                        $studentPortalLink = trim((string) ($studentPortalLink ?? ''));
+                    @endphp
+                    @if($studentPortalLink !== '')
+                        <div class="portal-link">
+                            <strong>Student portal link:</strong>
+                            <a href="{{ $studentPortalLink }}" target="_blank" rel="noreferrer">
+                                {{ $studentPortalLink }}
+                            </a>
+                        </div>
+                    @endif
                 </div>
             @endforeach
         </div>
