@@ -82,12 +82,20 @@ class AssessmentComponentStructure extends Model
             ->first();
 
         if ($structure) {
-            return (float) $structure->max_score;
+            $value = (float) $structure->max_score;
+            if ($value > 0) {
+                return $value;
+            }
         }
 
         // Fallback to global assessment component score
         $component = AssessmentComponent::find($assessmentComponentId);
-        return $component ? (float) $component->weight : null;
+        if (! $component) {
+            return null;
+        }
+
+        $weight = (float) $component->weight;
+        return $weight > 0 ? $weight : null;
     }
 
     /**

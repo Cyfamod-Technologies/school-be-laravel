@@ -183,7 +183,7 @@ class SchoolController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! $this->verifyUserPassword($user, $request->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are not correct.'],
             ]);
@@ -301,6 +301,7 @@ class SchoolController extends Controller
      *                 @OA\Property(property="logo_url", type="string"),
      *                 @OA\Property(property="established_at", type="string", format="date"),
      *                 @OA\Property(property="owner_name", type="string"),
+     *                 @OA\Property(property="student_portal_link", type="string"),
      *             )
      *         )
      *     ),
@@ -325,6 +326,7 @@ class SchoolController extends Controller
             'phone' => 'string|max:50',
             'logo_url' => 'string|max:512',
             'signature_url' => 'string|max:512',
+            'student_portal_link' => 'nullable|string|max:512',
             'logo' => 'nullable|image|max:4096',
             'signature' => 'nullable|image|max:4096',
             'established_at' => 'date',
@@ -695,6 +697,50 @@ class SchoolController extends Controller
         }
 
         return Str::limit($acronym ?: 'SCH', 5, '');
+    }
+
+    private function verifyUserPassword(User $user, string $password): bool
+    {
+        try {
+            if (Hash::check($password, $user->password)) {
+                if (Hash::needsRehash($user->password)) {
+                    $user->forceFill([
+                        'password' => Hash::make($password),
+                    ])->save();
+                }
+                return true;
+            }
+        } catch (\RuntimeException $exception) {
+            // Fall through to legacy check.
+        }
+
+        if (! $this->matchesLegacyPassword($user->password, $password)) {
+            return false;
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($password),
+        ])->save();
+
+        return true;
+    }
+
+    private function matchesLegacyPassword(?string $stored, string $password): bool
+    {
+        $storedValue = (string) ($stored ?? '');
+        if ($storedValue === '') {
+            return false;
+        }
+
+        if (hash_equals($storedValue, $password)) {
+            return true;
+        }
+
+        if (strlen($storedValue) === 32 && ctype_xdigit($storedValue)) {
+            return hash_equals($storedValue, md5($password));
+        }
+
+        return false;
     }
 
     /**

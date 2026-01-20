@@ -274,6 +274,7 @@ class StudentBulkUploadService
                 $studentData['id'] = (string) Str::uuid();
                 $studentData['school_id'] = $school->id;
                 $studentData['parent_id'] = $parent?->id;
+                $studentData['portal_password'] = '123456';
                 $studentData['status'] = strtolower($studentData['status']);
                 $session = Session::findOrFail($studentData['current_session_id']);
                 $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
