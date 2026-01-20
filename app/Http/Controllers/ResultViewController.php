@@ -7,8 +7,10 @@ use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\ClassSection;
 use App\Models\ClassTeacher;
+use App\Models\GradeRange;
 use App\Models\GradingScale;
 use App\Models\Result;
+use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
@@ -515,7 +517,7 @@ class ResultViewController extends Controller
                         'label' => $range->grade_label,
                         'min' => $range->min_score,
                         'max' => $range->max_score,
-                        'description' => $range->description,
+                        'remarks' => $range->description,
                     ];
                 })
                 ->values()
@@ -524,6 +526,7 @@ class ResultViewController extends Controller
             'classTeacherName' => $classTeacher?->staff?->full_name,
             'principalName' => optional($student->school)->owner_name,
             'principalSignatureUrl' => optional($student->school)->signature_url,
+            'resultPageSettings' => $this->resolveResultPageSettings($student->school),
         ];
 
         return $data;
@@ -642,7 +645,7 @@ class ResultViewController extends Controller
                 $summary = [
                     'total' => null,
                     'grade' => null,
-                    'grade_description' => null,
+                    'remarks' => null,
                     'position' => null,
                     'class_average' => null,
                     'lowest' => null,
@@ -655,7 +658,7 @@ class ResultViewController extends Controller
                     } else {
                         $summary['total'] = $result->total_score;
                         $summary['grade'] = $result->grade_range->grade_label ?? null;
-                        $summary['grade_description'] = $result->grade_range->description ?? null;
+                        $summary['remarks'] = $result->grade_range->description ?? null;
                         $summary['position'] = $result->position_in_subject;
                         $summary['class_average'] = $result->class_average;
                         $summary['lowest'] = $result->lowest_in_class;
@@ -668,6 +671,15 @@ class ResultViewController extends Controller
                 }
 
                 $summary['grade'] = $this->resolveGradeLabel($summary['total'], $summary['grade'], $gradeRanges);
+                $matchedRange = $this->resolveGradeRange($summary['total'], $summary['grade'], $gradeRanges);
+                if ($matchedRange) {
+                    if (! $summary['grade']) {
+                        $summary['grade'] = $matchedRange->grade_label;
+                    }
+                    if ($summary['remarks'] === null || $summary['remarks'] === '') {
+                        $summary['remarks'] = $matchedRange->description;
+                    }
+                }
 
                 $componentValues = [];
                 foreach ($componentColumns as $column) {
@@ -695,7 +707,7 @@ class ResultViewController extends Controller
                     'component_values' => $componentValues,
                     'total' => $summary['total'],
                     'grade' => $summary['grade'],
-                    'grade_description' => $summary['grade_description'],
+                    'remarks' => $summary['remarks'],
                     'position' => $summary['position'],
                     'class_average' => $summary['class_average'],
                     'lowest' => $summary['lowest'],
@@ -880,21 +892,49 @@ class ResultViewController extends Controller
         return $gradeScale->grade_ranges->sortByDesc('min_score')->values();
     }
 
-    private function resolveGradeLabel(?float $score, ?string $existing, Collection $gradeRanges): ?string
+    private function resolveGradeRange(?float $score, ?string $gradeLabel, Collection $gradeRanges): ?GradeRange
     {
-        if ($existing) {
-            return $existing;
+        if ($gradeLabel) {
+            $normalized = Str::lower(trim($gradeLabel));
+            $byLabel = $gradeRanges->first(function (GradeRange $range) use ($normalized) {
+                return Str::lower(trim((string) $range->grade_label)) === $normalized;
+            });
+
+            if ($byLabel) {
+                return $byLabel;
+            }
         }
 
         if ($score === null) {
             return null;
         }
 
-        $match = $gradeRanges->first(function ($range) use ($score) {
+        return $gradeRanges->first(function (GradeRange $range) use ($score) {
             return $score >= $range->min_score && $score <= $range->max_score;
         });
+    }
 
-        return $match?->grade_label;
+    private function resolveGradeLabel(?float $score, ?string $existing, Collection $gradeRanges): ?string
+    {
+        if ($existing) {
+            return $existing;
+        }
+
+        $match = $this->resolveGradeRange($score, null, $gradeRanges);
+
+        return $match?->grade_label ?? null;
+    }
+
+    private function resolveResultPageSettings(?School $school): array
+    {
+        return [
+            'show_grade' => $school?->result_show_grade ?? true,
+            'show_position' => $school?->result_show_position ?? true,
+            'show_class_average' => $school?->result_show_class_average ?? true,
+            'show_lowest' => $school?->result_show_lowest ?? true,
+            'show_highest' => $school?->result_show_highest ?? true,
+            'show_remarks' => $school?->result_show_remarks ?? true,
+        ];
     }
 
     private function resolveClassTeacher(Student $student, ?string $sessionId, ?string $termId): ?ClassTeacher

@@ -66,6 +66,12 @@ class School extends Model
 	protected $casts = [
 		'established_at' => 'datetime',
 		'code_sequence' => 'integer',
+		'result_show_grade' => 'boolean',
+		'result_show_position' => 'boolean',
+		'result_show_class_average' => 'boolean',
+		'result_show_lowest' => 'boolean',
+		'result_show_highest' => 'boolean',
+		'result_show_remarks' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -85,6 +91,12 @@ class School extends Model
 		'status',
 		'current_session_id',
 		'current_term_id',
+		'result_show_grade',
+		'result_show_position',
+		'result_show_class_average',
+		'result_show_lowest',
+		'result_show_highest',
+		'result_show_remarks',
 	];
 
 	public function analytics_data()

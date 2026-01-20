@@ -1,5 +1,21 @@
 @php
     $classLabel = trim(collect([$studentInfo['class'] ?? null, $studentInfo['class_arm'] ?? null])->filter()->implode(' '));
+    $resultPageSettings = $resultPageSettings ?? [];
+    $showGrade = $resultPageSettings['show_grade'] ?? true;
+    $showPosition = $resultPageSettings['show_position'] ?? true;
+    $showClassAverage = $resultPageSettings['show_class_average'] ?? true;
+    $showLowest = $resultPageSettings['show_lowest'] ?? true;
+    $showHighest = $resultPageSettings['show_highest'] ?? true;
+    $showRemarks = $resultPageSettings['show_remarks'] ?? true;
+    $optionalResultColumns = array_filter([
+        $showGrade,
+        $showPosition,
+        $showClassAverage,
+        $showLowest,
+        $showHighest,
+        $showRemarks,
+    ]);
+    $resultsTableColspan = 2 + count($resultsColumns) + count($optionalResultColumns);
 @endphp
 <div class="page">
         @if(($showPrintButton ?? true))
@@ -86,11 +102,24 @@
                     <th>{{ $column['label'] }}</th>
                 @endforeach
                 <th>Total Marks</th>
-                <th>Grade</th>
-                <th>Position</th>
-                <th>Class Average</th>
-                <th>Lowest</th>
-                <th>Highest</th>
+                @if($showGrade)
+                    <th>Grade</th>
+                @endif
+                @if($showPosition)
+                    <th>Position</th>
+                @endif
+                @if($showClassAverage)
+                    <th>Class Average</th>
+                @endif
+                @if($showLowest)
+                    <th>Lowest</th>
+                @endif
+                @if($showHighest)
+                    <th>Highest</th>
+                @endif
+                @if($showRemarks)
+                    <th>Remarks</th>
+                @endif
             </tr>
             @forelse($resultsRows as $row)
                 <tr>
@@ -102,18 +131,35 @@
                         <td>{{ $value !== null ? number_format($value, 0) : '-' }}</td>
                     @endforeach
                     <td>{{ $row['total'] !== null ? number_format($row['total'], 0) : '-' }}</td>
-                    <td>{{ $row['grade'] ?? '-' }}</td>
-                    <td>{{ $row['position'] ?? '-' }}</td>
-                    <td>{{ $row['class_average'] !== null ? number_format($row['class_average'], 1) : '-' }}</td>
-                    <td>{{ $row['lowest'] !== null ? number_format($row['lowest'], 1) : '-' }}</td>
-                    <td>{{ $row['highest'] !== null ? number_format($row['highest'], 1) : '-' }}</td>
+                    @if($showGrade)
+                        <td>{{ $row['grade'] ?? '-' }}</td>
+                    @endif
+                    @if($showPosition)
+                        <td>{{ $row['position'] ?? '-' }}</td>
+                    @endif
+                    @if($showClassAverage)
+                        <td>{{ $row['class_average'] !== null ? number_format($row['class_average'], 1) : '-' }}</td>
+                    @endif
+                    @if($showLowest)
+                        <td>{{ $row['lowest'] !== null ? number_format($row['lowest'], 1) : '-' }}</td>
+                    @endif
+                    @if($showHighest)
+                        <td>{{ $row['highest'] !== null ? number_format($row['highest'], 1) : '-' }}</td>
+                    @endif
+                    @if($showRemarks)
+                        <td>{{ $row['remarks'] ?? '-' }}</td>
+                    @endif
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 7 + count($resultsColumns) }}">No subject results available for the selected period.</td>
+                    <td colspan="{{ $resultsTableColspan }}">No subject results available for the selected period.</td>
                 </tr>
             @endforelse
         </table>
+
+        @php
+            $hasSkillRatings = !empty($skillRatingsByCategory);
+        @endphp
 
         <div class="flex-row">
             <div class="flex-col">
@@ -129,9 +175,9 @@
                             $label = strtoupper($range['label'] ?? '');
                             $min = $formatScore($range['min'] ?? 0);
                             $max = $formatScore($range['max'] ?? 0);
-                            $description = strtoupper($range['description'] ?? '');
-                            return $description
-                                ? "{$label} = {$min} - {$max} [{$description}]"
+                            $remarks = strtoupper($range['remarks'] ?? '');
+                            return $remarks
+                                ? "{$label} = {$min} - {$max} [{$remarks}]"
                                 : "{$label} = {$min} - {$max}";
                         })->implode(' , ');
                     @endphp
@@ -139,7 +185,8 @@
                         <strong>KEY TO GRADINGS:</strong> {{ !empty($gradeLine) ? $gradeLine : 'No grading scale configured.' }}
                     </div>
                 </div>
-                   <table class="rating-key-table">
+                @if($hasSkillRatings)
+                    <table class="rating-key-table">
                         <tr>
                             <td colspan="2" style="font-weight:bold;text-transform:uppercase;text-align:center;background:#0f172a;color:#ffffff;">Key to Ratings</td>
                         </tr>
@@ -164,20 +211,25 @@
                             <td>No Observable Trait</td>
                         </tr>
                     </table>
+                @endif
 
                     <div class="info-box summary-box" style="margin-top: 8px;">
                         <div class="section-title">Summary</div>
                         <p>Marks Obtainable: {{ $aggregate['total_possible'] !== null ? number_format($aggregate['total_possible'], 0) : '-' }}</p>
                         <p>Marks Obtained: {{ $aggregate['total_obtained'] !== null ? number_format($aggregate['total_obtained'], 0) : '-' }}</p>
                         <p>Average: {{ $aggregate['average'] !== null ? number_format($aggregate['average'], 2) : '-' }}</p>
-                        <p>Class Average: {{ $aggregate['class_average'] !== null ? number_format($aggregate['class_average'], 2) : '-' }}</p>
-                        <p>Position: {{ $aggregate['position'] !== null ? $aggregate['position'] . ' of ' . ($classSize ?: 'N/A') : '-' }}</p>
+                        @if($showClassAverage)
+                            <p>Class Average: {{ $aggregate['class_average'] !== null ? number_format($aggregate['class_average'], 2) : '-' }}</p>
+                        @endif
+                        @if($showPosition)
+                            <p>Position: {{ $aggregate['position'] !== null ? $aggregate['position'] . ' of ' . ($classSize ?: 'N/A') : '-' }}</p>
+                        @endif
                         <p>Class Teacher Comment : {{ $aggregate['class_teacher_comment'] ?? 'No comment provided.' }}</p>
                         @if(!empty($classTeacherName))
                             <p><strong>Class Teacher:</strong> {{ $classTeacherName }}</p>
                         @endif
                         <p>Principal Comment : {{ $aggregate['principal_comment'] ?? 'No comment provided.' }}</p>
-                        @if(!empty($aggregate['final_grade']))
+                        @if($showGrade && !empty($aggregate['final_grade']))
                             <p><strong>Final Grade:</strong> {{ $aggregate['final_grade'] }}</p>
                         @endif
                         @if(!empty($principalName))
@@ -192,10 +244,10 @@
                     </div>
 
             </div>
-            <div class="flex-col">
-                <div class="section-title">Skills &amp; Behaviour</div>
-                <div class="info-box" style="padding:10px 14px;">
-                    @if(!empty($skillRatingsByCategory))
+            @if($hasSkillRatings)
+                <div class="flex-col">
+                    <div class="section-title">Skills &amp; Behaviour</div>
+                    <div class="info-box" style="padding:10px 14px;">
                         @php
                             $skillChunks = array_chunk($skillRatingsByCategory, 2);
                         @endphp
@@ -219,12 +271,9 @@
                                 @endif
                             </div>
                         @endforeach
-                    @else
-                        <p style="margin:0;">No skill ratings recorded.</p>
-                    @endif
-
+                    </div>
                 </div>
-            </div>
+            @endif
         </div>
 
         </div>

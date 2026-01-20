@@ -310,6 +310,8 @@ Route::prefix('api/v1')->group(function () {
 
         // Settings Routes
         Route::prefix('settings')->group(function () {
+            Route::get('result-page', [\App\Http\Controllers\Api\V1\ResultPageSettingsController::class, 'show']);
+            Route::put('result-page', [\App\Http\Controllers\Api\V1\ResultPageSettingsController::class, 'update']);
             Route::apiResource('subjects', SubjectController::class);
             Route::apiResource('assessment-components', AssessmentComponentController::class)
                 ->parameters(['assessment-components' => 'assessmentComponent'])

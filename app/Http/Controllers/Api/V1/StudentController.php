@@ -252,6 +252,7 @@ class StudentController extends Controller
         $studentData = $validated;
         $studentData['id'] = (string) Str::uuid();
         $studentData['school_id'] = $school->id;
+        $studentData['portal_password'] = '123456';
         $studentData['status'] = strtolower($studentData['status']);
         if (! array_key_exists('parent_id', $studentData) || ! $studentData['parent_id']) {
             $studentData['parent_id'] = null;
