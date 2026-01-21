@@ -227,19 +227,53 @@ class StudentAuthController extends Controller
             ->where('student_id', $student->id)
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
-            ->with(['subject:id,name,code', 'grade_range:id,grade_label'])
-            ->get()
-            ->map(fn (Result $row) => [
-                'subject' => $row->subject?->name,
-                'code' => $row->subject?->code,
-                'score' => $row->total_score,
-                'grade' => $row->grade_range?->grade_label,
-                'remarks' => $row->remarks,
-            ]);
+            ->with([
+                'subject:id,name,code',
+                'assessment_component:id,name,label,order',
+                'grade_range:id,grade_label',
+            ])
+            ->get();
+
+        $subjectResults = $results
+            ->groupBy('subject_id')
+            ->map(function ($items) {
+                $first = $items->first();
+                $components = $items
+                    ->filter(fn (Result $row) => $row->assessment_component !== null)
+                    ->sortBy(fn (Result $row) => $row->assessment_component->order ?? PHP_INT_MAX)
+                    ->map(function (Result $row) {
+                        $component = $row->assessment_component;
+                        $label = strtoupper($component->label ?? $component->name ?? 'Component');
+                        return [
+                            'id' => $component->id,
+                            'label' => $label,
+                            'score' => $row->total_score,
+                        ];
+                    })
+                    ->filter(fn (array $entry) => $entry['score'] !== null)
+                    ->values()
+                    ->all();
+
+                $summaryRow = $items->first(fn (Result $row) => $row->assessment_component_id === null);
+                $total = $summaryRow?->total_score;
+
+                if ($total === null && ! empty($components)) {
+                    $scores = array_map(fn (array $entry) => $entry['score'], $components);
+                    $numericScores = array_filter($scores, fn ($score) => is_numeric($score));
+                    $total = ! empty($numericScores) ? array_sum($numericScores) : null;
+                }
+
+                return [
+                    'subject' => $first?->subject?->name,
+                    'components' => $components,
+                    'total' => $total,
+                ];
+            })
+            ->values();
 
         return response()->json([
             'student' => $this->transformStudent($student),
-            'results' => $results,
+            'results' => $subjectResults,
         ]);
     }
 
@@ -264,17 +298,6 @@ class StudentAuthController extends Controller
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
         ]);
-
-        $pinExists = ResultPin::query()
-            ->where('student_id', $student->id)
-            ->where('session_id', $validated['session_id'])
-            ->where('term_id', $validated['term_id'])
-            ->where('status', 'active')
-            ->exists();
-
-        if (! $pinExists) {
-            abort(403, 'No PIN found for this session/term. Generate one from the school portal.');
-        }
 
         $results = Result::query()
             ->where('student_id', $student->id)
