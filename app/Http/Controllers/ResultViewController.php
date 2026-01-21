@@ -17,6 +17,7 @@ use App\Models\SkillRating;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\TermSummary;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -62,7 +63,8 @@ class ResultViewController extends Controller
 
         $user = $request->user();
         $role = strtolower((string) ($user->role ?? ''));
-        $isAdmin = in_array($role, ['admin', 'super_admin'], true) || ($user?->hasAnyRole(['admin', 'super_admin']) ?? false);
+        $isAdmin = $user instanceof User
+            && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
 
         $data = $this->buildResultPageData(
             $student,
@@ -72,6 +74,54 @@ class ResultViewController extends Controller
         );
 
         return view('result', $data);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/v1/students/{student}/early-years-report/print",
+     *     tags={"school-v1.4"},
+     *     summary="Print a student's early years report",
+     *     description="Renders the printable early years report for the selected student, session, and term.",
+     *     @OA\Parameter(
+     *         name="student",
+     *         in="path",
+     *         required=true,
+     *         description="Student ID",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="session_id",
+     *         in="query",
+     *         required=false,
+     *         description="Session ID to print (defaults to student's current session)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Parameter(
+     *         name="term_id",
+     *         in="query",
+     *         required=false,
+     *         description="Term ID to print (defaults to student's current term)",
+     *         @OA\Schema(type="string", format="uuid")
+     *     ),
+     *     @OA\Response(response=200, description="Printable HTML view"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
+     */
+    public function earlyYearsReport(Request $request, Student $student)
+    {
+        $user = $request->user();
+        $role = strtolower((string) ($user->role ?? ''));
+        $isAdmin = $user instanceof User
+            && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
+
+        $data = $this->buildEarlyYearsReportData(
+            $student,
+            $request->input('session_id'),
+            $request->input('term_id'),
+            $isAdmin ? null : optional($user?->school)->id
+        );
+
+        return view('early-years-report', $data);
     }
 
     /**
@@ -270,7 +320,8 @@ class ResultViewController extends Controller
     ) {
         $user = auth()->user();
         $role = strtolower((string) ($user->role ?? ''));
-        $isAdmin = $user && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
+        $isAdmin = $user instanceof User
+            && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
 
         $student->loadMissing([
             'school',
@@ -532,6 +583,186 @@ class ResultViewController extends Controller
         return $data;
     }
 
+    public function buildEarlyYearsReportData(
+        Student $student,
+        ?string $requestedSessionId = null,
+        ?string $requestedTermId = null,
+        ?string $requestingSchoolId = null
+    ) {
+        $user = auth()->user();
+        $role = strtolower((string) ($user->role ?? ''));
+        $isAdmin = $user instanceof User
+            && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
+
+        $student->loadMissing([
+            'school',
+            'school_class',
+            'class_arm',
+            'class_section',
+            'parent',
+        ]);
+
+        if (! $isAdmin && $requestingSchoolId !== null && $requestingSchoolId !== $student->school_id) {
+            abort(403, 'You are not allowed to view this student report.');
+        }
+
+        $sessionId = $this->normalizeContextId($requestedSessionId);
+        $termId = $this->normalizeContextId($requestedTermId);
+
+        $school = $student->school;
+        if (! $sessionId && $school && $school->current_session_id) {
+            $sessionId = $this->normalizeContextId($school->current_session_id);
+        }
+        if (! $termId && $school && $school->current_term_id) {
+            $termId = $this->normalizeContextId($school->current_term_id);
+        }
+
+        if (! $sessionId) {
+            $sessionId = $this->normalizeContextId($student->current_session_id);
+        }
+        if (! $termId) {
+            $termId = $this->normalizeContextId($student->current_term_id);
+        }
+
+        $session = $sessionId
+            ? Session::query()
+                ->where('school_id', $student->school_id)
+                ->find($sessionId)
+            : null;
+
+        $term = $termId
+            ? Term::query()
+                ->where('school_id', $student->school_id)
+                ->find($termId)
+            : null;
+
+        if ($term && (! $session || $term->session_id !== $session->id)) {
+            $session = $term->session()->where('school_id', $student->school_id)->first();
+        }
+
+        if (! $session && $student->current_session_id) {
+            $session = $student->session()->where('school_id', $student->school_id)->first();
+        }
+
+        if (! $term && $student->current_term_id) {
+            $term = $student->term()->where('school_id', $student->school_id)->first();
+        }
+
+        $termSummary = TermSummary::query()
+            ->where('student_id', $student->id)
+            ->when($session, fn ($query) => $query->where('session_id', $session->id))
+            ->when($term, fn ($query) => $query->where('term_id', $term->id))
+            ->first();
+
+        $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
+        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? null;
+        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? null;
+        $schoolOpenedDays = $attendancePresent !== null && $attendanceAbsent !== null
+            ? $attendancePresent + $attendanceAbsent
+            : null;
+
+        $classSize = Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
+            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
+
+        $skillRatingsByCategory = SkillRating::query()
+            ->where('student_id', $student->id)
+            ->when($session, fn ($query) => $query->where('session_id', $session->id))
+            ->when($term, fn ($query) => $query->where('term_id', $term->id))
+            ->with([
+                'skill_type:id,name,description,skill_category_id',
+                'skill_type.skill_category:id,name',
+            ])
+            ->get()
+            ->filter(fn (SkillRating $rating) => $rating->skill_type !== null)
+            ->sortBy(fn (SkillRating $rating) => Str::lower(optional($rating->skill_type->skill_category)->name ?? ''), SORT_NATURAL, false)
+            ->groupBy(function (SkillRating $rating) {
+                return optional($rating->skill_type->skill_category)->name ?? 'Other Skills';
+            })
+            ->map(function ($items, $category) {
+                return [
+                    'category' => $category,
+                    'skills' => $items
+                        ->sortBy(fn (SkillRating $rating) => Str::lower($rating->skill_type->name ?? ''), SORT_NATURAL, false)
+                        ->map(function (SkillRating $rating) {
+                            $type = $rating->skill_type;
+                            $description = is_string($type?->description) ? trim($type->description) : '';
+                            $skillLabel = $description !== '' ? $description : ($type->name ?? null);
+
+                            return [
+                                'skill' => $skillLabel,
+                                'grade' => $this->formatSkillGrade($rating->rating_value),
+                            ];
+                        })
+                        ->filter(fn (array $entry) => ! empty($entry['skill']))
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->filter(fn (array $entry) => ! empty($entry['skills']))
+            ->values()
+            ->all();
+
+        $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
+
+        $nextTerm = null;
+        if ($term && $session) {
+            $nextTerm = Term::query()
+                ->where('school_id', $student->school_id)
+                ->where('session_id', $session->id)
+                ->when($term->end_date, fn ($query) => $query->where('start_date', '>', $term->end_date))
+                ->orderBy('start_date')
+                ->first();
+        }
+
+        $sessionName = $session?->name ?? optional($student->session)->name;
+        $termName = $term?->name ?? optional($student->term)->name;
+
+        $teacherComment = $termSummary?->overall_comment;
+        if ($teacherComment === null) {
+            $teacherComment = $this->generateTeacherComment($termSummary?->average_score);
+        }
+
+        return [
+            'student' => $student,
+            'schoolName' => optional($student->school)->name ?? 'School',
+            'schoolAddress' => optional($student->school)->address,
+            'schoolPhone' => optional($student->school)->phone,
+            'schoolEmail' => optional($student->school)->email,
+            'schoolLogoUrl' => $this->resolveMediaUrl(optional($student->school)->logo_url),
+            'sessionName' => $sessionName,
+            'termName' => $termName,
+            'termStart' => $term?->start_date?->format('jS F Y'),
+            'termEnd' => $term?->end_date?->format('jS F Y'),
+            'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
+            'reportDate' => Carbon::now()->format('jS F Y'),
+            'classSize' => $classSize,
+            'schoolOpenedDays' => $schoolOpenedDays,
+            'studentInfo' => [
+                'name' => trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ')),
+                'admission_no' => $student->admission_no,
+                'gender' => $student->gender,
+                'class' => optional($student->school_class)->name,
+                'class_arm' => optional($student->class_arm)->name,
+                'class_section' => optional($student->class_section)->name,
+            ],
+            'studentPhotoUrl' => $this->resolveMediaUrl($student->photo_url),
+            'attendance' => [
+                'present' => $attendancePresent,
+                'absent' => $attendanceAbsent,
+            ],
+            'skillRatingsByCategory' => $skillRatingsByCategory,
+            'teacherComment' => $teacherComment,
+            'classTeacherName' => $classTeacher?->staff?->full_name,
+            'directorSignatureUrl' => $this->resolveMediaUrl(optional($student->school)->signature_url),
+            'reportTitle' => 'Early Years Report',
+        ];
+    }
+
     private function generateTeacherComment(?float $average): string
     {
         if ($average === null) {
@@ -611,6 +842,20 @@ class ResultViewController extends Controller
             'present' => $counts ? (int) ($counts->present_count ?? 0) : null,
             'absent' => $counts ? (int) ($counts->absent_count ?? 0) : null,
         ];
+    }
+
+    private function formatSkillGrade(?int $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $number = (int) $value;
+        if ($number < 1 || $number > 5) {
+            return null;
+        }
+
+        return 'Q' . $number;
     }
 
     private function buildComponentColumns(Collection $results): Collection

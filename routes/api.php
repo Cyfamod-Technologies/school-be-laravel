@@ -176,6 +176,8 @@ Route::prefix('api/v1')->group(function () {
         });
         Route::get('students/{student}/results/print', [ResultViewController::class, 'show'])
             ->whereUuid('student');
+        Route::get('students/{student}/early-years-report/print', [ResultViewController::class, 'earlyYearsReport'])
+            ->whereUuid('student');
         Route::get('results/bulk/print', [ResultViewController::class, 'bulkPrint'])
             ->name('results.bulk.print');
         Route::prefix('students/{student}')
