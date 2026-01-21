@@ -323,6 +323,7 @@ class StudentAuthController extends Controller
             ),
         ]);
 
+        $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
         $view = View::make('result-bulk', [
             'pages' => $pages,
             'filters' => [
@@ -335,6 +336,7 @@ class StudentAuthController extends Controller
                 'total_students' => 1,
             ],
             'generatedAt' => now()->format('jS F Y, h:i A'),
+            'documentTitle' => $studentName ? "{$studentName} | Result Slip" : 'Result Slip',
         ]);
 
         return response($view->render())

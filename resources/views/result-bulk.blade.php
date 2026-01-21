@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Class Results</title>
+    <title>{{ $documentTitle ?? 'Bulk Class Results' }}</title>
     <style>
         @include('partials.result-styles')
 
