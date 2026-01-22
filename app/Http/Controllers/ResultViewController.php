@@ -290,6 +290,12 @@ class ResultViewController extends Controller
                     'total_students' => $students->count(), // Total students in class
                 ],
                 'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+                'documentTitle' => sprintf(
+                    '%s - %s - %s Results',
+                    $class?->name ?? 'Class',
+                    $session?->name ?? 'Session',
+                    $term?->name ?? 'Term'
+                ),
             ]);
         } catch (HttpResponseException $exception) {
             throw $exception;
