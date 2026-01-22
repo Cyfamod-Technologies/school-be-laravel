@@ -290,6 +290,12 @@ class ResultViewController extends Controller
                     'total_students' => $students->count(), // Total students in class
                 ],
                 'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+                'documentTitle' => sprintf(
+                    '%s - %s - %s Results',
+                    $class?->name ?? 'Class',
+                    $session?->name ?? 'Session',
+                    $term?->name ?? 'Term'
+                ),
             ]);
         } catch (HttpResponseException $exception) {
             throw $exception;
@@ -500,6 +506,7 @@ class ResultViewController extends Controller
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
+        $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
 
         // Auto-generate fallback comments for teacher and principal
         $teacherComment = $termSummary?->overall_comment;
@@ -531,8 +538,9 @@ class ResultViewController extends Controller
             'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
             'reportDate' => Carbon::now()->format('jS F Y'),
             'classSize' => $overallStats['class_size'] ?? $classSize,
+            'documentTitle' => $studentName ? "{$studentName} | Result Slip" : 'Result Slip',
             'studentInfo' => [
-                'name' => trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ')),
+                'name' => $studentName,
                 'admission_no' => $student->admission_no,
                 'gender' => $student->gender,
                 'class' => optional($student->school_class)->name,
