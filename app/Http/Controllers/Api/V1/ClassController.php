@@ -115,6 +115,7 @@ class ClassController extends Controller
                 }),
             ],
             'school_id' => 'required|exists:schools,id',
+            'result_show_position' => ['nullable', 'boolean'],
         ]);
 
         $class = SchoolClass::create([
@@ -123,6 +124,7 @@ class ClassController extends Controller
             'slug' => Str::slug($request->name),
             'school_id' => $request->school_id,
             'order' => SchoolClass::where('school_id', $request->school_id)->count(),
+            'result_show_position' => $request->input('result_show_position'),
         ]);
 
         return response()->json($class, 201);
@@ -197,11 +199,13 @@ class ClassController extends Controller
                     return $query->where('school_id', $schoolClass->school_id)->where('id', '!=', $schoolClass->id);
                 }),
             ],
+            'result_show_position' => ['nullable', 'boolean'],
         ]);
 
         $schoolClass->update([
             'name' => $request->name,
             'slug' => Str::slug($request->name),
+            'result_show_position' => $request->input('result_show_position', $schoolClass->result_show_position),
         ]);
 
         return response()->json($schoolClass);
