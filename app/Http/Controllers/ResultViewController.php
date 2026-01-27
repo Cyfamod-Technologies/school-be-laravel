@@ -534,6 +534,11 @@ class ResultViewController extends Controller
             );
         }
 
+        $resultPageSettings = $this->resolveResultPageSettings($student->school);
+        if ($student->school_class && $student->school_class->result_show_position !== null) {
+            $resultPageSettings['show_position'] = (bool) $student->school_class->result_show_position;
+        }
+
         $data = [
             'student' => $student,
             'schoolName' => optional($student->school)->name ?? 'School',
@@ -595,7 +600,7 @@ class ResultViewController extends Controller
             'classTeacherName' => $classTeacher?->staff?->full_name,
             'principalName' => optional($student->school)->owner_name,
             'principalSignatureUrl' => optional($student->school)->signature_url,
-            'resultPageSettings' => $this->resolveResultPageSettings($student->school),
+            'resultPageSettings' => $resultPageSettings,
             'showPrintButton' => ! $isTeacher,
         ];
 

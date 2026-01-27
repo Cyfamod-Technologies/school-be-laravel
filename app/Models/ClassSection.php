@@ -40,7 +40,7 @@ class ClassSection extends Model
 		'class_arm_id',
 		'name',
 		'slug',
-		'description'
+		'description',
 	];
 
 	public function class_arm()

@@ -42,11 +42,13 @@ class SchoolClass extends Model
 		'name',
 		'slug',
 		'description',
-		'order'
+		'order',
+		'result_show_position',
 	];
 
 	protected $casts = [
-		'order' => 'int'
+		'order' => 'int',
+		'result_show_position' => 'boolean',
 	];
 
 	/**

@@ -27,13 +27,24 @@ class StudentBulkUploadController extends Controller
      *     path="/api/v1/students/bulk/template",
      *     tags={"school-v2.0"},
      *     summary="Download student bulk upload template",
+     *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="class_id", in="query", required=false, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string")),
      *     @OA\Response(response=200, description="CSV template")
      * )
      */
     public function template(Request $request)
     {
         $school = $request->user()->school;
-        $csv = $this->service->generateTemplate($school);
+        
+        // Get preselected context from query params
+        $preselected = [
+            'session_id' => $request->query('session_id'),
+            'class_id' => $request->query('class_id'),
+            'class_arm_id' => $request->query('class_arm_id'),
+        ];
+        
+        $csv = $this->service->generateTemplate($school, $preselected);
 
         $fileName = 'student-bulk-upload-template-' . now()->format('Ymd_His') . '.csv';
 
@@ -53,7 +64,10 @@ class StudentBulkUploadController extends Controller
      *         @OA\MediaType(
      *             mediaType="multipart/form-data",
      *             @OA\Schema(
-     *                 @OA\Property(property="file", type="string", format="binary")
+     *                 @OA\Property(property="file", type="string", format="binary"),
+     *                 @OA\Property(property="session_id", type="string"),
+     *                 @OA\Property(property="class_id", type="string"),
+     *                 @OA\Property(property="class_arm_id", type="string")
      *             )
      *         )
      *     ),
@@ -65,13 +79,24 @@ class StudentBulkUploadController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt'],
+            'session_id' => ['nullable', 'string'],
+            'class_id' => ['nullable', 'string'],
+            'class_arm_id' => ['nullable', 'string'],
         ]);
+
+        // Get preselected context from form data
+        $preselected = [
+            'session_id' => $request->input('session_id'),
+            'class_id' => $request->input('class_id'),
+            'class_arm_id' => $request->input('class_arm_id'),
+        ];
 
         try {
             $result = $this->service->validateAndPrepare(
                 $request->user()->school,
                 $request->file('file'),
-                $request->user()
+                $request->user(),
+                $preselected
             );
         } catch (BulkUploadValidationException $exception) {
             return response()->json([
