@@ -328,6 +328,8 @@ class ResultViewController extends Controller
         $role = strtolower((string) ($user->role ?? ''));
         $isAdmin = $user instanceof User
             && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
+        $isTeacher = $user instanceof User
+            && (str_contains($role, 'teacher') || $user->hasAnyRole(['teacher']));
 
         $student->loadMissing([
             'school',
@@ -586,6 +588,7 @@ class ResultViewController extends Controller
             'principalName' => optional($student->school)->owner_name,
             'principalSignatureUrl' => optional($student->school)->signature_url,
             'resultPageSettings' => $this->resolveResultPageSettings($student->school),
+            'showPrintButton' => ! $isTeacher,
         ];
 
         return $data;
