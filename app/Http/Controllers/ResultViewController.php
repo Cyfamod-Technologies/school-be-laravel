@@ -14,6 +14,7 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
+use App\Models\SubjectAssignment;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\TermSummary;
@@ -449,6 +450,13 @@ class ResultViewController extends Controller
             $student,
             $classSize
         );
+        $subjectCount = $this->resolveSubjectCount($student);
+        if ($subjectCount > 0) {
+            $overallStats['total_possible'] = $subjectCount * 100;
+            if ($overallStats['total_obtained'] !== null) {
+                $overallStats['average'] = round($overallStats['total_obtained'] / $subjectCount, 2);
+            }
+        }
 
         $termSummary = TermSummary::query()
             ->where('student_id', $student->id)
@@ -1119,6 +1127,36 @@ class ResultViewController extends Controller
             'position' => $position,
             'class_size' => $classSize ?: $existingClassSize,
         ];
+    }
+
+    private function resolveSubjectCount(Student $student): int
+    {
+        if (! $student->school_class_id) {
+            return 0;
+        }
+
+        $query = SubjectAssignment::query()
+            ->where('school_class_id', $student->school_class_id);
+
+        if ($student->class_arm_id) {
+            $query->where(function ($builder) use ($student) {
+                $builder->whereNull('class_arm_id')
+                    ->orWhere('class_arm_id', $student->class_arm_id);
+            });
+        } else {
+            $query->whereNull('class_arm_id');
+        }
+
+        if ($student->class_section_id) {
+            $query->where(function ($builder) use ($student) {
+                $builder->whereNull('class_section_id')
+                    ->orWhere('class_section_id', $student->class_section_id);
+            });
+        } else {
+            $query->whereNull('class_section_id');
+        }
+
+        return (int) $query->distinct('subject_id')->count('subject_id');
     }
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
