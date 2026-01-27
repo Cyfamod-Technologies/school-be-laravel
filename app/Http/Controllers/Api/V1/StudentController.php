@@ -215,6 +215,12 @@ class StudentController extends Controller
         $this->prepareRelationshipInput($request);
 
         $validated = $request->validate([
+            'admission_no' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('students', 'admission_no'),
+            ],
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -272,6 +278,14 @@ class StudentController extends Controller
             }
         }
 
+        if (array_key_exists('admission_no', $studentData)) {
+            $value = $studentData['admission_no'];
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+            $studentData['admission_no'] = $value === '' ? null : $value;
+        }
+
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
             $studentData['photo_url'] = $this->formatStoredFileUrl($photoPath);
@@ -281,7 +295,9 @@ class StudentController extends Controller
 
         $student = DB::transaction(function () use ($studentData, $school, $session) {
             $payload = $studentData;
-            $payload['admission_no'] = Student::generateAdmissionNumber($school, $session);
+            if (! array_key_exists('admission_no', $payload) || ! $payload['admission_no']) {
+                $payload['admission_no'] = Student::generateAdmissionNumber($school, $session);
+            }
 
             return Student::create($payload);
         });
