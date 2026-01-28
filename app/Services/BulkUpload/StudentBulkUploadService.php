@@ -38,24 +38,53 @@ class StudentBulkUploadService
         'o' => 'O',
     ];
 
-    public function generateTemplate(School $school): string
+    /**
+     * Generate a clean CSV template for bulk student upload.
+     *
+     * @param School $school
+     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
+     * @return string
+     */
+    public function generateTemplate(School $school, array $preselected = []): string
     {
-        $columns = $this->buildColumnDefinitions();
+        $columns = $this->buildColumnDefinitions($preselected);
 
-        $sessions = $school->sessions()->orderBy('name')->get();
-        $terms = $school->terms()->orderBy('name')->get();
-        $classes = SchoolClass::query()
-            ->where('school_id', $school->id)
-            ->with(['class_arms.class_sections'])
-            ->orderBy('name')
-            ->get();
+        // Resolve preselected entities for context info
+        $preselectedSession = null;
+        $preselectedClass = null;
+        $preselectedArm = null;
+        $preselectedTerm = null;
+
+        if (!empty($preselected['session_id'])) {
+            $preselectedSession = $school->sessions()->find($preselected['session_id']);
+            // Get the first term of this session as default
+            if ($preselectedSession) {
+                $preselectedTerm = $school->terms()->where('session_id', $preselectedSession->id)->first();
+            }
+        }
+        if (!empty($preselected['class_id'])) {
+            $preselectedClass = SchoolClass::where('school_id', $school->id)->find($preselected['class_id']);
+        }
+        if (!empty($preselected['class_arm_id']) && $preselectedClass) {
+            $preselectedArm = $preselectedClass->class_arms()->find($preselected['class_arm_id']);
+        }
 
         $handle = fopen('php://temp', 'w+');
 
-        // Introductory helper rows
-        fputcsv($handle, ['# NOTE', 'Fill data starting from row 3. Row 2 contains examples and can be removed. Dates must use YYYY-MM-DD. Values are case-insensitive unless noted.']);
-        fputcsv($handle, ['# STEP GUIDE', '1. Download template  2. Fill student & parent details  3. Upload file  4. Preview & confirm']);
+        // Context header showing what class this template is for
+        if ($preselectedSession && $preselectedClass && $preselectedArm) {
+            fputcsv($handle, [
+                '# TEMPLATE FOR',
+                "Session: {$preselectedSession->name}",
+                "Class: {$preselectedClass->name}",
+                "Arm: {$preselectedArm->name}",
+            ]);
+        }
 
+        // Simple instruction
+        fputcsv($handle, ['# INSTRUCTIONS', 'Fill student details starting from row 4. Row 3 has an example you can delete. Dates: YYYY-MM-DD format.']);
+
+        // Header row
         $headerRow = [];
         $exampleRow = [];
         foreach ($columns as $column) {
@@ -66,44 +95,25 @@ class StudentBulkUploadService
         fputcsv($handle, $headerRow);
         fputcsv($handle, $exampleRow);
 
-        // Blank spacer
-        fputcsv($handle, ['']);
-
-        // Reference data
-        $this->writeReferenceRow($handle, 'Valid Genders', 'M (Male), F (Female), O (Others)');
-        $this->writeReferenceRow($handle, 'Valid Statuses', implode(', ', array_map('ucwords', self::STATUS_OPTIONS)));
-        $this->writeReferenceRow($handle, 'Sessions', $sessions->map(fn ($session) => "{$session->name} ({$session->id})")->implode(' | '));
-
-        $this->writeReferenceRow(
-            $handle,
-            'Terms',
-            $terms->map(fn ($term) => "{$term->name} (Session: {$sessions->firstWhere('id', $term->session_id)?->name})")->implode(' | ')
-        );
-
-        $classReference = $classes->map(function (SchoolClass $class) {
-            $arms = $class->class_arms->map(function ($arm) {
-                $sections = $arm->class_sections->pluck('name')->implode('; ');
-                $sectionInfo = $sections ? " Sections: {$sections}" : '';
-                return "{$arm->name}{$sectionInfo}";
-            })->implode(' || ');
-
-            return "{$class->name} ({$class->id}) Arms: {$arms}";
-        })->implode(' | ');
-
-        $this->writeReferenceRow($handle, 'Classes / Arms / Sections', $classReference ?: 'No classes available');
-
         rewind($handle);
         return stream_get_contents($handle) ?: '';
     }
 
     /**
+     * Validate and prepare uploaded CSV for bulk student creation.
+     *
+     * @param School $school
+     * @param UploadedFile $file
+     * @param User $user
+     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
      * @return array<string, mixed>
      *
      * @throws BulkUploadValidationException
      */
-    public function validateAndPrepare(School $school, UploadedFile $file, User $user): array
+    public function validateAndPrepare(School $school, UploadedFile $file, User $user, array $preselected = []): array
     {
-        $columns = $this->buildColumnDefinitions();
+        $hasPreselection = !empty($preselected['session_id']) && !empty($preselected['class_id']) && !empty($preselected['class_arm_id']);
+        $columns = $this->buildColumnDefinitions($preselected);
         $columnMap = collect($columns)->keyBy('key');
 
         $sessions = $school->sessions()->orderBy('name')->get();
@@ -113,12 +123,43 @@ class StudentBulkUploadService
             ->with(['class_arms.class_sections'])
             ->get();
 
+        // Resolve preselected entities
+        $preselectedSession = null;
+        $preselectedTerm = null;
+        $preselectedClass = null;
+        $preselectedArm = null;
+
+        if ($hasPreselection) {
+            $preselectedSession = $sessions->firstWhere('id', $preselected['session_id']);
+            $preselectedClass = $classes->firstWhere('id', $preselected['class_id']);
+            $preselectedArm = $preselectedClass?->class_arms->firstWhere('id', $preselected['class_arm_id']);
+            
+            // Get the first term of the session
+            if ($preselectedSession) {
+                $preselectedTerm = $terms->firstWhere('session_id', $preselectedSession->id);
+            }
+
+            if (!$preselectedSession || !$preselectedClass || !$preselectedArm) {
+                throw new BulkUploadValidationException([], null, 'Invalid session, class, or class arm selection.');
+            }
+        }
+
         $handle = fopen($file->getRealPath(), 'r');
         if ($handle === false) {
             throw new BulkUploadValidationException([], null, 'Unable to read the uploaded file.');
         }
 
-        $header = fgetcsv($handle);
+        $header = null;
+        $headerLineNumber = 0;
+        while (($row = fgetcsv($handle)) !== false) {
+            $headerLineNumber++;
+            if ($this->isSkippableRow($row)) {
+                continue;
+            }
+            $header = $row;
+            break;
+        }
+
         if (! $header) {
             fclose($handle);
             throw new BulkUploadValidationException([], null, 'The uploaded file is empty or unreadable.');
@@ -137,7 +178,7 @@ class StudentBulkUploadService
             throw new BulkUploadValidationException([], null, 'The uploaded file is missing required columns: ' . implode(', ', $missingColumns));
         }
 
-        $rowNumber = 1;
+        $rowNumber = $headerLineNumber;
         $preparedRows = [];
         $errors = [];
 
@@ -151,6 +192,15 @@ class StudentBulkUploadService
             }
 
             $rowData = $this->mapRowToData($row, $normalizedHeader, $columnMap);
+            
+            // Inject preselected values if they were provided
+            if ($hasPreselection) {
+                $rowData['student.current_session_id'] = $preselectedSession->id;
+                $rowData['student.current_term_id'] = $preselectedTerm?->id;
+                $rowData['student.school_class_id'] = $preselectedClass->id;
+                $rowData['student.class_arm_id'] = $preselectedArm->id;
+            }
+
             [$rowPrepared, $rowErrors] = $this->validateRow(
                 $rowNumber,
                 $rowData,
@@ -207,7 +257,6 @@ class StudentBulkUploadService
             ->map(function (array $row) use ($sessions, $terms, $classes) {
                 $class = $classes->firstWhere('id', $row['student']['school_class_id']);
                 $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id']);
-                $section = $arm?->class_sections->firstWhere('id', $row['student']['class_section_id']);
                 $parent = is_array($row['parent'] ?? null) ? $row['parent'] : [];
                 return [
                     'name' => trim("{$row['student']['first_name']} {$row['student']['last_name']}"),
@@ -217,7 +266,6 @@ class StudentBulkUploadService
                     'term' => optional($terms->firstWhere('id', $row['student']['current_term_id']))->name,
                     'class' => $class?->name,
                     'class_arm' => $arm?->name,
-                    'class_section' => $section?->name,
                     'parent_email' => $parent['email'] ?? '—',
                 ];
             })
@@ -309,18 +357,32 @@ class StudentBulkUploadService
         ];
     }
 
-    private function buildColumnDefinitions(): array
+    /**
+     * Build column definitions for the CSV template.
+     * 
+     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildColumnDefinitions(array $preselected = []): array
     {
         $student = new Student();
         $studentFillable = collect($student->getFillable());
 
+        // Determine which columns to exclude based on preselected values
+        $excludeKeys = [];
+        $hasPreselection = !empty($preselected['session_id']) && !empty($preselected['class_id']) && !empty($preselected['class_arm_id']);
+        
+        if ($hasPreselection) {
+            // If session/class/arm are preselected, don't include them in the template
+            $excludeKeys = [
+                'student.current_session_id',
+                'student.current_term_id',
+                'student.school_class_id', 
+                'student.class_arm_id',
+            ];
+        }
+
         $baseColumns = collect([
-            [
-                'key' => 'student.admission_no',
-                'header' => 'Admission Number (Auto-generated)',
-                'required' => false,
-                'example' => 'NC001-2024/2025/1',
-            ],
             [
                 'key' => 'student.first_name',
                 'header' => 'First Name',
@@ -354,87 +416,89 @@ class StudentBulkUploadService
             [
                 'key' => 'student.admission_date',
                 'header' => 'Admission Date (YYYY-MM-DD)',
-                'required' => true,
+                'required' => false,
                 'example' => now()->toDateString(),
             ],
             [
                 'key' => 'student.status',
-                'header' => 'Status (active/inactive/graduated/withdrawn)',
-                'required' => true,
+                'header' => 'Status',
+                'required' => false,
                 'example' => 'active',
             ],
             [
+                'key' => 'student.admission_no',
+                'header' => 'Admission Number',
+                'required' => false,
+                'example' => '',
+            ],
+            [
                 'key' => 'student.nationality',
-                'header' => 'Student Nationality',
+                'header' => 'Nationality',
                 'required' => false,
                 'example' => 'Nigerian',
             ],
             [
                 'key' => 'student.state_of_origin',
-                'header' => 'Student State of Origin',
+                'header' => 'State of Origin',
                 'required' => false,
                 'example' => 'Enugu',
             ],
             [
                 'key' => 'student.lga_of_origin',
-                'header' => 'Student LGA',
+                'header' => 'LGA of Origin',
                 'required' => false,
                 'example' => 'Nsukka',
             ],
             [
-                'key' => 'student.house',
-                'header' => 'House',
-                'required' => false,
-                'example' => 'Blue',
-            ],
-            [
-                'key' => 'student.club',
-                'header' => 'Club',
-                'required' => false,
-                'example' => 'Science',
-            ],
-            [
                 'key' => 'student.address',
-                'header' => 'Student Address',
+                'header' => 'Address',
                 'required' => false,
                 'example' => '12 Unity Close',
             ],
             [
                 'key' => 'student.medical_information',
-                'header' => 'Medical Information',
+                'header' => 'Medical Info',
                 'required' => false,
-                'example' => 'Asthmatic - inhaler required',
+                'example' => '',
             ],
             [
+                'key' => 'student.house',
+                'header' => 'House',
+                'required' => false,
+                'example' => '',
+            ],
+            [
+                'key' => 'student.club',
+                'header' => 'Club',
+                'required' => false,
+                'example' => '',
+            ],
+            // Session/Class columns - only included if not preselected
+            [
                 'key' => 'student.current_session_id',
-                'header' => 'Session (Name or ID)',
-                'required' => true,
+                'header' => 'Session',
+                'required' => !$hasPreselection,
                 'example' => '2025/2026',
             ],
             [
                 'key' => 'student.current_term_id',
-                'header' => 'Term (Name or ID)',
-                'required' => true,
+                'header' => 'Term',
+                'required' => !$hasPreselection,
                 'example' => 'First Term',
             ],
             [
                 'key' => 'student.school_class_id',
-                'header' => 'Class (Name or ID)',
-                'required' => true,
-                'example' => 'Grade 5',
+                'header' => 'Class',
+                'required' => !$hasPreselection,
+                'example' => 'JSS 1',
             ],
             [
                 'key' => 'student.class_arm_id',
-                'header' => 'Class Arm (Name or ID)',
-                'required' => true,
-                'example' => 'Arm A',
+                'header' => 'Class Arm',
+                'required' => !$hasPreselection,
+                'example' => 'A',
             ],
-            [
-                'key' => 'student.class_section_id',
-                'header' => 'Class Section (Name or ID)',
-                'required' => false,
-                'example' => '',
-            ],
+            // Parent columns
             [
                 'key' => 'parent.first_name',
                 'header' => 'Parent First Name',
@@ -463,60 +527,23 @@ class StudentBulkUploadService
                 'key' => 'parent.address',
                 'header' => 'Parent Address',
                 'required' => false,
-                'example' => '45 Market Street',
+                'example' => '',
             ],
             [
                 'key' => 'parent.occupation',
                 'header' => 'Parent Occupation',
                 'required' => false,
-                'example' => 'Engineer',
-            ],
-            [
-                'key' => 'parent.nationality',
-                'header' => 'Parent Nationality',
-                'required' => false,
-                'example' => 'Nigerian',
-            ],
-            [
-                'key' => 'parent.state_of_origin',
-                'header' => 'Parent State of Origin',
-                'required' => false,
-                'example' => 'Lagos',
-            ],
-            [
-                'key' => 'parent.local_government_area',
-                'header' => 'Parent LGA',
-                'required' => false,
-                'example' => 'Ikeja',
+                'example' => '',
             ],
         ]);
 
-        // Append any remaining fillable student fields not explicitly defined
-        $explicitStudentFields = $baseColumns
-            ->filter(fn ($column) => str_starts_with($column['key'], 'student.'))
-            ->map(fn ($column) => Str::after($column['key'], 'student.'))
-            ->values()
-            ->all();
+        // Filter out excluded columns (when preselected)
+        $filteredColumns = $baseColumns->reject(fn ($col) => in_array($col['key'], $excludeKeys));
 
-        $remainingFields = $studentFillable
-            ->unique()
-            ->reject(fn ($field) => in_array($field, array_merge([
-                'school_id',
-                'parent_id',
-                'photo_url',
-                'blood_group_id',
-            ], $explicitStudentFields), true))
-            ->map(function ($field) {
-                return [
-                    'key' => "student.{$field}",
-                    'header' => Str::headline($field),
-                    'required' => false,
-                    'example' => '',
-                ];
-            });
+        // We explicitly define all necessary columns - no auto-appending of fillable fields
+        // This keeps the template clean and predictable
 
-        return $baseColumns
-            ->concat($remainingFields)
+        return $filteredColumns
             ->map(function (array $column) {
                 $column['header_key'] = $this->normalizeHeaderValue($column['header']);
                 return $column;
@@ -755,24 +782,7 @@ class StudentBulkUploadService
             $studentData['class_arm_id'] = $classArm->id;
         }
 
-        $sectionValue = $getValue('student.class_section_id');
-        if ($sectionValue !== null && $sectionValue !== '') {
-            $classSection = $classArm?->class_sections->first(function ($section) use ($sectionValue) {
-                return $this->matchesNameOrId($sectionValue, $section->id, $section->name);
-            });
-
-            if (! $classSection) {
-                $errors[] = [
-                    'row' => $rowNumber,
-                    'column' => $columns['student.class_section_id']['header'],
-                    'message' => 'Class section not found for the selected class arm.',
-                ];
-            } else {
-                $studentData['class_section_id'] = $classSection->id;
-            }
-        } else {
-            $studentData['class_section_id'] = null;
-        }
+        $studentData['class_section_id'] = null;
 
         $parentData['first_name'] = $getValue('parent.first_name');
         $parentData['last_name'] = $getValue('parent.last_name');
