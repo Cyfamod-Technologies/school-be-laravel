@@ -415,13 +415,13 @@ class StaffController extends Controller
 
     private function determineSystemRole(?string $label): string
     {
-        $normalized = Str::of((string) $label)->lower();
+        $normalized = trim(Str::lower((string) $label));
 
-        if ($normalized->contains('teach')) {
+        if ($normalized === 'teacher') {
             return 'teacher';
         }
 
-        if ($normalized->contains('account')) {
+        if (Str::contains($normalized, 'account')) {
             return 'accountant';
         }
 

@@ -83,7 +83,7 @@ class QuizAnswerController extends Controller
 		// Check if user is the student or admin
 		if ($attempt->student_id !== $user->id) {
 			// Check if user has permission to view answers
-			$this->ensurePermission($request, 'cbt.manage');
+			$this->ensurePermission($request, 'cbt.view');
 		}
 
 		$answers = $this->answerService->getAttemptAnswers($attempt);
@@ -105,7 +105,7 @@ class QuizAnswerController extends Controller
 			return response()->json(['message' => 'Unauthenticated'], 401);
 		}
 
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.view');
 
 		$attempt = QuizAttempt::with(['quiz.questions.options', 'student', 'result', 'answers'])
 			->find($attemptId);

@@ -92,7 +92,7 @@ class AcademicSessionController extends Controller
      */
     public function store(Request $request)
     {
-        $this->ensurePermission($request, 'sessions.manage');
+        $this->ensurePermission($request, 'sessions.create');
         $schoolId = $request->user()->school_id;
     
         $validator = Validator::make($request->all(), [
@@ -155,7 +155,7 @@ class AcademicSessionController extends Controller
 
     public function show(Request $request, Session $session)
     {
-        $this->ensurePermission($request, 'sessions.manage');
+        $this->ensurePermission($request, 'sessions.view');
         
         // Verify session belongs to user's school
         if ($session->school_id !== $request->user()->school_id) {
@@ -202,7 +202,7 @@ class AcademicSessionController extends Controller
 
      public function update(Request $request, Session $session)
      {
-         $this->ensurePermission($request, 'sessions.manage');
+         $this->ensurePermission($request, 'sessions.update');
          
          $user = $request->user();
          $schoolId = $user->school_id;
@@ -278,7 +278,7 @@ class AcademicSessionController extends Controller
      */
     public function destroy(Request $request, Session $session)
     {
-        $this->ensurePermission($request, 'sessions.manage');
+        $this->ensurePermission($request, 'sessions.delete');
         
         // Verify session belongs to user's school
         if ($session->school_id !== $request->user()->school_id) {
