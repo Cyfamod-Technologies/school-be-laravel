@@ -276,17 +276,18 @@ class Student extends Model implements AuthenticatableContract
 			$code = str_pad((string) ($sequenceValue > 0 ? $sequenceValue : 1), 3, '0', STR_PAD_LEFT);
 		}
 
-		$prefix = "{$acronym}{$code}-{$sessionName}";
+		$currentYear = Carbon::now()->year;
+		$prefix = "{$acronym}{$code}/{$currentYear}";
 
-		$maxSequence = (int) DB::table('students')
+		$maxSequence = DB::table('students')
 			->where('school_id', $school->id)
-			->where('current_session_id', $session->id)
 			->where('admission_no', 'like', $prefix . '/%')
 			->lockForUpdate()
 			->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
 			->value('max_sequence');
 
-		$nextSequence = $maxSequence > 0 ? $maxSequence + 1 : 1;
+		$maxSequenceValue = is_numeric($maxSequence) ? (int) $maxSequence : -1;
+		$nextSequence = $maxSequenceValue + 1;
 
 		$candidate = "{$prefix}/{$nextSequence}";
 
