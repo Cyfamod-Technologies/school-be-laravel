@@ -51,8 +51,13 @@ class SubjectTeacherAssignment extends Model
 		'school_class_id',
 		'class_arm_id',
 		'class_section_id',
+		'student_ids',
 		'session_id',
 		'term_id'
+	];
+
+	protected $casts = [
+		'student_ids' => 'array',
 	];
 
 	public function school_class()
