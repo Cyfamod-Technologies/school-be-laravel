@@ -126,7 +126,7 @@ class StudentSkillRatingController extends Controller
      *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="skill_type_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
-     *             @OA\Property(property="rating_value", type="integer", example=4, minimum=1, maximum=5)
+     *             @OA\Property(property="rating_value", type="integer", example=4, minimum=0, maximum=5)
      *         )
      *     ),
      *     @OA\Response(response=201, description="Skill rating created"),
@@ -142,7 +142,7 @@ class StudentSkillRatingController extends Controller
             'session_id' => ['nullable', 'uuid', Rule::exists('sessions', 'id')->where('school_id', $student->school_id)],
             'term_id' => ['nullable', 'uuid', Rule::exists('terms', 'id')->where('school_id', $student->school_id)],
             'skill_type_id' => ['required', 'uuid', Rule::exists('skill_types', 'id')->where('school_id', $student->school_id)],
-            'rating_value' => ['required', 'integer', 'min:1', 'max:5'],
+            'rating_value' => ['required', 'integer', 'min:0', 'max:5'],
         ]);
 
         $session = $this->resolveSession($student, $validated['session_id'] ?? null);
@@ -220,7 +220,7 @@ class StudentSkillRatingController extends Controller
      *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="skill_type_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
-     *             @OA\Property(property="rating_value", type="integer", example=5, minimum=1, maximum=5)
+     *             @OA\Property(property="rating_value", type="integer", example=5, minimum=0, maximum=5)
      *         )
      *     ),
      *     @OA\Response(response=200, description="Skill rating updated"),
@@ -240,7 +240,7 @@ class StudentSkillRatingController extends Controller
             'session_id' => ['sometimes', 'uuid', Rule::exists('sessions', 'id')->where('school_id', $student->school_id)],
             'term_id' => ['sometimes', 'uuid', Rule::exists('terms', 'id')->where('school_id', $student->school_id)],
             'skill_type_id' => ['sometimes', 'uuid', Rule::exists('skill_types', 'id')->where('school_id', $student->school_id)],
-            'rating_value' => ['sometimes', 'integer', 'min:1', 'max:5'],
+            'rating_value' => ['sometimes', 'integer', 'min:0', 'max:5'],
         ]);
 
         $session = $this->resolveSession($student, $validated['session_id'] ?? $skillRating->session_id);
