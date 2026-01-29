@@ -8,6 +8,7 @@ use App\Models\ClassSection;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Staff;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
@@ -149,11 +150,14 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id' => ['nullable', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
             'class_section_id' => ['nullable', 'uuid'],
+            'student_ids' => ['nullable', 'array'],
+            'student_ids.*' => ['uuid'],
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
         ]);
 
         $entities = $this->resolveEntities($school->id, $validated);
+        $studentIds = $this->resolveStudentIds($school->id, $validated['student_ids'] ?? null, $entities);
 
         if ($this->teacherAssignmentExists($entities, null)) {
             return response()->json([
@@ -168,6 +172,7 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id' => $entities['class']?->id,
             'class_arm_id' => $entities['class_arm']?->id,
             'class_section_id' => $entities['class_section']?->id,
+            'student_ids' => $studentIds,
             'session_id' => $entities['session']->id,
             'term_id' => $entities['term']->id,
         ]);
@@ -197,6 +202,7 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id' => $assignment->school_class_id,
             'class_arm_id' => $assignment->class_arm_id,
             'class_section_id' => $assignment->class_section_id,
+            'student_ids' => $assignment->student_ids,
             'session_id' => $assignment->session_id,
             'term_id' => $assignment->term_id,
             'subject' => optional($assignment->subject)->only(['id','name','code']),
@@ -257,6 +263,8 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id' => ['nullable', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
             'class_section_id' => ['nullable', 'uuid'],
+            'student_ids' => ['nullable', 'array'],
+            'student_ids.*' => ['uuid'],
             'session_id' => ['sometimes', 'required', 'uuid'],
             'term_id' => ['sometimes', 'required', 'uuid'],
         ]);
@@ -269,11 +277,15 @@ class SubjectTeacherAssignmentController extends Controller
             'class_section_id' => array_key_exists('class_section_id', $validated)
                 ? $validated['class_section_id']
                 : $assignment->class_section_id,
+            'student_ids' => array_key_exists('student_ids', $validated)
+                ? $validated['student_ids']
+                : $assignment->student_ids,
             'session_id' => $validated['session_id'] ?? $assignment->session_id,
             'term_id' => $validated['term_id'] ?? $assignment->term_id,
         ];
 
         $entities = $this->resolveEntities($school->id, $payload);
+        $studentIds = $this->resolveStudentIds($school->id, $payload['student_ids'] ?? null, $entities);
 
         if ($this->teacherAssignmentExists($entities, $assignment->id)) {
             return response()->json([
@@ -287,6 +299,7 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id' => $entities['class']?->id,
             'class_arm_id' => $entities['class_arm']?->id,
             'class_section_id' => $entities['class_section']?->id,
+            'student_ids' => $studentIds,
             'session_id' => $entities['session']->id,
             'term_id' => $entities['term']->id,
         ]);
@@ -446,6 +459,59 @@ class SubjectTeacherAssignmentController extends Controller
         }
 
         return $query->exists();
+    }
+
+    private function resolveStudentIds(string $schoolId, $studentIds, array $entities): ?array
+    {
+        if (! is_array($studentIds) || empty($studentIds)) {
+            return null;
+        }
+
+        $uniqueIds = collect($studentIds)
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        if ($uniqueIds->isEmpty()) {
+            return null;
+        }
+
+        $students = Student::query()
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $uniqueIds)
+            ->get(['id', 'school_class_id', 'class_arm_id', 'class_section_id']);
+
+        if ($students->count() !== $uniqueIds->count()) {
+            $missing = $uniqueIds->diff($students->pluck('id'));
+            abort(422, 'One or more selected students could not be found.');
+        }
+
+        if ($entities['class']) {
+            $classId = $entities['class']->id;
+            $invalid = $students->first(fn ($student) => $student->school_class_id !== $classId);
+            if ($invalid) {
+                abort(422, 'Selected students must belong to the chosen class.');
+            }
+        }
+
+        if ($entities['class_arm']) {
+            $armId = $entities['class_arm']->id;
+            $invalid = $students->first(fn ($student) => $student->class_arm_id !== $armId);
+            if ($invalid) {
+                abort(422, 'Selected students must belong to the chosen class arm.');
+            }
+        }
+
+        if ($entities['class_section']) {
+            $sectionId = $entities['class_section']->id;
+            $invalid = $students->first(fn ($student) => $student->class_section_id !== $sectionId);
+            if ($invalid) {
+                abort(422, 'Selected students must belong to the chosen class section.');
+            }
+        }
+
+        return $uniqueIds->all();
     }
 
     private function authorizeTeacherAssignment(Request $request, SubjectTeacherAssignment $assignment): void
