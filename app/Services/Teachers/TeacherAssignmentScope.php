@@ -57,14 +57,18 @@ class TeacherAssignmentScope
         }
 
         $contexts = $this->studentContexts();
+        $explicitStudentIds = $this->explicitStudentIds();
 
-        if ($contexts->isEmpty()) {
+        if ($contexts->isEmpty() && $explicitStudentIds->isEmpty()) {
             $builder->whereRaw('1 = 0');
 
             return;
         }
 
-        $builder->where(function (Builder $outer) use ($contexts) {
+        $builder->where(function (Builder $outer) use ($contexts, $explicitStudentIds) {
+            if ($explicitStudentIds->isNotEmpty()) {
+                $outer->orWhereIn('id', $explicitStudentIds->values()->all());
+            }
             foreach ($contexts as $context) {
                 $outer->orWhere(function (Builder $clause) use ($context) {
                     $clause->where('school_class_id', $context['school_class_id']);
@@ -96,14 +100,15 @@ class TeacherAssignmentScope
             ->filter(fn (SubjectTeacherAssignment $assignment) => $assignment->subject_id && $assignment->school_class_id);
 
         $studentContexts = $this->studentContexts();
+        $explicitStudentIds = $this->explicitStudentIds();
 
-        if ($assignments->isEmpty() && $studentContexts->isEmpty()) {
+        if ($assignments->isEmpty() && $studentContexts->isEmpty() && $explicitStudentIds->isEmpty()) {
             $builder->whereRaw('1 = 0');
 
             return;
         }
 
-        $builder->where(function (Builder $outer) use ($assignments, $studentContexts) {
+        $builder->where(function (Builder $outer) use ($assignments, $studentContexts, $explicitStudentIds) {
             foreach ($assignments as $assignment) {
                 $outer->orWhere(function (Builder $clause) use ($assignment) {
                     $clause->where('subject_id', $assignment->subject_id);
@@ -116,17 +121,22 @@ class TeacherAssignmentScope
                         $clause->where('term_id', $assignment->term_id);
                     }
 
-                    $clause->whereHas('student', function (Builder $studentQuery) use ($assignment) {
-                        $studentQuery->where('school_class_id', $assignment->school_class_id);
+                    $studentIds = $this->assignmentStudentIds($assignment);
+                    if ($studentIds->isNotEmpty()) {
+                        $clause->whereIn('student_id', $studentIds->values()->all());
+                    } else {
+                        $clause->whereHas('student', function (Builder $studentQuery) use ($assignment) {
+                            $studentQuery->where('school_class_id', $assignment->school_class_id);
 
-                        if ($assignment->class_arm_id) {
-                            $studentQuery->where('class_arm_id', $assignment->class_arm_id);
-                        }
+                            if ($assignment->class_arm_id) {
+                                $studentQuery->where('class_arm_id', $assignment->class_arm_id);
+                            }
 
-                        if ($assignment->class_section_id) {
-                            $studentQuery->where('class_section_id', $assignment->class_section_id);
-                        }
-                    });
+                            if ($assignment->class_section_id) {
+                                $studentQuery->where('class_section_id', $assignment->class_section_id);
+                            }
+                        });
+                    }
                 });
             }
 
@@ -144,6 +154,10 @@ class TeacherAssignmentScope
                         $studentQuery->where('class_section_id', $context['class_section_id']);
                     }
                 });
+            }
+
+            if ($explicitStudentIds->isNotEmpty()) {
+                $outer->orWhereIn('student_id', $explicitStudentIds->values()->all());
             }
         });
     }
@@ -176,9 +190,42 @@ class TeacherAssignmentScope
             return true;
         }
 
-        // Relaxed rule: as long as the teacher is allowed to manage
-        // this student (based on class/arm/section context), allow
-        // recording results for any subject/session/term.
+        $matchingAssignments = $this->subjectAssignments
+            ->filter(function (SubjectTeacherAssignment $assignment) use ($subjectId, $sessionId, $termId, $student) {
+                if ((string) $assignment->subject_id !== (string) $subjectId) {
+                    return false;
+                }
+                if (! $this->matchesContext([
+                    'school_class_id' => $assignment->school_class_id,
+                    'class_arm_id' => $assignment->class_arm_id ?? null,
+                    'class_section_id' => $assignment->class_section_id ?? null,
+                ], $student)) {
+                    return false;
+                }
+                if ($sessionId && $assignment->session_id && $assignment->session_id !== $sessionId) {
+                    return false;
+                }
+                if ($termId && $assignment->term_id && $assignment->term_id !== $termId) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
+
+        if ($matchingAssignments->isNotEmpty()) {
+            $explicitIds = $matchingAssignments
+                ->flatMap(fn (SubjectTeacherAssignment $assignment) => $this->assignmentStudentIds($assignment))
+                ->unique()
+                ->values();
+
+            if ($explicitIds->isNotEmpty()) {
+                return $explicitIds->contains((string) $student->id);
+            }
+
+            return true;
+        }
+
+        // If there's no specific subject assignment, fall back to class teacher access.
         return $this->allowsStudent($student);
     }
 
@@ -316,6 +363,10 @@ class TeacherAssignmentScope
                 return;
             }
 
+            if (is_array($assignment->student_ids) && count($assignment->student_ids) > 0) {
+                return;
+            }
+
             $contexts->push([
                 'school_class_id' => $assignment->school_class_id,
                 'class_arm_id' => $assignment->class_arm_id ?? null,
@@ -436,5 +487,22 @@ class TeacherAssignmentScope
             'id' => $term->id,
             'name' => $term->name,
         ];
+    }
+
+    private function explicitStudentIds(): Collection
+    {
+        return $this->subjectAssignments
+            ->flatMap(fn (SubjectTeacherAssignment $assignment) => $this->assignmentStudentIds($assignment))
+            ->unique()
+            ->values();
+    }
+
+    private function assignmentStudentIds(SubjectTeacherAssignment $assignment): Collection
+    {
+        $ids = $assignment->student_ids;
+        if (! is_array($ids) || empty($ids)) {
+            return collect();
+        }
+        return collect($ids)->filter()->map(fn ($id) => (string) $id)->values();
     }
 }

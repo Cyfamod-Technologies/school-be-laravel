@@ -152,6 +152,26 @@
         </tr>
     </table>
 
+    <table class="table-three skills-grading">
+        <tr>
+            <th colspan="5">Skills Grading</th>
+        </tr>
+        <tr>
+            <td>Q1</td>
+            <td>Q2</td>
+            <td>Q3</td>
+            <td>Q4</td>
+            <td>Q5</td>
+        </tr>
+        <tr>
+            <td>Weak</td>
+            <td>Average</td>
+            <td>Good</td>
+            <td>Very Good</td>
+            <td>Excellent</td>
+        </tr>
+    </table>
+
     <table class="table-three early-years-table">
         <thead>
             <tr>
@@ -181,26 +201,6 @@
                 </tr>
             @endforelse
         </tbody>
-    </table>
-
-    <table class="table-three skills-grading">
-        <tr>
-            <th colspan="5">Skills Grading</th>
-        </tr>
-        <tr>
-            <td>Q1</td>
-            <td>Q2</td>
-            <td>Q3</td>
-            <td>Q4</td>
-            <td>Q5</td>
-        </tr>
-        <tr>
-            <td>Weak</td>
-            <td>Average</td>
-            <td>Good</td>
-            <td>Very Good</td>
-            <td>Excellent</td>
-        </tr>
     </table>
 
     <div class="report-footer">

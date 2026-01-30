@@ -477,7 +477,7 @@ class ResultViewController extends Controller
                 'skill_type.skill_category:id,name',
             ])
             ->get()
-            ->filter(fn (SkillRating $rating) => $rating->skill_type !== null)
+            ->filter(fn (SkillRating $rating) => $rating->skill_type !== null && (int) $rating->rating_value > 0)
             ->sortBy(fn (SkillRating $rating) => Str::lower(optional($rating->skill_type->skill_category)->name ?? ''), SORT_NATURAL, false)
             ->groupBy(function (SkillRating $rating) {
                 return optional($rating->skill_type->skill_category)->name ?? 'Other Skills';
@@ -702,7 +702,7 @@ class ResultViewController extends Controller
                 'skill_type.skill_category:id,name',
             ])
             ->get()
-            ->filter(fn (SkillRating $rating) => $rating->skill_type !== null)
+            ->filter(fn (SkillRating $rating) => $rating->skill_type !== null && (int) $rating->rating_value > 0)
             ->sortBy(fn (SkillRating $rating) => Str::lower(optional($rating->skill_type->skill_category)->name ?? ''), SORT_NATURAL, false)
             ->groupBy(function (SkillRating $rating) {
                 return optional($rating->skill_type->skill_category)->name ?? 'Other Skills';
