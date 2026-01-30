@@ -136,12 +136,20 @@ class StudentBulkUploadController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        $result = $this->service->commit($batch);
+        $decisions = $request->input('decisions', []);
+        if (! is_array($decisions)) {
+            $decisions = [];
+        }
+
+        $result = $this->service->commit($batch, $decisions);
 
         return response()->json([
             'message' => 'Students uploaded successfully.',
             'summary' => [
                 'total_processed' => $result['processed'],
+                'created' => $result['created'] ?? 0,
+                'updated' => $result['updated'] ?? 0,
+                'skipped' => $result['skipped'] ?? 0,
                 'parents_created' => $result['parents_created'],
                 'failed' => $result['failed'],
             ],
