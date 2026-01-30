@@ -149,9 +149,30 @@ class StudentBulkUploadService
             throw new BulkUploadValidationException([], null, 'Unable to read the uploaded file.');
         }
 
+        $delimiter = $this->detectDelimiter($handle);
+
         $header = null;
         $headerLineNumber = 0;
-        while (($row = fgetcsv($handle)) !== false) {
+        $prefetchedRows = [];
+        for ($i = 0; $i < 2; $i++) {
+            $row = fgetcsv($handle, 0, $delimiter);
+            if ($row === false) {
+                break;
+            }
+            $prefetchedRows[] = $row;
+        }
+
+        $shouldSkipPrefetched = count($prefetchedRows) === 2
+            && $this->isSkippableRow($prefetchedRows[0])
+            && $this->isSkippableRow($prefetchedRows[1]);
+
+        if ($shouldSkipPrefetched) {
+            $headerLineNumber = 2;
+        } else {
+            rewind($handle);
+        }
+
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $headerLineNumber++;
             if ($this->isSkippableRow($row)) {
                 continue;
@@ -168,14 +189,38 @@ class StudentBulkUploadService
         $normalizedHeader = $this->normalizeHeaderRow($header);
         $missingColumns = [];
         foreach ($columns as $definition) {
-            if ($definition['required'] && ! array_key_exists($definition['key'], $normalizedHeader)) {
+            if (! $definition['required']) {
+                continue;
+            }
+
+            $headerKey = $definition['header_key'] ?? $this->normalizeHeaderValue($definition['header']);
+            $legacyKey = Str::replace('.', '_', $definition['key']);
+
+            if (
+                ! array_key_exists($headerKey, $normalizedHeader)
+                && ! array_key_exists($legacyKey, $normalizedHeader)
+            ) {
                 $missingColumns[] = $definition['header'];
             }
         }
 
         if (! empty($missingColumns)) {
+            $detectedHeaders = array_filter(
+                array_map(fn ($value) => trim((string) $value), $header),
+                fn ($value) => $value !== ''
+            );
+            $detectedSummary = empty($detectedHeaders)
+                ? 'none'
+                : implode(', ', array_slice($detectedHeaders, 0, 12));
+
             fclose($handle);
-            throw new BulkUploadValidationException([], null, 'The uploaded file is missing required columns: ' . implode(', ', $missingColumns));
+            throw new BulkUploadValidationException(
+                [],
+                null,
+                'The uploaded file is missing required columns: '
+                . implode(', ', $missingColumns)
+                . ". Detected headers: {$detectedSummary}. Delimiter: \"{$delimiter}\"."
+            );
         }
 
         $rowNumber = $headerLineNumber;
@@ -184,7 +229,7 @@ class StudentBulkUploadService
 
         $inFileComposite = [];
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $rowNumber++;
 
             if ($this->isSkippableRow($row)) {
@@ -558,6 +603,8 @@ class StudentBulkUploadService
     private function isSkippableRow(array $row): bool
     {
         $firstValue = trim($row[0] ?? '');
+        // Strip UTF-8 BOM so "# TEMPLATE FOR" and "# INSTRUCTIONS" lines are detectable.
+        $firstValue = ltrim($firstValue, "\xEF\xBB\xBF");
 
         if ($firstValue === '' && count(array_filter($row, fn ($value) => trim((string) $value) !== '')) === 0) {
             return true;
@@ -1008,6 +1055,8 @@ class StudentBulkUploadService
 
     private function normalizeHeaderValue(string $value): string
     {
+        $value = ltrim($value, "\xEF\xBB\xBF");
+
         return Str::of($value)
             ->lower()
             ->replaceMatches('/\s*\(.*?\)/', '')
@@ -1015,6 +1064,48 @@ class StudentBulkUploadService
             ->replace('.', '_')
             ->trim('_')
             ->value();
+    }
+
+    /**
+     * Detect delimiter by inspecting the first non-skippable line.
+     *
+     * @param resource $handle
+     */
+    private function detectDelimiter($handle): string
+    {
+        $candidates = [',', ';', "\t", '|'];
+        $delimiter = ',';
+        $maxFields = 1;
+
+        $lines = [];
+        for ($i = 0; $i < 10; $i++) {
+            $line = fgets($handle);
+            if ($line === false) {
+                break;
+            }
+            $lines[] = $line;
+        }
+
+        foreach ($lines as $line) {
+            $trimmed = ltrim($line, "\xEF\xBB\xBF");
+            $trimmed = trim($trimmed);
+            if ($trimmed === '' || Str::startsWith($trimmed, '#')) {
+                continue;
+            }
+
+            foreach ($candidates as $candidate) {
+                $fields = str_getcsv($line, $candidate);
+                $count = is_array($fields) ? count($fields) : 0;
+                if ($count > $maxFields) {
+                    $maxFields = $count;
+                    $delimiter = $candidate;
+                }
+            }
+            break;
+        }
+
+        rewind($handle);
+        return $delimiter;
     }
 
     private function writeReferenceRow($handle, string $label, string $value): void
