@@ -38,6 +38,8 @@ class StudentBulkUploadService
         'o' => 'O',
     ];
 
+    private const DUPLICATE_ACTIONS = ['skip', 'overwrite', 'allow'];
+
     /**
      * Generate a clean CSV template for bulk student upload.
      *
@@ -280,6 +282,8 @@ class StudentBulkUploadService
             throw new BulkUploadValidationException($errors, $errorCsv);
         }
 
+        $this->attachDuplicates($school, $preparedRows);
+
         $batch = BulkUploadBatch::create([
             'school_id' => $school->id,
             'user_id' => $user->id,
@@ -312,6 +316,9 @@ class StudentBulkUploadService
                     'class' => $class?->name,
                     'class_arm' => $arm?->name,
                     'parent_email' => $parent['email'] ?? '—',
+                    'duplicate' => $row['duplicate'] ?? null,
+                    'duplicate_action' => $row['duplicate_action'] ?? null,
+                    'source_row' => $row['source_row'] ?? null,
                 ];
             })
             ->values();
@@ -330,7 +337,7 @@ class StudentBulkUploadService
     /**
      * @return array<string, mixed>
      */
-    public function commit(BulkUploadBatch $batch): array
+    public function commit(BulkUploadBatch $batch, array $decisions = []): array
     {
         if ($batch->type !== self::BULK_TYPE) {
             throw new \InvalidArgumentException('Invalid batch type supplied.');
@@ -354,21 +361,48 @@ class StudentBulkUploadService
         $user = $batch->user()->firstOrFail();
 
         $createdStudents = 0;
+        $updatedStudents = 0;
+        $skippedRows = 0;
         $createdParents = 0;
 
-        DB::transaction(function () use (&$createdStudents, &$createdParents, $rows, $school, $user, $batch) {
+        $decisionMap = $this->normalizeDuplicateDecisions($decisions);
+
+        DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $user, $batch, $decisionMap) {
             foreach ($rows as $row) {
+                $action = $this->resolveDuplicateAction($row, $decisionMap);
+
+                if ($action === 'skip') {
+                    $skippedRows++;
+                    continue;
+                }
+
                 $parent = null;
                 if (is_array($row['parent'] ?? null) && ! empty($row['parent']['email'])) {
-                    $parent = $this->resolveParent($school, $row['parent'], $createdParents);
+                    $parent = $this->resolveParent($school, $row['parent'], $createdParents, $action === 'overwrite');
                 }
 
                 $studentData = $row['student'];
+                $studentData['status'] = strtolower($studentData['status']);
+
+                if ($action === 'overwrite') {
+                    $existingStudent = $this->resolveDuplicateStudent($school, $row);
+                    if (! $existingStudent) {
+                        $action = 'allow';
+                    } else {
+                        $studentData['school_id'] = $school->id;
+                        $studentData['parent_id'] = $parent?->id ?? $existingStudent->parent_id;
+                        $studentData['admission_no'] = $existingStudent->admission_no;
+                        $existingStudent->fill($studentData);
+                        $existingStudent->save();
+                        $updatedStudents++;
+                        continue;
+                    }
+                }
+
                 $studentData['id'] = (string) Str::uuid();
                 $studentData['school_id'] = $school->id;
                 $studentData['parent_id'] = $parent?->id;
                 $studentData['portal_password'] = '123456';
-                $studentData['status'] = strtolower($studentData['status']);
                 $session = Session::findOrFail($studentData['current_session_id']);
                 $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
 
@@ -396,7 +430,10 @@ class StudentBulkUploadService
         });
 
         return [
-            'processed' => $createdStudents,
+            'processed' => $createdStudents + $updatedStudents,
+            'created' => $createdStudents,
+            'updated' => $updatedStudents,
+            'skipped' => $skippedRows,
             'parents_created' => $createdParents,
             'failed' => 0,
         ];
@@ -707,13 +744,6 @@ class StudentBulkUploadService
         };
 
         $rawAdmissionNo = trim((string) ($getValue('student.admission_no') ?? ''));
-        if ($rawAdmissionNo !== '') {
-            $errors[] = [
-                'row' => $rowNumber,
-                'column' => $columns['student.admission_no']['header'],
-                'message' => 'Admission numbers are generated automatically. Leave this column blank.',
-            ];
-        }
         $studentData['admission_no'] = null;
         $studentData['first_name'] = $getValue('student.first_name', true);
         $studentData['middle_name'] = $getValue('student.middle_name');
@@ -914,6 +944,7 @@ class StudentBulkUploadService
                 'student' => $studentData,
                 'parent' => $parentFieldsProvided ? $parentData : null,
                 'source_row' => $rowNumber,
+                'admission_no_input' => $rawAdmissionNo !== '' ? $rawAdmissionNo : null,
             ],
             $errors,
         ];
@@ -986,14 +1017,14 @@ class StudentBulkUploadService
         return stream_get_contents($handle) ?: '';
     }
 
-    private function resolveParent(School $school, array $parentData, int &$createdParents): SchoolParent
+    private function resolveParent(School $school, array $parentData, int &$createdParents, bool $updateExisting = false): SchoolParent
     {
         $parent = SchoolParent::query()
             ->where('school_id', $school->id)
             ->whereHas('user', fn ($query) => $query->where('email', $parentData['email']))
             ->first();
 
-        if ($parent) {
+        if ($parent && ! $updateExisting) {
             return $parent;
         }
 
@@ -1034,23 +1065,201 @@ class StudentBulkUploadService
             }
         });
 
-        $parent = SchoolParent::create([
-            'id' => (string) Str::uuid(),
-            'school_id' => $school->id,
-            'user_id' => $user->id,
-            'first_name' => $parentData['first_name'],
-            'last_name' => $parentData['last_name'],
-            'phone' => $parentData['phone'],
-            'address' => $parentData['address'],
-            'occupation' => $parentData['occupation'],
-            'nationality' => $parentData['nationality'],
-            'state_of_origin' => $parentData['state_of_origin'],
-            'local_government_area' => $parentData['local_government_area'],
-        ]);
+        if ($parent) {
+            $parent->fill([
+                'first_name' => $parentData['first_name'],
+                'last_name' => $parentData['last_name'],
+                'phone' => $parentData['phone'],
+                'address' => $parentData['address'],
+                'occupation' => $parentData['occupation'],
+                'nationality' => $parentData['nationality'],
+                'state_of_origin' => $parentData['state_of_origin'],
+                'local_government_area' => $parentData['local_government_area'],
+            ]);
+            $parent->save();
+        } else {
+            $parent = SchoolParent::create([
+                'id' => (string) Str::uuid(),
+                'school_id' => $school->id,
+                'user_id' => $user->id,
+                'first_name' => $parentData['first_name'],
+                'last_name' => $parentData['last_name'],
+                'phone' => $parentData['phone'],
+                'address' => $parentData['address'],
+                'occupation' => $parentData['occupation'],
+                'nationality' => $parentData['nationality'],
+                'state_of_origin' => $parentData['state_of_origin'],
+                'local_government_area' => $parentData['local_government_area'],
+            ]);
 
-        $createdParents++;
+            $createdParents++;
+        }
 
         return $parent;
+    }
+
+    private function attachDuplicates(School $school, array &$preparedRows): void
+    {
+        $admissionNos = [];
+        $firstNames = [];
+        $lastNames = [];
+        $birthDates = [];
+        $nameDobKeys = [];
+
+        foreach ($preparedRows as $row) {
+            $admissionNo = $row['admission_no_input'] ?? null;
+            if ($admissionNo) {
+                $admissionNos[] = strtolower($admissionNo);
+            }
+
+            $firstName = $row['student']['first_name'] ?? null;
+            $lastName = $row['student']['last_name'] ?? null;
+            $dateOfBirth = $row['student']['date_of_birth'] ?? null;
+            if ($firstName && $lastName && $dateOfBirth) {
+                $firstLower = strtolower($firstName);
+                $lastLower = strtolower($lastName);
+                $dobValue = strtolower($dateOfBirth);
+                $nameDobKeys[] = "{$firstLower}|{$lastLower}|{$dobValue}";
+                $firstNames[$firstLower] = true;
+                $lastNames[$lastLower] = true;
+                $birthDates[$dobValue] = true;
+            }
+        }
+
+        $admissionNos = array_values(array_unique($admissionNos));
+        $nameDobKeys = array_values(array_unique($nameDobKeys));
+
+        $byAdmissionNo = [];
+        if (! empty($admissionNos)) {
+            $students = Student::query()
+                ->where('school_id', $school->id)
+                ->whereIn('admission_no', $admissionNos)
+                ->get();
+            foreach ($students as $student) {
+                $byAdmissionNo[strtolower($student->admission_no)] = $student;
+            }
+        }
+
+        $byNameDob = [];
+        if (! empty($birthDates) && ! empty($firstNames) && ! empty($lastNames)) {
+            $students = Student::query()
+                ->where('school_id', $school->id)
+                ->whereIn(DB::raw('LOWER(first_name)'), array_keys($firstNames))
+                ->whereIn(DB::raw('LOWER(last_name)'), array_keys($lastNames))
+                ->whereIn(DB::raw('DATE(date_of_birth)'), array_keys($birthDates))
+                ->get();
+
+            foreach ($students as $student) {
+                $dob = $student->date_of_birth?->toDateString() ?? null;
+                if (! $dob) {
+                    continue;
+                }
+                $key = strtolower($student->first_name) . '|' . strtolower($student->last_name) . '|' . strtolower($dob);
+                $byNameDob[$key] = $student;
+            }
+        }
+
+        foreach ($preparedRows as &$row) {
+            $duplicate = null;
+            $admissionNo = $row['admission_no_input'] ?? null;
+            if ($admissionNo) {
+                $match = $byAdmissionNo[strtolower($admissionNo)] ?? null;
+                if ($match) {
+                    $duplicate = $this->formatDuplicateInfo($match, 'admission_no');
+                }
+            }
+
+            if (! $duplicate) {
+                $firstName = $row['student']['first_name'] ?? null;
+                $lastName = $row['student']['last_name'] ?? null;
+                $dateOfBirth = $row['student']['date_of_birth'] ?? null;
+                if ($firstName && $lastName && $dateOfBirth) {
+                    $key = strtolower($firstName) . '|' . strtolower($lastName) . '|' . strtolower($dateOfBirth);
+                    $match = $byNameDob[$key] ?? null;
+                    if ($match) {
+                        $duplicate = $this->formatDuplicateInfo($match, 'name_dob');
+                    }
+                }
+            }
+
+            $row['duplicate'] = $duplicate;
+            $row['duplicate_action'] = $duplicate ? 'skip' : 'create';
+        }
+        unset($row);
+    }
+
+    private function formatDuplicateInfo(Student $student, string $match): array
+    {
+        return [
+            'id' => $student->id,
+            'admission_no' => $student->admission_no,
+            'name' => trim("{$student->first_name} {$student->last_name}"),
+            'match' => $match,
+        ];
+    }
+
+    private function normalizeDuplicateDecisions(array $decisions): array
+    {
+        $normalized = [];
+        foreach ($decisions as $rowKey => $action) {
+            if (! is_string($action)) {
+                continue;
+            }
+            $action = strtolower(trim($action));
+            if (! in_array($action, self::DUPLICATE_ACTIONS, true)) {
+                continue;
+            }
+            $normalized[(string) $rowKey] = $action;
+        }
+        return $normalized;
+    }
+
+    private function resolveDuplicateAction(array $row, array $decisionMap): string
+    {
+        $rowKey = (string) ($row['source_row'] ?? '');
+        if ($rowKey !== '' && array_key_exists($rowKey, $decisionMap)) {
+            return $decisionMap[$rowKey];
+        }
+
+        $defaultAction = $row['duplicate_action'] ?? 'create';
+        if ($defaultAction === 'create') {
+            return 'allow';
+        }
+
+        return in_array($defaultAction, self::DUPLICATE_ACTIONS, true) ? $defaultAction : 'allow';
+    }
+
+    private function resolveDuplicateStudent(School $school, array $row): ?Student
+    {
+        $duplicateId = $row['duplicate']['id'] ?? null;
+        if ($duplicateId) {
+            return Student::query()
+                ->where('school_id', $school->id)
+                ->where('id', $duplicateId)
+                ->first();
+        }
+
+        $admissionNo = $row['admission_no_input'] ?? null;
+        if ($admissionNo) {
+            return Student::query()
+                ->where('school_id', $school->id)
+                ->where('admission_no', $admissionNo)
+                ->first();
+        }
+
+        $firstName = $row['student']['first_name'] ?? null;
+        $lastName = $row['student']['last_name'] ?? null;
+        $dateOfBirth = $row['student']['date_of_birth'] ?? null;
+        if ($firstName && $lastName && $dateOfBirth) {
+            return Student::query()
+                ->where('school_id', $school->id)
+                ->whereRaw('LOWER(first_name) = ?', [strtolower($firstName)])
+                ->whereRaw('LOWER(last_name) = ?', [strtolower($lastName)])
+                ->whereRaw('DATE(date_of_birth) = ?', [strtolower($dateOfBirth)])
+                ->first();
+        }
+
+        return null;
     }
 
     private function normalizeHeaderValue(string $value): string
