@@ -44,7 +44,7 @@ class SubjectTeacherAssignmentController extends Controller
      */
     public function index(Request $request)
     {
-        $this->ensurePermission($request, 'subject.assignments.teacher');
+        $this->ensurePermission($request, ['subject.assignments.view', 'subject.assignments.teacher']);
         $school = $request->user()->school;
 
         if (! $school) {
@@ -135,7 +135,7 @@ class SubjectTeacherAssignmentController extends Controller
      */
     public function store(Request $request)
     {
-        $this->ensurePermission($request, 'subject.assignments.teacher');
+        $this->ensurePermission($request, ['subject.assignments.create', 'subject.assignments.teacher']);
         $school = $request->user()->school;
 
         if (! $school) {
@@ -246,7 +246,7 @@ class SubjectTeacherAssignmentController extends Controller
      */
     public function update(Request $request, SubjectTeacherAssignment $assignment)
     {
-        $this->ensurePermission($request, 'subject.assignments.teacher');
+        $this->ensurePermission($request, ['subject.assignments.update', 'subject.assignments.teacher']);
         $this->authorizeTeacherAssignment($request, $assignment);
 
         $school = $request->user()->school;
@@ -340,7 +340,7 @@ class SubjectTeacherAssignmentController extends Controller
      */
     public function destroy(Request $request, SubjectTeacherAssignment $assignment)
     {
-        $this->ensurePermission($request, 'subject.assignments.teacher');
+        $this->ensurePermission($request, ['subject.assignments.delete', 'subject.assignments.teacher']);
         $this->authorizeTeacherAssignment($request, $assignment);
         $assignment->delete();
 

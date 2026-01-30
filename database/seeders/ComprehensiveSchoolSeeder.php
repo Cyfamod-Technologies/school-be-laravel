@@ -82,6 +82,12 @@ class ComprehensiveSchoolSeeder extends Seeder
         $this->command->info('=================================================');
         $this->command->info('');
 
+        $existingSchool = School::where('subdomain', 'demo')->first();
+        if ($existingSchool) {
+            $this->command->warn('Demo school already exists. Skipping comprehensive seeding to avoid overwriting data.');
+            return;
+        }
+
         DB::beginTransaction();
 
         try {
