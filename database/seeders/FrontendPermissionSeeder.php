@@ -327,18 +327,18 @@ class FrontendPermissionSeeder extends Seeder
         $existing = 0;
 
         foreach (self::$permissions as $name => $description) {
-            $exists = Permission::where('name', $name)
-                ->where('guard_name', $guardName)
-                ->where('school_id', $schoolId)
-                ->exists();
-
-            if (!$exists) {
-                Permission::create([
+            $permission = Permission::query()->updateOrCreate(
+                [
                     'name' => $name,
-                    'description' => $description,
                     'guard_name' => $guardName,
                     'school_id' => $schoolId,
-                ]);
+                ],
+                [
+                    'description' => $description,
+                ],
+            );
+
+            if ($permission->wasRecentlyCreated) {
                 $created++;
             } else {
                 $existing++;
