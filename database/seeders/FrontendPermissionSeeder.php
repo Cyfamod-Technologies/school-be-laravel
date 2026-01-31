@@ -15,7 +15,7 @@ use Spatie\Permission\PermissionRegistrar;
  * 
  * Usage: 
  *   php artisan db:seed --class=FrontendPermissionSeeder
- *   php artisan db:seed --class=FrontendPermissionSeeder -- --school=<school_id>
+ *   php artisan permissions:seed [school_id] [--guard=sanctum]
  */
 class FrontendPermissionSeeder extends Seeder
 {
@@ -357,7 +357,7 @@ class FrontendPermissionSeeder extends Seeder
     /**
      * Run the database seeds.
      * 
-     * This will seed permissions for all schools, or a specific school if provided.
+     * This will seed permissions for all schools.
      */
     public function run(): void
     {
@@ -365,44 +365,29 @@ class FrontendPermissionSeeder extends Seeder
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $guardName = config('permission.default_guard', 'sanctum');
-        
-        // Check if a specific school ID was provided via command option
-        $specificSchoolId = $this->command?->option('school') ?? null;
 
-        if ($specificSchoolId) {
-            // Seed for a specific school
-            $school = School::find($specificSchoolId);
-            if (!$school) {
-                $this->command->error("School with ID {$specificSchoolId} not found.");
-                return;
-            }
+        // Seed for all schools
+        $schools = School::all();
 
-            $result = self::seedForSchool($specificSchoolId, $guardName);
-            $this->command->info("Permissions seeded for school '{$school->name}': {$result['created']} created, {$result['existing']} already existed.");
-        } else {
-            // Seed for all schools
-            $schools = School::all();
-            
-            if ($schools->isEmpty()) {
-                $this->command->warn("No schools found in the database. Skipping permission seeding.");
-                return;
-            }
-
-            $totalCreated = 0;
-            $totalExisting = 0;
-
-            foreach ($schools as $school) {
-                $result = self::seedForSchool($school->id, $guardName);
-                $totalCreated += $result['created'];
-                $totalExisting += $result['existing'];
-                $this->command->info("  - {$school->name}: {$result['created']} created, {$result['existing']} existing");
-            }
-
-            $this->command->info("");
-            $this->command->info("Frontend permissions seeded for {$schools->count()} school(s):");
-            $this->command->info("  Total created: {$totalCreated}");
-            $this->command->info("  Already existed: {$totalExisting}");
-            $this->command->info("  Permissions per school: " . count(self::$permissions));
+        if ($schools->isEmpty()) {
+            $this->command->warn("No schools found in the database. Skipping permission seeding.");
+            return;
         }
+
+        $totalCreated = 0;
+        $totalExisting = 0;
+
+        foreach ($schools as $school) {
+            $result = self::seedForSchool($school->id, $guardName);
+            $totalCreated += $result['created'];
+            $totalExisting += $result['existing'];
+            $this->command->info("  - {$school->name}: {$result['created']} created, {$result['existing']} existing");
+        }
+
+        $this->command->info("");
+        $this->command->info("Frontend permissions seeded for {$schools->count()} school(s):");
+        $this->command->info("  Total created: {$totalCreated}");
+        $this->command->info("  Already existed: {$totalExisting}");
+        $this->command->info("  Permissions per school: " . count(self::$permissions));
     }
 }
