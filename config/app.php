@@ -65,6 +65,7 @@ return [
     */
 
     'frontend_login_url' => env('FRONTEND_LOGIN_URL', '/'),
+    'frontend_url' => env('FRONTEND_URL', env('FRONTEND_LOGIN_URL', '/')),
 
     /*
     |--------------------------------------------------------------------------

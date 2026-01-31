@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\QuizAnswerController;
 use App\Http\Controllers\Api\V1\QuizResultController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
+use App\Http\Controllers\Api\V1\AiChatController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -84,6 +85,11 @@ Route::prefix('api/v1')->group(function () {
         Route::put('/school', [SchoolController::class, 'updateSchoolProfile']);
         Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);            
         Route::put('/user', [SchoolController::class, 'updateSchoolAdminProfile']);
+
+        Route::post('ai/chat', [AiChatController::class, 'chat'])
+            ->name('ai.chat');
+        Route::get('ai/chats', [AiChatController::class, 'history'])
+            ->name('ai.chat.history');
 
         // RBAC - Permissions
         Route::get('permissions', [PermissionController::class, 'index'])

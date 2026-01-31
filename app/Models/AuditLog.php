@@ -8,6 +8,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 /**
  * Class AuditLog
@@ -31,10 +32,20 @@ class AuditLog extends Model
 	protected $keyType = 'string';
 
 	protected $fillable = [
+		'id',
 		'user_id',
 		'action',
 		'description'
 	];
+
+	protected static function booted()
+	{
+		static::creating(function (self $model) {
+			if (empty($model->id)) {
+				$model->id = (string) Str::uuid();
+			}
+		});
+	}
 
 	public function user()
 	{
