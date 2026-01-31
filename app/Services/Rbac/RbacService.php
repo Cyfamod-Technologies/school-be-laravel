@@ -6,6 +6,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\School;
 use App\Models\User;
+use Database\Seeders\FrontendPermissionSeeder;
 use Illuminate\Support\Collection;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -152,6 +153,9 @@ class RbacService
         $registrar->forgetCachedPermissions();
 
         $guard = config('permission.default_guard', 'sanctum');
+
+        // Ensure frontend permission catalog is seeded for this school.
+        FrontendPermissionSeeder::seedForSchool($school->id, $guard);
 
         Permission::query()
             ->where('school_id', $school->id)
