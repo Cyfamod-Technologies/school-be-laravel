@@ -9,6 +9,7 @@ use App\Models\ClassSection;
 use App\Models\ClassTeacher;
 use App\Models\GradeRange;
 use App\Models\GradingScale;
+use App\Models\PositionRange;
 use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
@@ -425,9 +426,17 @@ class ResultViewController extends Controller
             }
         }
 
-        $gradeRanges = $this->resolveGradeRanges($student->school_id, $session?->id);
+        $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
+        $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
+        $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
         $componentColumns = $this->buildComponentColumns($results);
-        $subjectStatisticsData = $this->computeSubjectStatistics($student, $session?->id, $term?->id, $results);
+        $subjectStatisticsData = $this->computeSubjectStatistics(
+            $student,
+            $session?->id,
+            $term?->id,
+            $results,
+            $positionRanges
+        );
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
@@ -448,7 +457,8 @@ class ResultViewController extends Controller
             $subjectStats,
             $subjectStatisticsData['overall_totals'],
             $student,
-            $classSize
+            $classSize,
+            $positionRanges
         );
         $subjectCount = $this->resolveSubjectCount($student);
         if ($subjectCount > 0) {
@@ -988,7 +998,13 @@ class ResultViewController extends Controller
             ->values();
     }
 
-    private function computeSubjectStatistics(Student $student, ?string $sessionId, ?string $termId, Collection $results): array
+    private function computeSubjectStatistics(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId,
+        Collection $results,
+        Collection $positionRanges
+    ): array
     {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
             return [
@@ -1071,22 +1087,16 @@ class ResultViewController extends Controller
 
             $studentScore = $totalsByStudent->get($student->id);
 
-            $sortedDescending = $totalsByStudent
-                ->values()
-                ->map(fn ($score) => (float) $score)
-                ->sortDesc()
-                ->values();
-
-            $position = null;
-            if ($studentScore !== null) {
-                $higherCount = $sortedDescending->filter(fn ($score) => $score > (float) $studentScore)->count();
-                $position = $higherCount + 1;
-            }
+            $position = $this->resolvePositionForScore(
+                $studentScore !== null ? (float) $studentScore : null,
+                $totalsByStudent->map(fn ($score) => (float) $score),
+                $positionRanges
+            );
 
             return [
-                'average' => round($sortedDescending->average(), 2),
-                'highest' => round($sortedDescending->max(), 2),
-                'lowest' => round($sortedDescending->min(), 2),
+                'average' => round($totalsByStudent->average(), 2),
+                'highest' => round($totalsByStudent->max(), 2),
+                'lowest' => round($totalsByStudent->min(), 2),
                 'position' => $position,
                 'total_possible' => $totalsByStudent->max(),
                 'total_obtained_by_student' => $studentScore,
@@ -1100,7 +1110,13 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function computeOverallStatistics(Collection $subjectStats, Collection $overallTotals, Student $student, int $existingClassSize): array
+    private function computeOverallStatistics(
+        Collection $subjectStats,
+        Collection $overallTotals,
+        Student $student,
+        int $existingClassSize,
+        Collection $positionRanges
+    ): array
     {
         $subjectCount = max(1, $subjectStats->count());
 
@@ -1118,11 +1134,23 @@ class ResultViewController extends Controller
 
         $classSize = max($existingClassSize, $overallTotals->count());
 
-        $position = null;
-        if ($studentTotal !== null) {
-            $higherCount = $overallTotals->filter(fn ($total) => $total > $studentTotal)->count();
-            $position = $higherCount + 1;
+        $scoreSource = $overallTotals->map(fn ($total) => (float) $total);
+        $studentScore = $studentTotal !== null ? (float) $studentTotal : null;
+
+        if ($positionRanges->isNotEmpty()) {
+            $scoreSource = $scoreSource->map(
+                fn ($total) => round($total / $subjectCount, 2),
+            );
+            $studentScore = $studentScore !== null
+                ? round($studentScore / $subjectCount, 2)
+                : null;
         }
+
+        $position = $this->resolvePositionForScore(
+            $studentScore,
+            $scoreSource,
+            $positionRanges
+        );
 
         return [
             'total_obtained' => $studentTotal ?: null,
@@ -1166,9 +1194,23 @@ class ResultViewController extends Controller
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
     {
+        $gradeScale = $this->resolveGradeScale($schoolId, $sessionId);
+
+        if (! $gradeScale) {
+            return collect();
+        }
+
+        return $gradeScale->grade_ranges->sortByDesc('min_score')->values();
+    }
+
+    private function resolveGradeScale(string $schoolId, ?string $sessionId): ?GradingScale
+    {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $schoolId)
-            ->with(['grade_ranges' => fn ($query) => $query->orderByDesc('min_score')]);
+            ->with([
+                'grade_ranges' => fn ($query) => $query->orderByDesc('min_score'),
+                'position_ranges' => fn ($query) => $query->orderBy('position'),
+            ]);
 
         $gradeScale = null;
 
@@ -1184,11 +1226,7 @@ class ResultViewController extends Controller
                 ->first();
         }
 
-        if (! $gradeScale) {
-            return collect();
-        }
-
-        return $gradeScale->grade_ranges->sortByDesc('min_score')->values();
+        return $gradeScale;
     }
 
     private function resolveGradeRange(?float $score, ?string $gradeLabel, Collection $gradeRanges): ?GradeRange
@@ -1222,6 +1260,49 @@ class ResultViewController extends Controller
         $match = $this->resolveGradeRange($score, null, $gradeRanges);
 
         return $match?->grade_label ?? null;
+    }
+
+    private function resolvePositionForScore(
+        ?float $score,
+        Collection $scoresByStudent,
+        Collection $positionRanges
+    ): ?int {
+        if ($score === null) {
+            return null;
+        }
+
+        if ($positionRanges->isEmpty()) {
+            $higherCount = $scoresByStudent->filter(fn ($value) => $value > $score)->count();
+            return $higherCount + 1;
+        }
+
+        $matched = $positionRanges->first(function (PositionRange $range) use ($score) {
+            return $score >= $range->min_score && $score <= $range->max_score;
+        });
+
+        if ($matched) {
+            return (int) $matched->position;
+        }
+
+        $unassigned = $scoresByStudent->filter(function ($value) use ($positionRanges) {
+            return ! $this->scoreInPositionRanges((float) $value, $positionRanges);
+        });
+
+        if ($unassigned->isEmpty()) {
+            return null;
+        }
+
+        $higherCount = $unassigned->filter(fn ($value) => $value > $score)->count();
+        $offset = (int) ($positionRanges->max('position') ?? 0);
+
+        return $offset + $higherCount + 1;
+    }
+
+    private function scoreInPositionRanges(float $score, Collection $positionRanges): bool
+    {
+        return $positionRanges->contains(function (PositionRange $range) use ($score) {
+            return $score >= $range->min_score && $score <= $range->max_score;
+        });
     }
 
     private function resolveResultPageSettings(?School $school): array
