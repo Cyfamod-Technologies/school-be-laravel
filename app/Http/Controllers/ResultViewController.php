@@ -1050,7 +1050,7 @@ class ResultViewController extends Controller
 
         $overallTotals = [];
 
-        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals) {
+        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals, $positionRanges) {
             $totalsByStudent = $subjectEntries
                 ->groupBy('student_id')
                 ->map(function (Collection $entries) {
