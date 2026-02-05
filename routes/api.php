@@ -387,6 +387,8 @@ Route::prefix('api/v1')->group(function () {
             Route::delete('ranges/{gradeRange}', [GradeScaleController::class, 'destroyRange'])->whereUuid('gradeRange');
             Route::put('scales/{gradingScale}/position-ranges', [GradeScaleController::class, 'updatePositionRanges'])->whereUuid('gradingScale');
             Route::delete('position-ranges/{positionRange}', [GradeScaleController::class, 'destroyPositionRange'])->whereUuid('positionRange');
+            Route::put('scales/{gradingScale}/comment-ranges', [GradeScaleController::class, 'updateCommentRanges'])->whereUuid('gradingScale');
+            Route::delete('comment-ranges/{commentRange}', [GradeScaleController::class, 'destroyCommentRange'])->whereUuid('commentRange');
         });
 
         Route::prefix('locations')->group(function () {

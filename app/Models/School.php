@@ -98,6 +98,7 @@ class School extends Model
 		'result_show_lowest',
 		'result_show_highest',
 		'result_show_remarks',
+		'result_comment_mode',
 	];
 
 	public function analytics_data()

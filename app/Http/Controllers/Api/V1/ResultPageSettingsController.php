@@ -40,6 +40,7 @@ class ResultPageSettingsController extends Controller
             'show_lowest' => ['sometimes', 'boolean'],
             'show_highest' => ['sometimes', 'boolean'],
             'show_remarks' => ['sometimes', 'boolean'],
+            'comment_mode' => ['sometimes', 'string', 'in:manual,range'],
         ]);
 
         $current = $this->resolveSettings($school);
@@ -52,6 +53,7 @@ class ResultPageSettingsController extends Controller
             'result_show_lowest' => $next['show_lowest'],
             'result_show_highest' => $next['show_highest'],
             'result_show_remarks' => $next['show_remarks'],
+            'result_comment_mode' => $next['comment_mode'],
         ]);
 
         if ($school->isDirty()) {
@@ -73,6 +75,7 @@ class ResultPageSettingsController extends Controller
             'show_lowest' => $school->result_show_lowest ?? true,
             'show_highest' => $school->result_show_highest ?? true,
             'show_remarks' => $school->result_show_remarks ?? true,
+            'comment_mode' => $school->result_comment_mode ?? 'manual',
         ];
     }
 }

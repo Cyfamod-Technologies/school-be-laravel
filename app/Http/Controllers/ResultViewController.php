@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\ClassSection;
 use App\Models\ClassTeacher;
+use App\Models\CommentRange;
 use App\Models\GradeRange;
 use App\Models\GradingScale;
 use App\Models\PositionRange;
@@ -429,6 +430,7 @@ class ResultViewController extends Controller
         $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
         $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
+        $commentRanges = $gradeScale?->comment_ranges?->sortByDesc('min_score')->values() ?? collect();
         $componentColumns = $this->buildComponentColumns($results);
         $subjectStatisticsData = $this->computeSubjectStatistics(
             $student,
@@ -528,25 +530,39 @@ class ResultViewController extends Controller
         $termName = $term?->name ?? optional($student->term)->name;
         $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
 
-        // Auto-generate fallback comments for teacher and principal
-        $teacherComment = $termSummary?->overall_comment;
-        $principalComment = $termSummary?->principal_comment;
-
-        if ($teacherComment === null) {
-            $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
-            );
-        }
-
-        if ($principalComment === null) {
-            $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
-            );
-        }
-
         $resultPageSettings = $this->resolveResultPageSettings($student->school);
         if ($student->school_class && $student->school_class->result_show_position !== null) {
             $resultPageSettings['show_position'] = (bool) $student->school_class->result_show_position;
+        }
+        $commentMode = $resultPageSettings['comment_mode'] ?? 'manual';
+
+        // Auto-generate fallback comments for teacher and principal
+        if ($commentMode === 'range') {
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $commentRanges
+            );
+            $principalComment = $this->generatePrincipalComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $commentRanges
+            );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            $principalComment = $termSummary?->principal_comment;
+
+            if ($teacherComment === null) {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    collect()
+                );
+            }
+
+            if ($principalComment === null) {
+                $principalComment = $this->generatePrincipalComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    collect()
+                );
+            }
         }
 
         $data = [
@@ -756,9 +772,24 @@ class ResultViewController extends Controller
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
 
-        $teacherComment = $termSummary?->overall_comment;
-        if ($teacherComment === null) {
-            $teacherComment = $this->generateTeacherComment($termSummary?->average_score);
+        $commentMode = $student->school?->result_comment_mode ?? 'manual';
+        $teacherComment = null;
+
+        if ($commentMode === 'range') {
+            $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
+            $commentRanges = $gradeScale?->comment_ranges?->sortByDesc('min_score')->values() ?? collect();
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score,
+                $commentRanges
+            );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            if ($teacherComment === null) {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score,
+                    collect()
+                );
+            }
         }
 
         return [
@@ -797,8 +828,21 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function generateTeacherComment(?float $average): string
+    private function generateTeacherComment(
+        ?float $average,
+        ?Collection $commentRanges = null
+    ): string
     {
+        if ($average !== null && $commentRanges && $commentRanges->isNotEmpty()) {
+            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
+                return $average >= $range->min_score && $average <= $range->max_score;
+            });
+
+            if ($matched && trim((string) $matched->teacher_comment) !== '') {
+                return trim((string) $matched->teacher_comment);
+            }
+        }
+
         if ($average === null) {
             return 'This student is good.';
         }
@@ -822,8 +866,21 @@ class ResultViewController extends Controller
         return 'Below expectation. Close monitoring and extra support are recommended.';
     }
 
-    private function generatePrincipalComment(?float $average): string
+    private function generatePrincipalComment(
+        ?float $average,
+        ?Collection $commentRanges = null
+    ): string
     {
+        if ($average !== null && $commentRanges && $commentRanges->isNotEmpty()) {
+            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
+                return $average >= $range->min_score && $average <= $range->max_score;
+            });
+
+            if ($matched && trim((string) $matched->principal_comment) !== '') {
+                return trim((string) $matched->principal_comment);
+            }
+        }
+
         if ($average === null) {
             return 'This student is hardworking.';
         }
@@ -1314,6 +1371,7 @@ class ResultViewController extends Controller
             'show_lowest' => $school?->result_show_lowest ?? true,
             'show_highest' => $school?->result_show_highest ?? true,
             'show_remarks' => $school?->result_show_remarks ?? true,
+            'comment_mode' => $school?->result_comment_mode ?? 'manual',
         ];
     }
 
