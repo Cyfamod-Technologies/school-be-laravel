@@ -670,10 +670,14 @@ class AiChatController extends Controller
             $setupLines[] = sprintf('%d) %s', $index + 1, $this->frontendUrl($path));
         }
 
+        $appInfo = $this->loadAppInfoGuide();
+
         $system = implode("\n", [
             'You are a school-scoped dashboard assistant.',
             'Only respond using the routes provided; do not invent URLs.',
             'If the user asks how to do something, give brief steps and include the best matching link.',
+            'Use the App Info Guide below as the source of truth for how-to steps and page usage.',
+            'Do not discuss architecture, backend logic, or database details; say it is not covered in the guide.',
             'If unclear, ask a clarifying question.',
             'Setup order links: ' . implode(' | ', $setupLines),
             'Routes:',
@@ -684,10 +688,12 @@ class AiChatController extends Controller
             'model' => $model,
             'messages' => [
                 ['role' => 'system', 'content' => $system],
+                $appInfo ? ['role' => 'system', 'content' => "App Info Guide:\n" . $appInfo] : null,
                 ['role' => 'user', 'content' => $message],
             ],
             'temperature' => 0.2,
         ];
+        $payload['messages'] = array_values(array_filter($payload['messages']));
 
         try {
             $response = Http::timeout(20)
@@ -711,6 +717,27 @@ class AiChatController extends Controller
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    private function loadAppInfoGuide(): ?string
+    {
+        $path = base_path('App-info.md');
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $content = @file_get_contents($path);
+        if (! is_string($content) || trim($content) === '') {
+            return null;
+        }
+
+        $content = trim($content);
+        $maxLength = 12000;
+        if (strlen($content) > $maxLength) {
+            $content = substr($content, 0, $maxLength) . "\n\n(Truncated)";
+        }
+
+        return $content;
     }
 
     /**

@@ -302,24 +302,24 @@ Admin side:
 - Routes with `[id]` mean a specific record ID will be in the URL.
 
 ## Step-by-step: Initial school setup (recommended order)
-1. Create a new session: `/v11/add-session`. This defines the academic year range (start/end dates) used across all records.
-2. Create a term for the session: `/v11/add-term`. Terms split the session (1st/2nd/3rd) and are required for results, attendance, and reports.
-3. Update school settings/profile: `/v10/edit-school-profile`. Add logo/signature, verify school details, and select the active session/term if available.
-4. Add subjects: `/v16/add-subject`. These are the subjects that will be assigned to classes and used for results entry.
-5. Create classes, arms, and sections: `/v12/add-class`, `/v12/add-class-arm`, `/v12/add-class-arm-section`. This builds your class structure used for student placement and filtering.
-6. Add staff/teachers: `/v15/add-staff`. Create staff profiles and roles so they can be assigned to classes and subjects.
-7. Add parents: `/v13/add-parent`. Parent records link to students for contact and portal access.
-8. Create assessment components: `/v19/assessment-components`. Set up components like CA1, CA2, Exams, define scores/weights, and link them to subjects.
-9. Set up grade scales: `/v19/grade-scales`. Define grade ranges (A, B, etc.) and set the active scale for reports.
-10. Add students: `/v14/add-student`. Capture bio data and assign class/arm/section, parent, and session/term.
-11. Assign subjects to classes: `/v17/assign-subjects`. Choose which subjects are taught in each class (and arm/section if needed).
-12. Assign teachers to subjects/classes: `/v17/assign-teachers`. Link teachers to the subjects they teach for each class/session/term.
-13. Assign class teachers: `/v18/assign-class-teachers`. Set the main class teacher per class/arm for the selected session/term.
-14. (Optional) Set up result PINs: `/v19/pins`. Generate student PINs for result access, set usage limits/expiry, and print cards if needed.
-15. (Optional) Enter results: `/v19/results-entry`. Select class/subject/component and enter scores in bulk with validation.
-16. (Optional) Start attendance tracking: `/v21/student-attendance` and `/v21/staff-attendance`. Mark daily attendance and use `/v21/attendance-dashboard` for reports.
-17. (Optional) Configure fees: `/v23/bank-details`, `/v23/fee-structure`. Add bank accounts and define fee items/amounts per class/session/term.
-18. (Optional) Create roles and permissions: `/v24/roles`, `/v24/user-roles`. Restrict access by role and assign users to roles.
-19. (Optional) Verify student portal access: `/student-login`, `/v26/student-dashboard`. Confirm students can sign in and view their data/results.
-20. (Optional) CBT setup: `/v27/cbt/admin`, `/v27/cbt/admin/[quizId]/questions`, `/v27/cbt/admin/cbt-link`. Create quizzes, add questions, and link CBT to assessment components.
-21. Later workflows: promotions `/v20/student-promotion`, rollover `/v20/academic-rollover`, reports `/v20/promotion-reports`, attendance reports `/v21/attendance-dashboard`.
+1. Create a new session: `/v11/add-session`. This defines the academic year range (start/end dates) used across all records. Fill Session Name (e.g., 2024/2025) and Start/End Date, then save to see it in `/v11/all-sessions`.
+2. Create a term for the session: `/v11/add-term`. Terms split the session (1st/2nd/3rd) and are required for results, attendance, and reports. Select the session, choose term name (1st/2nd/3rd), set dates, then save to `/v11/all-terms`.
+3. Update school settings/profile: `/v10/edit-school-profile`. Add logo/signature, verify school details, and select the active session/term if available. You can update name, email, phone, address, student portal link, and optionally remove/replace signature.
+4. Add subjects: `/v16/add-subject`. These are the subjects that will be assigned to classes and used for results entry. Provide Subject Name (required), optional Subject Code, and Description, then save to `/v16/all-subjects`.
+5. Create classes, arms, and sections: `/v12/add-class`, `/v12/add-class-arm`, `/v12/add-class-arm-section`. This builds your class structure used for student placement and filtering. Classes require a name and can set “Show Position on Result” (use school default/show/hide); arms require class selection + arm name; sections require class + arm + section name.
+6. Add staff/teachers: `/v15/add-staff`. Create staff profiles and roles so they can be assigned to classes and subjects. Required fields include full name, email, phone, role, and gender; optional fields include employment start date, qualifications, address, and photo. After saving, a temporary password is generated for staff access.
+7. Add parents: `/v13/add-parent`. Parent records link to students for contact and portal access. Required fields: first name, last name, phone. Optional: email, occupation, address.
+8. Create assessment components: `/v19/assessment-components`. Set up components like CA1, CA2, Exams, define scores/weights, and link them to subjects. Enter component name, score/weight, order, optional label, then select one or more subjects (you can select all) and save; use search/filters to manage the list.
+9. Set up grade scales: `/v19/grade-scales`. Define grade ranges (A, B, etc.) and set the active scale for reports. Add grade label, min/max score, optional grade point and description; order ranges from lowest to highest, then save. Use result settings toggles if available (show grade, position, class average, highest/lowest, remarks).
+10. Add students: `/v14/add-student`. Capture bio data and assign class/arm/section, parent, and session/term. Required fields typically include first/last name, gender, admission number, session/term, class/arm/section, and parent. Optional fields include middle name, date of birth, admission date, house/club, status, address, medical info, blood group, country/state/LGA, and photo upload.
+11. Assign subjects to classes: `/v17/assign-subjects`. Choose which subjects are taught in each class (and arm/section if needed). Select class, optional arm/section, tick one or more subjects, and save; use the list and filters to edit or delete assignments.
+12. Assign teachers to subjects/classes: `/v17/assign-teachers`. Link teachers to the subjects they teach for each class/session/term. Select session, term, class, arm/section, subject (from assigned subjects), and teacher; optionally narrow to selected students; save and manage assignments from the list.
+13. Assign class teachers: `/v18/assign-class-teachers`. Set the main class teacher per class/arm for the selected session/term. Choose session, term, class, arm/section, staff member, then save; use filters to review or update.
+14. (Optional) Set up result PINs: `/v19/pins`. Generate student PINs for result access, set usage limits/expiry, and print cards if needed. Filter by session/term/class/student to target specific students.
+15. (Optional) Enter results: `/v19/results-entry`. Select class/subject/component and enter scores in bulk with validation. Use session/term/class/arm/section/subject/component filters, enter scores, and save.
+16. (Optional) Start attendance tracking: `/v21/student-attendance` and `/v21/staff-attendance`. Mark daily attendance and use `/v21/attendance-dashboard` for reports. Filters include date, session/term, class/department; exports are available where enabled.
+17. (Optional) Configure fees: `/v23/bank-details`, `/v23/fee-structure`. Add bank accounts and define fee items/amounts per class/session/term. Bank details support default/active flags; fee structures can be copied across sessions/terms/classes if enabled.
+18. (Optional) Create roles and permissions: `/v24/roles`, `/v24/user-roles`. Restrict access by role and assign users to roles. Create roles with grouped permissions, then attach roles to staff users.
+19. (Optional) Verify student portal access: `/student-login`, `/v26/student-dashboard`. Confirm students can sign in and view their data/results. Student dashboard includes bio-data and results download.
+20. (Optional) CBT setup: `/v27/cbt/admin`, `/v27/cbt/admin/[quizId]/questions`, `/v27/cbt/admin/cbt-link`. Create quizzes, add questions, and link CBT to assessment components. Publish/unpublish quizzes from the admin list as needed.
+21. Later workflows: promotions `/v20/student-promotion`, rollover `/v20/academic-rollover`, reports `/v20/promotion-reports`, attendance reports `/v21/attendance-dashboard`. Use these after core setup to manage end‑of‑term transitions and reporting.
