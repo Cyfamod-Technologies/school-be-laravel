@@ -69,6 +69,8 @@ class StudentTermSummaryController extends Controller
             'data' => [
                 'class_teacher_comment' => $termSummary?->overall_comment ?? $defaultTeacher,
                 'principal_comment' => $termSummary?->principal_comment ?? $defaultPrincipal,
+                'days_present' => $termSummary?->days_present,
+                'days_absent' => $termSummary?->days_absent,
             ],
         ]);
     }
@@ -118,6 +120,8 @@ class StudentTermSummaryController extends Controller
             ],
             'class_teacher_comment' => ['nullable', 'string', 'max:2000'],
             'principal_comment' => ['nullable', 'string', 'max:2000'],
+            'days_present' => ['nullable', 'integer', 'min:0', 'required_with:days_absent'],
+            'days_absent' => ['nullable', 'integer', 'min:0', 'required_with:days_present'],
         ]);
 
         $termSummary = TermSummary::query()
@@ -144,8 +148,18 @@ class StudentTermSummaryController extends Controller
             $termSummary->principal_comment = null;
         }
 
-        $termSummary->overall_comment = $validated['class_teacher_comment'] ?? null;
-        $termSummary->principal_comment = $validated['principal_comment'] ?? null;
+        if (array_key_exists('class_teacher_comment', $validated)) {
+            $termSummary->overall_comment = $validated['class_teacher_comment'] ?? null;
+        }
+        if (array_key_exists('principal_comment', $validated)) {
+            $termSummary->principal_comment = $validated['principal_comment'] ?? null;
+        }
+        if (array_key_exists('days_present', $validated)) {
+            $termSummary->days_present = $validated['days_present'];
+        }
+        if (array_key_exists('days_absent', $validated)) {
+            $termSummary->days_absent = $validated['days_absent'];
+        }
         $termSummary->save();
 
         return response()->json([
@@ -153,6 +167,8 @@ class StudentTermSummaryController extends Controller
             'data' => [
                 'class_teacher_comment' => $termSummary->overall_comment,
                 'principal_comment' => $termSummary->principal_comment,
+                'days_present' => $termSummary->days_present,
+                'days_absent' => $termSummary->days_absent,
             ],
         ]);
     }

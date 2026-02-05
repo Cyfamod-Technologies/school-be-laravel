@@ -7,7 +7,7 @@
         body {
             font-family: "Segoe UI", Arial, sans-serif;
             margin: 0;
-            padding: 24px;
+            padding: 12px;
             background: #f1f5f9;
             color: #0f172a;
         }
@@ -30,28 +30,34 @@
         }
         .card-page {
             page-break-after: always;
-            margin-bottom: 24px;
+            margin-bottom: 8px;
+            padding: 0;
         }
         .card-page:last-child {
             page-break-after: auto;
         }
         .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .card {
             position: relative;
             background: linear-gradient(135deg, #0f172a, #1d4ed8);
             color: #fff;
-            padding: 20px;
-            border-radius: 14px;
+            padding: 7px;
+            border-radius: 5px;
             box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
             overflow: hidden;
-            min-height: 220px;
+            min-height: 120px;
+            max-height: 120px;
+            height: 120px;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             color-adjust: exact;
+            font-size: 11px;
         }
         .card::after {
             content: "";
@@ -64,53 +70,58 @@
         .card-logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 5px;
+            margin-bottom: 3px;
         }
         .card-logo img {
-            width: 48px;
-            height: 48px;
+            width: 24px;
+            height: 24px;
             object-fit: contain;
-            border-radius: 8px;
+            border-radius: 2px;
             background: rgba(255, 255, 255, 0.15);
-            padding: 4px;
+            padding: 1px;
+            flex-shrink: 0;
         }
         .card-logo strong {
-            font-size: 16px;
-            line-height: 1.3;
+            font-size: 9px;
+            line-height: 1;
         }
         .card-details {
-            margin-bottom: 16px;
-            font-size: 14px;
+            margin-bottom: 3px;
+            font-size: 9px;
         }
         .card-details div {
-            margin-bottom: 4px;
+            margin-bottom: 0;
+            line-height: 1.1;
         }
         .pin-code {
-            font-size: 26px;
+            font-size: 14px;
             font-weight: 700;
-            letter-spacing: 4px;
+            letter-spacing: 0.5px;
             background: rgba(15, 23, 42, 0.4);
-            padding: 12px;
-            border-radius: 10px;
+            padding: 3px;
+            border-radius: 3px;
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 1px;
+            line-height: 1;
         }
         .expiry {
-            font-size: 13px;
+            font-size: 8px;
             opacity: 0.9;
+            margin-bottom: 0;
+            line-height: 1;
         }
         .portal-link {
-            margin-top: 6px;
-            font-size: 10px;
-            line-height: 1.2;
+            margin-top: 0;
+            font-size: 6px;
+            line-height: 0.9;
             color: rgba(255, 255, 255, 0.9);
             word-break: break-word;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 1;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            max-height: 24px;
+            max-height: 10px;
         }
         .portal-link a {
             color: #fff;
@@ -123,13 +134,14 @@
             color: #475569;
         }
         @media print {
-            body { background: #fff; padding: 0; }
-            .header, .summary { display: none; }
-            .card-page { page-break-after: always; }
+            * { orphans: 1; widows: 1; }
+            body { background: #fff; padding: 0; margin: 0; }
+            .header, .summary, .footer { display: none; }
+            .card-page { page-break-after: always; page-break-inside: avoid; margin: 0; padding: 4px; break-inside: avoid; }
             .card-page:last-child { page-break-after: auto; }
-            .cards { grid-template-columns: repeat(2, 1fr); padding: 12px; }
-            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; }
-            @page { size: A4; margin: 10mm; }
+            .cards { grid-template-columns: repeat(3, 1fr); padding: 4px; gap: 6px; page-break-inside: avoid; break-inside: avoid; }
+            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; page-break-inside: avoid; break-inside: avoid; }
+            @page { size: A4; margin: 4mm; }
         }
     </style>
 </head>
