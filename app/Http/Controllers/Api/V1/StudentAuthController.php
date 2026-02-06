@@ -345,15 +345,19 @@ class StudentAuthController extends Controller
 
     private function resolveStudentUser(Request $request): Student
     {
-        // Try to get the student from the default guard (Sanctum)
-        $user = $request->user();
-        
+        $user = $request->user('student');
+
         if ($user instanceof Student) {
             return $user;
         }
 
-        // If no user found, abort with permission error
-        abort(403, 'Only students may access this endpoint.');
+        $user = $request->user();
+
+        if ($user instanceof Student) {
+            return $user;
+        }
+
+        abort(401, 'Unauthenticated.');
     }
 
     private function transformStudent(Student $student): array

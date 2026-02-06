@@ -67,7 +67,7 @@ Route::prefix('api/v1')->group(function () {
         Route::prefix('student')->group(function () {
             Route::post('login', [StudentAuthController::class, 'login']);
 
-            Route::middleware('auth:sanctum')->group(function () {
+            Route::middleware('auth:student')->group(function () {
                 Route::post('logout', [StudentAuthController::class, 'logout']);
                 Route::get('profile', [StudentAuthController::class, 'profile']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
