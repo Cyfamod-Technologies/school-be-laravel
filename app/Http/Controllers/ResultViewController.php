@@ -1328,31 +1328,43 @@ class ResultViewController extends Controller
             return null;
         }
 
+        $position = null;
+
         if ($positionRanges->isEmpty()) {
             $higherCount = $scoresByStudent->filter(fn ($value) => $value > $score)->count();
-            return $higherCount + 1;
+            $position = $higherCount + 1;
+        } else {
+            $matched = $positionRanges->first(function (PositionRange $range) use ($score) {
+                return $score >= $range->min_score && $score <= $range->max_score;
+            });
+
+            if ($matched) {
+                $position = (int) $matched->position;
+            } else {
+                $unassigned = $scoresByStudent->filter(function ($value) use ($positionRanges) {
+                    return ! $this->scoreInPositionRanges((float) $value, $positionRanges);
+                });
+
+                if ($unassigned->isEmpty()) {
+                    $position = null;
+                } else {
+                    $higherCount = $unassigned->filter(fn ($value) => $value > $score)->count();
+                    $offset = (int) ($positionRanges->max('position') ?? 0);
+                    $position = $offset + $higherCount + 1;
+                }
+            }
         }
 
-        $matched = $positionRanges->first(function (PositionRange $range) use ($score) {
-            return $score >= $range->min_score && $score <= $range->max_score;
-        });
-
-        if ($matched) {
-            return (int) $matched->position;
-        }
-
-        $unassigned = $scoresByStudent->filter(function ($value) use ($positionRanges) {
-            return ! $this->scoreInPositionRanges((float) $value, $positionRanges);
-        });
-
-        if ($unassigned->isEmpty()) {
+        if ($position === null) {
             return null;
         }
 
-        $higherCount = $unassigned->filter(fn ($value) => $value > $score)->count();
-        $offset = (int) ($positionRanges->max('position') ?? 0);
+        $maxPosition = $scoresByStudent->count();
+        if ($maxPosition > 0 && $position > $maxPosition) {
+            return $maxPosition;
+        }
 
-        return $offset + $higherCount + 1;
+        return $position;
     }
 
     private function scoreInPositionRanges(float $score, Collection $positionRanges): bool
