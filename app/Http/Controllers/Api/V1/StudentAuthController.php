@@ -347,11 +347,29 @@ class StudentAuthController extends Controller
     {
         $user = $request->user('student');
 
-        if (! $user instanceof Student) {
-            abort(403, 'Only students may access this endpoint.');
+        if ($user instanceof Student) {
+            return $user;
         }
 
-        return $user;
+        // Fallback: try to get the student from the default guard
+        $user = $request->user();
+        if ($user instanceof Student) {
+            return $user;
+        }
+
+        // Fallback: check for API token in Authorization header
+        $token = $request->bearerToken();
+        if ($token) {
+            $student = Student::whereHas('personalAccessTokens', function ($query) use ($token) {
+                $query->where('token', hash('sha256', $token));
+            })->first();
+
+            if ($student instanceof Student) {
+                return $student;
+            }
+        }
+
+        abort(403, 'Only students may access this endpoint.');
     }
 
     private function transformStudent(Student $student): array
