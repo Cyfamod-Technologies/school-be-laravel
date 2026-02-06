@@ -345,30 +345,14 @@ class StudentAuthController extends Controller
 
     private function resolveStudentUser(Request $request): Student
     {
-        $user = $request->user('student');
-
-        if ($user instanceof Student) {
-            return $user;
-        }
-
-        // Fallback: try to get the student from the default guard
+        // Try to get the student from the default guard (Sanctum)
         $user = $request->user();
+        
         if ($user instanceof Student) {
             return $user;
         }
 
-        // Fallback: check for API token in Authorization header
-        $token = $request->bearerToken();
-        if ($token) {
-            $student = Student::whereHas('personalAccessTokens', function ($query) use ($token) {
-                $query->where('token', hash('sha256', $token));
-            })->first();
-
-            if ($student instanceof Student) {
-                return $student;
-            }
-        }
-
+        // If no user found, abort with permission error
         abort(403, 'Only students may access this endpoint.');
     }
 
