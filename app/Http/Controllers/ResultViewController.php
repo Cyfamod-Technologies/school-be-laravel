@@ -432,16 +432,6 @@ class ResultViewController extends Controller
         $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
         $commentRanges = $gradeScale?->comment_ranges?->sortByDesc('min_score')->values() ?? collect();
         $componentColumns = $this->buildComponentColumns($results);
-        $subjectStatisticsData = $this->computeSubjectStatistics(
-            $student,
-            $session?->id,
-            $term?->id,
-            $results,
-            $positionRanges
-        );
-        $subjectStats = $subjectStatisticsData['subjects'];
-        $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
-
         $classSize = Student::query()
             ->where('school_id', $student->school_id)
             ->where('school_class_id', $student->school_class_id)
@@ -450,10 +440,16 @@ class ResultViewController extends Controller
             ->whereNotIn('status', ['inactive', 'Inactive'])
             ->count();
 
-        $classSizeFromResults = $subjectStatisticsData['class_size'] ?? 0;
-        if ($classSizeFromResults > 0) {
-            $classSize = $classSizeFromResults;
-        }
+        $subjectStatisticsData = $this->computeSubjectStatistics(
+            $student,
+            $session?->id,
+            $term?->id,
+            $results,
+            $positionRanges,
+            $classSize
+        );
+        $subjectStats = $subjectStatisticsData['subjects'];
+        $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
         $overallStats = $this->computeOverallStatistics(
             $subjectStats,
@@ -1060,7 +1056,8 @@ class ResultViewController extends Controller
         ?string $sessionId,
         ?string $termId,
         Collection $results,
-        Collection $positionRanges
+        Collection $positionRanges,
+        int $classSize
     ): array
     {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
@@ -1107,7 +1104,7 @@ class ResultViewController extends Controller
 
         $overallTotals = [];
 
-        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals, $positionRanges) {
+        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals, $positionRanges, $classSize) {
             $totalsByStudent = $subjectEntries
                 ->groupBy('student_id')
                 ->map(function (Collection $entries) {
@@ -1147,7 +1144,8 @@ class ResultViewController extends Controller
             $position = $this->resolvePositionForScore(
                 $studentScore !== null ? (float) $studentScore : null,
                 $totalsByStudent->map(fn ($score) => (float) $score),
-                $positionRanges
+                $positionRanges,
+                $classSize
             );
 
             return [
@@ -1189,7 +1187,7 @@ class ResultViewController extends Controller
             ->filter(fn ($value) => $value !== null)
             ->sum();
 
-        $classSize = max($existingClassSize, $overallTotals->count());
+        $classSize = $existingClassSize > 0 ? $existingClassSize : $overallTotals->count();
 
         $scoreSource = $overallTotals->map(fn ($total) => (float) $total);
         $studentScore = $studentTotal !== null ? (float) $studentTotal : null;
@@ -1206,7 +1204,8 @@ class ResultViewController extends Controller
         $position = $this->resolvePositionForScore(
             $studentScore,
             $scoreSource,
-            $positionRanges
+            $positionRanges,
+            $classSize
         );
 
         return [
@@ -1322,7 +1321,8 @@ class ResultViewController extends Controller
     private function resolvePositionForScore(
         ?float $score,
         Collection $scoresByStudent,
-        Collection $positionRanges
+        Collection $positionRanges,
+        ?int $maxPosition = null
     ): ?int {
         if ($score === null) {
             return null;
@@ -1359,9 +1359,11 @@ class ResultViewController extends Controller
             return null;
         }
 
-        $maxPosition = $scoresByStudent->count();
-        if ($maxPosition > 0 && $position > $maxPosition) {
-            return $maxPosition;
+        $resolvedMax = $maxPosition !== null && $maxPosition > 0
+            ? $maxPosition
+            : $scoresByStudent->count();
+        if ($resolvedMax > 0 && $position > $resolvedMax) {
+            return $resolvedMax;
         }
 
         return $position;
