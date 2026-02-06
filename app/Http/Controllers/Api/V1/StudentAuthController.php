@@ -292,7 +292,11 @@ class StudentAuthController extends Controller
      */
     public function downloadResult(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentFromToken($request);
+
+        if (! $student) {
+            abort(401, 'Unauthenticated.');
+        }
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
@@ -358,6 +362,44 @@ class StudentAuthController extends Controller
         }
 
         abort(401, 'Unauthenticated.');
+    }
+
+    /**
+     * Resolve a Student directly from the Bearer token without relying on
+     * middleware.  This is used by the public download route so that
+     * cookie-encryption mismatches between the Next.js proxy and the
+     * browser don't block the request.
+     */
+    private function resolveStudentFromToken(Request $request): ?Student
+    {
+        // 1. Try the guards first (works when middleware already ran)
+        $user = $request->user('student') ?? $request->user();
+        if ($user instanceof Student) {
+            return $user;
+        }
+
+        // 2. Manual Sanctum token lookup
+        $bearer = $request->bearerToken();
+        if (! $bearer) {
+            return null;
+        }
+
+        // Sanctum plain-text tokens look like  "<id>|<token>"
+        if (! Str::contains($bearer, '|')) {
+            return null;
+        }
+
+        [$tokenId, $plainToken] = explode('|', $bearer, 2);
+
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::find($tokenId);
+
+        if (! $accessToken || ! hash_equals($accessToken->token, hash('sha256', $plainToken))) {
+            return null;
+        }
+
+        $student = $accessToken->tokenable;
+
+        return $student instanceof Student ? $student : null;
     }
 
     private function transformStudent(Student $student): array
