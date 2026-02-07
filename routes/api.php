@@ -71,9 +71,25 @@ Route::prefix('api/v1')->group(function () {
             Route::middleware('auth:student')->group(function () {
                 Route::post('logout', [StudentAuthController::class, 'logout']);
                 Route::get('profile', [StudentAuthController::class, 'profile']);
+                Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
+                Route::get('parent', [StudentAuthController::class, 'getParent']);
+                Route::post('parent', [StudentAuthController::class, 'updateParent']);
+
+                // Location lookups for student bio-data editing
+                Route::prefix('locations')->group(function () {
+                    Route::get('countries', [LocationController::class, 'countries']);
+                    Route::get('states', [LocationController::class, 'states']);
+                    Route::get('states/{state}/lgas', [LocationController::class, 'lgas'])->whereUuid('state');
+                    Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
+                });
             });
+        });
+
+        Route::prefix('students/{student}')->middleware('auth:student')->group(function () {
+            Route::post('parent', [StudentAuthController::class, 'upsertParent']);
+            Route::get('parent', [StudentAuthController::class, 'getParent']);
         });
 
         Route::get('cbt/public-quizzes', [QuizController::class, 'publicIndex']);
