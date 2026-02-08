@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CommentRange;
 use App\Models\GradeRange;
 use App\Models\GradingScale;
+use App\Models\PositionRange;
 use Database\Seeders\DefaultGradeScaleSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -42,9 +44,17 @@ class GradeScaleController extends Controller
 
         $scales = GradingScale::query()
             ->where('school_id', $school->id)
-            ->with(['grade_ranges' => function ($query) {
-                $query->orderByDesc('min_score');
-            }])
+            ->with([
+                'grade_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+                'position_ranges' => function ($query) {
+                    $query->orderBy('position');
+                },
+                'comment_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+            ])
             ->orderBy('name')
             ->get();
 
@@ -62,9 +72,17 @@ class GradeScaleController extends Controller
         $this->authorizeScale($request, $gradingScale);
 
         return response()->json(
-            $gradingScale->load(['grade_ranges' => function ($query) {
-                $query->orderByDesc('min_score');
-            }])
+            $gradingScale->load([
+                'grade_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+                'position_ranges' => function ($query) {
+                    $query->orderBy('position');
+                },
+                'comment_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+            ])
         );
     }
 
@@ -149,9 +167,191 @@ class GradeScaleController extends Controller
 
         return response()->json([
             'message' => 'Grading scale updated successfully.',
-            'data' => $gradingScale->fresh(['grade_ranges' => function ($query) {
-                $query->orderByDesc('min_score');
-            }]),
+            'data' => $gradingScale->fresh([
+                'grade_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+                'position_ranges' => function ($query) {
+                    $query->orderBy('position');
+                },
+                'comment_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+            ]),
+        ]);
+    }
+
+    public function updatePositionRanges(Request $request, GradingScale $gradingScale)
+    {
+        $this->authorizeScale($request, $gradingScale);
+
+        $validated = $request->validate([
+            'ranges' => ['required', 'array'],
+            'ranges.*.id' => ['nullable', 'uuid'],
+            'ranges.*.min_score' => ['required', 'numeric', 'between:0,100'],
+            'ranges.*.max_score' => ['required', 'numeric', 'between:0,100'],
+            'ranges.*.position' => ['required', 'integer', 'min:1'],
+            'deleted_ids' => ['nullable', 'array'],
+            'deleted_ids.*' => ['uuid'],
+        ]);
+
+        $normalized = $this->normalizePositionRanges($validated['ranges']);
+
+        DB::transaction(function () use ($gradingScale, $normalized, $validated) {
+            $existingRanges = $gradingScale->position_ranges()->get()->keyBy('id');
+
+            if (! empty($validated['deleted_ids'])) {
+                foreach ($validated['deleted_ids'] as $id) {
+                    /** @var PositionRange|null $range */
+                    $range = $existingRanges->get($id);
+                    if (! $range) {
+                        throw ValidationException::withMessages([
+                            'deleted_ids' => ["Position range {$id} was not found."],
+                        ]);
+                    }
+                    $range->delete();
+                }
+            }
+
+            foreach ($normalized as $range) {
+                if (! empty($range['id'])) {
+                    /** @var PositionRange|null $model */
+                    $model = $existingRanges->get($range['id']);
+                    if (! $model) {
+                        throw ValidationException::withMessages([
+                            'ranges' => ["Position range {$range['id']} was not found."],
+                        ]);
+                    }
+
+                    $model->fill(Arr::except($range, ['id']));
+                    if ($model->isDirty()) {
+                        $model->save();
+                    }
+                } else {
+                    PositionRange::create([
+                        'id' => (string) Str::uuid(),
+                        'grading_scale_id' => $gradingScale->id,
+                        'min_score' => $range['min_score'],
+                        'max_score' => $range['max_score'],
+                        'position' => $range['position'],
+                    ]);
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => 'Position ranges updated successfully.',
+            'data' => $gradingScale->fresh([
+                'grade_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+                'position_ranges' => function ($query) {
+                    $query->orderBy('position');
+                },
+                'comment_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+            ]),
+        ]);
+    }
+
+    public function destroyPositionRange(Request $request, PositionRange $positionRange)
+    {
+        $gradingScale = $positionRange->grading_scale;
+        $this->authorizeScale($request, $gradingScale);
+
+        $positionRange->delete();
+
+        return response()->json([
+            'message' => 'Position range deleted successfully.',
+        ]);
+    }
+
+    public function updateCommentRanges(Request $request, GradingScale $gradingScale)
+    {
+        $this->authorizeScale($request, $gradingScale);
+
+        $validated = $request->validate([
+            'ranges' => ['required', 'array'],
+            'ranges.*.id' => ['nullable', 'uuid'],
+            'ranges.*.min_score' => ['required', 'numeric', 'between:0,100'],
+            'ranges.*.max_score' => ['required', 'numeric', 'between:0,100'],
+            'ranges.*.teacher_comment' => ['required', 'string', 'max:2000'],
+            'ranges.*.principal_comment' => ['required', 'string', 'max:2000'],
+            'deleted_ids' => ['nullable', 'array'],
+            'deleted_ids.*' => ['uuid'],
+        ]);
+
+        $normalized = $this->normalizeCommentRanges($validated['ranges']);
+
+        DB::transaction(function () use ($gradingScale, $normalized, $validated) {
+            $existingRanges = $gradingScale->comment_ranges()->get()->keyBy('id');
+
+            if (! empty($validated['deleted_ids'])) {
+                foreach ($validated['deleted_ids'] as $id) {
+                    /** @var CommentRange|null $range */
+                    $range = $existingRanges->get($id);
+                    if (! $range) {
+                        throw ValidationException::withMessages([
+                            'deleted_ids' => ["Comment range {$id} was not found."],
+                        ]);
+                    }
+                    $range->delete();
+                }
+            }
+
+            foreach ($normalized as $range) {
+                if (! empty($range['id'])) {
+                    /** @var CommentRange|null $model */
+                    $model = $existingRanges->get($range['id']);
+                    if (! $model) {
+                        throw ValidationException::withMessages([
+                            'ranges' => ["Comment range {$range['id']} was not found."],
+                        ]);
+                    }
+
+                    $model->fill(Arr::except($range, ['id']));
+                    if ($model->isDirty()) {
+                        $model->save();
+                    }
+                } else {
+                    CommentRange::create([
+                        'id' => (string) Str::uuid(),
+                        'grading_scale_id' => $gradingScale->id,
+                        'min_score' => $range['min_score'],
+                        'max_score' => $range['max_score'],
+                        'teacher_comment' => $range['teacher_comment'],
+                        'principal_comment' => $range['principal_comment'],
+                    ]);
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => 'Comment ranges updated successfully.',
+            'data' => $gradingScale->fresh([
+                'grade_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+                'position_ranges' => function ($query) {
+                    $query->orderBy('position');
+                },
+                'comment_ranges' => function ($query) {
+                    $query->orderByDesc('min_score');
+                },
+            ]),
+        ]);
+    }
+
+    public function destroyCommentRange(Request $request, CommentRange $commentRange)
+    {
+        $gradingScale = $commentRange->grading_scale;
+        $this->authorizeScale($request, $gradingScale);
+
+        $commentRange->delete();
+
+        return response()->json([
+            'message' => 'Comment range deleted successfully.',
         ]);
     }
 
@@ -192,9 +392,17 @@ class GradeScaleController extends Controller
 
         app(DefaultGradeScaleSeeder::class)->run();
 
-        return $scale->fresh(['grade_ranges' => function ($query) {
-            $query->orderByDesc('min_score');
-        }]);
+        return $scale->fresh([
+            'grade_ranges' => function ($query) {
+                $query->orderByDesc('min_score');
+            },
+            'position_ranges' => function ($query) {
+                $query->orderBy('position');
+            },
+            'comment_ranges' => function ($query) {
+                $query->orderByDesc('min_score');
+            },
+        ]);
     }
 
     /**
@@ -288,5 +496,99 @@ class GradeScaleController extends Controller
 
             $gradeRange->delete();
         }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $ranges
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizePositionRanges(array $ranges): array
+    {
+        if (empty($ranges)) {
+            return [];
+        }
+
+        $normalized = collect($ranges)->map(function (array $range) {
+            $min = (float) $range['min_score'];
+            $max = (float) $range['max_score'];
+
+            if ($min > $max) {
+                throw ValidationException::withMessages([
+                    'ranges' => ['Minimum score cannot be greater than maximum score.'],
+                ]);
+            }
+
+            return [
+                'id' => Arr::get($range, 'id'),
+                'min_score' => round($min, 2),
+                'max_score' => round($max, 2),
+                'position' => (int) $range['position'],
+            ];
+        });
+
+        $positions = $normalized->pluck('position');
+        if ($positions->count() !== $positions->unique()->count()) {
+            throw ValidationException::withMessages([
+                'ranges' => ['Position numbers must be unique.'],
+            ]);
+        }
+
+        $sortedByScore = $normalized->sortBy('min_score')->values();
+        for ($i = 1; $i < $sortedByScore->count(); $i++) {
+            $previous = $sortedByScore[$i - 1];
+            $current = $sortedByScore[$i];
+
+            if ($previous['max_score'] >= $current['min_score']) {
+                throw ValidationException::withMessages([
+                    'ranges' => ['Position ranges must not overlap.'],
+                ]);
+            }
+        }
+
+        return $normalized->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $ranges
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeCommentRanges(array $ranges): array
+    {
+        if (empty($ranges)) {
+            return [];
+        }
+
+        $normalized = collect($ranges)->map(function (array $range) {
+            $min = (float) $range['min_score'];
+            $max = (float) $range['max_score'];
+
+            if ($min > $max) {
+                throw ValidationException::withMessages([
+                    'ranges' => ['Minimum score cannot be greater than maximum score.'],
+                ]);
+            }
+
+            return [
+                'id' => Arr::get($range, 'id'),
+                'min_score' => round($min, 2),
+                'max_score' => round($max, 2),
+                'teacher_comment' => trim((string) $range['teacher_comment']),
+                'principal_comment' => trim((string) $range['principal_comment']),
+            ];
+        });
+
+        $sortedByScore = $normalized->sortBy('min_score')->values();
+        for ($i = 1; $i < $sortedByScore->count(); $i++) {
+            $previous = $sortedByScore[$i - 1];
+            $current = $sortedByScore[$i];
+
+            if ($previous['max_score'] >= $current['min_score']) {
+                throw ValidationException::withMessages([
+                    'ranges' => ['Comment ranges must not overlap.'],
+                ]);
+            }
+        }
+
+        return $normalized->all();
     }
 }

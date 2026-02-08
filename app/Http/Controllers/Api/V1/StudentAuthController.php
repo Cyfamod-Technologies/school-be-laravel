@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -57,7 +58,8 @@ class StudentAuthController extends Controller
                 'class_arm:id,name',
                 'session:id,name',
                 'term:id,name',
-                'parent:id,first_name,last_name,middle_name,phone',
+                'parent:id,first_name,last_name,middle_name,phone,user_id',
+                'parent.user:id,email',
                 'blood_group:id,name',
             ])
             ->where('admission_no', $credentials['admission_no'])
@@ -135,7 +137,8 @@ class StudentAuthController extends Controller
             'class_arm:id,name',
             'session:id,name',
             'term:id,name',
-            'parent:id,first_name,last_name,middle_name,phone',
+            'parent:id,first_name,last_name,middle_name,phone,user_id',
+            'parent.user:id,email',
             'blood_group:id,name',
         ]);
 
@@ -292,7 +295,11 @@ class StudentAuthController extends Controller
      */
     public function downloadResult(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentFromToken($request);
+
+        if (! $student) {
+            abort(401, 'Unauthenticated.');
+        }
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
@@ -347,11 +354,55 @@ class StudentAuthController extends Controller
     {
         $user = $request->user('student');
 
-        if (! $user instanceof Student) {
-            abort(403, 'Only students may access this endpoint.');
+        if ($user instanceof Student) {
+            return $user;
         }
 
-        return $user;
+        $user = $request->user();
+
+        if ($user instanceof Student) {
+            return $user;
+        }
+
+        abort(401, 'Unauthenticated.');
+    }
+
+    /**
+     * Resolve a Student directly from the Bearer token without relying on
+     * middleware.  This is used by the public download route so that
+     * cookie-encryption mismatches between the Next.js proxy and the
+     * browser don't block the request.
+     */
+    private function resolveStudentFromToken(Request $request): ?Student
+    {
+        // 1. Try the guards first (works when middleware already ran)
+        $user = $request->user('student') ?? $request->user();
+        if ($user instanceof Student) {
+            return $user;
+        }
+
+        // 2. Manual Sanctum token lookup
+        $bearer = $request->bearerToken();
+        if (! $bearer) {
+            return null;
+        }
+
+        // Sanctum plain-text tokens look like  "<id>|<token>"
+        if (! Str::contains($bearer, '|')) {
+            return null;
+        }
+
+        [$tokenId, $plainToken] = explode('|', $bearer, 2);
+
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::find($tokenId);
+
+        if (! $accessToken || ! hash_equals($accessToken->token, hash('sha256', $plainToken))) {
+            return null;
+        }
+
+        $student = $accessToken->tokenable;
+
+        return $student instanceof Student ? $student : null;
     }
 
     private function transformStudent(Student $student): array
@@ -373,12 +424,17 @@ class StudentAuthController extends Controller
             'house' => $student->house,
             'club' => $student->club,
             'lga_of_origin' => $student->lga_of_origin,
+            'photo_url' => $student->photo_url,
             'blood_group' => $student->blood_group?->only(['id', 'name']),
             'medical_information' => $student->medical_information,
             'parent' => $student->parent ? [
                 'id' => $student->parent->id,
                 'name' => trim(collect([$student->parent->first_name, $student->parent->middle_name, $student->parent->last_name])->filter()->implode(' ')),
                 'phone' => $student->parent->phone,
+                'email' => $student->parent->user?->email ?? $student->parent->email ?? null,
+                'first_name' => $student->parent->first_name,
+                'last_name' => $student->parent->last_name,
+                'middle_name' => $student->parent->middle_name,
             ] : null,
             'school' => $student->school?->only(['id', 'name', 'logo_url', 'address', 'phone']),
             'current_session' => ($schoolCurrentSession ?? $student->session)?->only(['id', 'name']),
@@ -390,5 +446,267 @@ class StudentAuthController extends Controller
                 'name' => $subject->name,
             ])->values()->all() ?? [],
         ];
+    }
+
+    /**
+     * Get parent information for the current student
+     */
+    public function getParent(Request $request)
+    {
+        $student = $this->resolveStudentUser($request)->load([
+            'parent:id,first_name,last_name,middle_name,phone,user_id',
+            'parent.user:id,email',
+        ]);
+
+        return response()->json([
+            'parent' => $student->parent ? [
+                'id' => $student->parent->id,
+                'first_name' => $student->parent->first_name,
+                'last_name' => $student->parent->last_name,
+                'middle_name' => $student->parent->middle_name,
+                'phone' => $student->parent->phone,
+                'email' => $student->parent->user?->email ?? null,
+            ] : null,
+        ]);
+    }
+
+    /**
+     * Update or create parent information for the current student
+     */
+    public function upsertParent(Request $request, Student $student)
+    {
+        $currentStudent = $this->resolveStudentUser($request);
+
+        // Verify the current student can only update their own parent info
+        if ($currentStudent->id !== $student->id) {
+            abort(403, 'Unauthorized');
+        }
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'phone' => 'required|string|max:20',
+            'email' => 'nullable|email|max:255',
+            'relationship' => 'nullable|string|in:mother,father,guardian,other',
+            'occupation' => 'nullable|string|max:255',
+            'address' => 'nullable|string',
+        ]);
+
+        // Find or create parent
+        if ($student->parent_id) {
+            // Update existing parent
+            $parent = $student->parent;
+            $parent->update([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'] ?? $parent->middle_name,
+                'phone' => $validated['phone'],
+                'occupation' => $validated['occupation'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ]);
+
+            // Update email if parent has associated user
+            if ($parent->user_id && $validated['email']) {
+                $parent->user->update(['email' => $validated['email']]);
+            }
+        } else {
+            // Create new parent and associated user
+            $parentUser = \App\Models\User::create([
+                'id' => (string) Str::uuid(),
+                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'email' => $validated['email'],
+                'school_id' => $student->school_id,
+                'password' => Hash::make(Str::random(16)),
+            ]);
+
+            $parent = \App\Models\SchoolParent::create([
+                'id' => (string) Str::uuid(),
+                'school_id' => $student->school_id,
+                'user_id' => $parentUser->id,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'phone' => $validated['phone'],
+                'occupation' => $validated['occupation'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ]);
+
+            // Link parent to student
+            $student->update(['parent_id' => $parent->id]);
+        }
+
+        return response()->json([
+            'parent' => [
+                'id' => $parent->id,
+                'first_name' => $parent->first_name,
+                'last_name' => $parent->last_name,
+                'middle_name' => $parent->middle_name,
+                'phone' => $parent->phone,
+                'email' => $parent->user?->email ?? null,
+            ],
+            'message' => 'Parent information updated successfully',
+        ]);
+    }
+
+    /**
+     * Update the authenticated student's own bio-data (profile).
+     */
+    public function updateProfile(Request $request)
+    {
+        $student = $this->resolveStudentUser($request);
+
+        $validated = $request->validate([
+            'first_name'          => 'sometimes|string|max:255',
+            'middle_name'         => 'nullable|string|max:255',
+            'last_name'           => 'sometimes|string|max:255',
+            'gender'              => ['sometimes', \Illuminate\Validation\Rule::in(['male','female','other','others','Male','Female','Other','Others','m','f','o','M','F','O'])],
+            'date_of_birth'       => 'sometimes|date',
+            'nationality'         => 'nullable|string|max:255',
+            'state_of_origin'     => 'nullable|string|max:255',
+            'lga_of_origin'       => 'nullable|string|max:255',
+            'house'               => 'nullable|string|max:255',
+            'club'                => 'nullable|string|max:255',
+            'address'             => 'nullable|string|max:500',
+            'medical_information' => 'nullable|string',
+            'blood_group_id'      => 'sometimes|nullable|uuid|exists:blood_groups,id',
+        ]);
+
+        // Handle passport/photo file upload
+        if ($request->hasFile('photo_url')) {
+            $photoPath = $request->file('photo_url')->store('students/photos', 'public');
+            if ($student->getRawOriginal('photo_url')) {
+                $this->deleteStudentPublicFile($student->getRawOriginal('photo_url'));
+            }
+            $validated['photo_url'] = Storage::disk('public')->url($photoPath);
+        }
+
+        // Normalise empty strings to null
+        foreach (['house', 'club', 'nationality', 'state_of_origin', 'lga_of_origin', 'address', 'medical_information'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $value = is_string($validated[$field]) ? trim($validated[$field]) : $validated[$field];
+                $validated[$field] = ($value === '' || $value === null) ? null : $value;
+            }
+        }
+
+        $student->update($validated);
+
+        $student->load([
+            'school',
+            'school.currentSession:id,name,slug',
+            'school.currentTerm:id,name,session_id',
+            'school_class:id,name,school_id',
+            'school_class.subjects:id,name',
+            'class_arm:id,name',
+            'session:id,name',
+            'term:id,name',
+            'parent:id,first_name,last_name,middle_name,phone,user_id',
+            'parent.user:id,email',
+            'blood_group:id,name',
+        ]);
+
+        return response()->json([
+            'student' => $this->transformStudent($student),
+            'message' => 'Profile updated successfully',
+        ]);
+    }
+
+    /**
+     * Delete a file from public storage (student context).
+     */
+    private function deleteStudentPublicFile(?string $url): void
+    {
+        if (! $url) {
+            return;
+        }
+
+        $appUrl = rtrim(config('app.url'), '/');
+        if (str_starts_with($url, $appUrl)) {
+            $url = substr($url, strlen($appUrl));
+        }
+
+        $prefix = '/storage/';
+        if (str_starts_with($url, $prefix)) {
+            $path = substr($url, strlen($prefix));
+            if ($path !== '') {
+                Storage::disk('public')->delete($path);
+            }
+        } elseif (! str_contains($url, '://')) {
+            Storage::disk('public')->delete(ltrim($url, '/'));
+        }
+    }
+
+    /**
+     * Update parent information for the current student
+     */
+    public function updateParent(Request $request)
+    {
+        $student = $this->resolveStudentUser($request);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'phone' => 'required|string|max:20',
+            'email' => 'nullable|email|max:255',
+            'relationship' => 'nullable|string|in:mother,father,guardian,other',
+            'occupation' => 'nullable|string|max:255',
+            'address' => 'nullable|string',
+        ]);
+
+        // Find or create parent
+        if ($student->parent_id) {
+            // Update existing parent
+            $parent = $student->parent;
+            $parent->update([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'] ?? $parent->middle_name,
+                'phone' => $validated['phone'],
+                'occupation' => $validated['occupation'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ]);
+
+            // Update email if parent has associated user
+            if ($parent->user_id && $validated['email']) {
+                $parent->user->update(['email' => $validated['email']]);
+            }
+        } else {
+            // Create new parent and associated user
+            $parentUser = \App\Models\User::create([
+                'id' => (string) Str::uuid(),
+                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'email' => $validated['email'],
+                'school_id' => $student->school_id,
+                'password' => Hash::make(Str::random(16)),
+            ]);
+
+            $parent = \App\Models\SchoolParent::create([
+                'id' => (string) Str::uuid(),
+                'school_id' => $student->school_id,
+                'user_id' => $parentUser->id,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'phone' => $validated['phone'],
+                'occupation' => $validated['occupation'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ]);
+
+            // Link parent to student
+            $student->update(['parent_id' => $parent->id]);
+        }
+
+        return response()->json([
+            'parent' => [
+                'id' => $parent->id,
+                'first_name' => $parent->first_name,
+                'last_name' => $parent->last_name,
+                'middle_name' => $parent->middle_name,
+                'phone' => $parent->phone,
+                'email' => $parent->user?->email ?? null,
+            ],
+            'message' => 'Parent information updated successfully',
+        ]);
     }
 }

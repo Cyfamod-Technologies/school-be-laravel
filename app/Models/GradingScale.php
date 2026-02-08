@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property School $school
  * @property Session|null $session
  * @property Collection|GradeRange[] $grade_ranges
+ * @property Collection|PositionRange[] $position_ranges
+ * @property Collection|CommentRange[] $comment_ranges
  *
  * @package App\Models
  */
@@ -55,5 +57,15 @@ class GradingScale extends Model
 	public function grade_ranges()
 	{
 		return $this->hasMany(GradeRange::class);
+	}
+
+	public function position_ranges()
+	{
+		return $this->hasMany(PositionRange::class);
+	}
+
+	public function comment_ranges()
+	{
+		return $this->hasMany(CommentRange::class);
 	}
 }

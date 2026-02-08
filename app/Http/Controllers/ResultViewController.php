@@ -7,8 +7,10 @@ use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\ClassSection;
 use App\Models\ClassTeacher;
+use App\Models\CommentRange;
 use App\Models\GradeRange;
 use App\Models\GradingScale;
+use App\Models\PositionRange;
 use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
@@ -425,12 +427,11 @@ class ResultViewController extends Controller
             }
         }
 
-        $gradeRanges = $this->resolveGradeRanges($student->school_id, $session?->id);
+        $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
+        $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
+        $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
+        $commentRanges = $gradeScale?->comment_ranges?->sortByDesc('min_score')->values() ?? collect();
         $componentColumns = $this->buildComponentColumns($results);
-        $subjectStatisticsData = $this->computeSubjectStatistics($student, $session?->id, $term?->id, $results);
-        $subjectStats = $subjectStatisticsData['subjects'];
-        $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
-
         $classSize = Student::query()
             ->where('school_id', $student->school_id)
             ->where('school_class_id', $student->school_class_id)
@@ -439,16 +440,23 @@ class ResultViewController extends Controller
             ->whereNotIn('status', ['inactive', 'Inactive'])
             ->count();
 
-        $classSizeFromResults = $subjectStatisticsData['class_size'] ?? 0;
-        if ($classSizeFromResults > 0) {
-            $classSize = $classSizeFromResults;
-        }
+        $subjectStatisticsData = $this->computeSubjectStatistics(
+            $student,
+            $session?->id,
+            $term?->id,
+            $results,
+            $positionRanges,
+            $classSize
+        );
+        $subjectStats = $subjectStatisticsData['subjects'];
+        $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
         $overallStats = $this->computeOverallStatistics(
             $subjectStats,
             $subjectStatisticsData['overall_totals'],
             $student,
-            $classSize
+            $classSize,
+            $positionRanges
         );
         $subjectCount = $this->resolveSubjectCount($student);
         if ($subjectCount > 0) {
@@ -518,25 +526,39 @@ class ResultViewController extends Controller
         $termName = $term?->name ?? optional($student->term)->name;
         $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
 
-        // Auto-generate fallback comments for teacher and principal
-        $teacherComment = $termSummary?->overall_comment;
-        $principalComment = $termSummary?->principal_comment;
-
-        if ($teacherComment === null) {
-            $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
-            );
-        }
-
-        if ($principalComment === null) {
-            $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
-            );
-        }
-
         $resultPageSettings = $this->resolveResultPageSettings($student->school);
         if ($student->school_class && $student->school_class->result_show_position !== null) {
             $resultPageSettings['show_position'] = (bool) $student->school_class->result_show_position;
+        }
+        $commentMode = $resultPageSettings['comment_mode'] ?? 'manual';
+
+        // Auto-generate fallback comments for teacher and principal
+        if ($commentMode === 'range') {
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $commentRanges
+            );
+            $principalComment = $this->generatePrincipalComment(
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $commentRanges
+            );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            $principalComment = $termSummary?->principal_comment;
+
+            if ($teacherComment === null) {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    collect()
+                );
+            }
+
+            if ($principalComment === null) {
+                $principalComment = $this->generatePrincipalComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    collect()
+                );
+            }
         }
 
         $data = [
@@ -746,9 +768,24 @@ class ResultViewController extends Controller
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
 
-        $teacherComment = $termSummary?->overall_comment;
-        if ($teacherComment === null) {
-            $teacherComment = $this->generateTeacherComment($termSummary?->average_score);
+        $commentMode = $student->school?->result_comment_mode ?? 'manual';
+        $teacherComment = null;
+
+        if ($commentMode === 'range') {
+            $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
+            $commentRanges = $gradeScale?->comment_ranges?->sortByDesc('min_score')->values() ?? collect();
+            $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score,
+                $commentRanges
+            );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            if ($teacherComment === null) {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score,
+                    collect()
+                );
+            }
         }
 
         return [
@@ -787,8 +824,21 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function generateTeacherComment(?float $average): string
+    private function generateTeacherComment(
+        ?float $average,
+        ?Collection $commentRanges = null
+    ): string
     {
+        if ($average !== null && $commentRanges && $commentRanges->isNotEmpty()) {
+            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
+                return $average >= $range->min_score && $average <= $range->max_score;
+            });
+
+            if ($matched && trim((string) $matched->teacher_comment) !== '') {
+                return trim((string) $matched->teacher_comment);
+            }
+        }
+
         if ($average === null) {
             return 'This student is good.';
         }
@@ -812,8 +862,21 @@ class ResultViewController extends Controller
         return 'Below expectation. Close monitoring and extra support are recommended.';
     }
 
-    private function generatePrincipalComment(?float $average): string
+    private function generatePrincipalComment(
+        ?float $average,
+        ?Collection $commentRanges = null
+    ): string
     {
+        if ($average !== null && $commentRanges && $commentRanges->isNotEmpty()) {
+            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
+                return $average >= $range->min_score && $average <= $range->max_score;
+            });
+
+            if ($matched && trim((string) $matched->principal_comment) !== '') {
+                return trim((string) $matched->principal_comment);
+            }
+        }
+
         if ($average === null) {
             return 'This student is hardworking.';
         }
@@ -988,7 +1051,14 @@ class ResultViewController extends Controller
             ->values();
     }
 
-    private function computeSubjectStatistics(Student $student, ?string $sessionId, ?string $termId, Collection $results): array
+    private function computeSubjectStatistics(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId,
+        Collection $results,
+        Collection $positionRanges,
+        int $classSize
+    ): array
     {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
             return [
@@ -1034,7 +1104,7 @@ class ResultViewController extends Controller
 
         $overallTotals = [];
 
-        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals) {
+        $subjects = $rows->groupBy('subject_id')->map(function (Collection $subjectEntries) use ($student, &$overallTotals, $positionRanges, $classSize) {
             $totalsByStudent = $subjectEntries
                 ->groupBy('student_id')
                 ->map(function (Collection $entries) {
@@ -1071,22 +1141,17 @@ class ResultViewController extends Controller
 
             $studentScore = $totalsByStudent->get($student->id);
 
-            $sortedDescending = $totalsByStudent
-                ->values()
-                ->map(fn ($score) => (float) $score)
-                ->sortDesc()
-                ->values();
-
-            $position = null;
-            if ($studentScore !== null) {
-                $higherCount = $sortedDescending->filter(fn ($score) => $score > (float) $studentScore)->count();
-                $position = $higherCount + 1;
-            }
+            $position = $this->resolvePositionForScore(
+                $studentScore !== null ? (float) $studentScore : null,
+                $totalsByStudent->map(fn ($score) => (float) $score),
+                $positionRanges,
+                $classSize
+            );
 
             return [
-                'average' => round($sortedDescending->average(), 2),
-                'highest' => round($sortedDescending->max(), 2),
-                'lowest' => round($sortedDescending->min(), 2),
+                'average' => round($totalsByStudent->average(), 2),
+                'highest' => round($totalsByStudent->max(), 2),
+                'lowest' => round($totalsByStudent->min(), 2),
                 'position' => $position,
                 'total_possible' => $totalsByStudent->max(),
                 'total_obtained_by_student' => $studentScore,
@@ -1100,7 +1165,13 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function computeOverallStatistics(Collection $subjectStats, Collection $overallTotals, Student $student, int $existingClassSize): array
+    private function computeOverallStatistics(
+        Collection $subjectStats,
+        Collection $overallTotals,
+        Student $student,
+        int $existingClassSize,
+        Collection $positionRanges
+    ): array
     {
         $subjectCount = max(1, $subjectStats->count());
 
@@ -1116,13 +1187,26 @@ class ResultViewController extends Controller
             ->filter(fn ($value) => $value !== null)
             ->sum();
 
-        $classSize = max($existingClassSize, $overallTotals->count());
+        $classSize = $existingClassSize > 0 ? $existingClassSize : $overallTotals->count();
 
-        $position = null;
-        if ($studentTotal !== null) {
-            $higherCount = $overallTotals->filter(fn ($total) => $total > $studentTotal)->count();
-            $position = $higherCount + 1;
+        $scoreSource = $overallTotals->map(fn ($total) => (float) $total);
+        $studentScore = $studentTotal !== null ? (float) $studentTotal : null;
+
+        if ($positionRanges->isNotEmpty()) {
+            $scoreSource = $scoreSource->map(
+                fn ($total) => round($total / $subjectCount, 2),
+            );
+            $studentScore = $studentScore !== null
+                ? round($studentScore / $subjectCount, 2)
+                : null;
         }
+
+        $position = $this->resolvePositionForScore(
+            $studentScore,
+            $scoreSource,
+            $positionRanges,
+            $classSize
+        );
 
         return [
             'total_obtained' => $studentTotal ?: null,
@@ -1166,9 +1250,23 @@ class ResultViewController extends Controller
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
     {
+        $gradeScale = $this->resolveGradeScale($schoolId, $sessionId);
+
+        if (! $gradeScale) {
+            return collect();
+        }
+
+        return $gradeScale->grade_ranges->sortByDesc('min_score')->values();
+    }
+
+    private function resolveGradeScale(string $schoolId, ?string $sessionId): ?GradingScale
+    {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $schoolId)
-            ->with(['grade_ranges' => fn ($query) => $query->orderByDesc('min_score')]);
+            ->with([
+                'grade_ranges' => fn ($query) => $query->orderByDesc('min_score'),
+                'position_ranges' => fn ($query) => $query->orderBy('position'),
+            ]);
 
         $gradeScale = null;
 
@@ -1184,11 +1282,7 @@ class ResultViewController extends Controller
                 ->first();
         }
 
-        if (! $gradeScale) {
-            return collect();
-        }
-
-        return $gradeScale->grade_ranges->sortByDesc('min_score')->values();
+        return $gradeScale;
     }
 
     private function resolveGradeRange(?float $score, ?string $gradeLabel, Collection $gradeRanges): ?GradeRange
@@ -1224,6 +1318,64 @@ class ResultViewController extends Controller
         return $match?->grade_label ?? null;
     }
 
+    private function resolvePositionForScore(
+        ?float $score,
+        Collection $scoresByStudent,
+        Collection $positionRanges,
+        ?int $maxPosition = null
+    ): ?int {
+        if ($score === null) {
+            return null;
+        }
+
+        $position = null;
+
+        if ($positionRanges->isEmpty()) {
+            $higherCount = $scoresByStudent->filter(fn ($value) => $value > $score)->count();
+            $position = $higherCount + 1;
+        } else {
+            $matched = $positionRanges->first(function (PositionRange $range) use ($score) {
+                return $score >= $range->min_score && $score <= $range->max_score;
+            });
+
+            if ($matched) {
+                $position = (int) $matched->position;
+            } else {
+                $unassigned = $scoresByStudent->filter(function ($value) use ($positionRanges) {
+                    return ! $this->scoreInPositionRanges((float) $value, $positionRanges);
+                });
+
+                if ($unassigned->isEmpty()) {
+                    $position = null;
+                } else {
+                    $higherCount = $unassigned->filter(fn ($value) => $value > $score)->count();
+                    $offset = (int) ($positionRanges->max('position') ?? 0);
+                    $position = $offset + $higherCount + 1;
+                }
+            }
+        }
+
+        if ($position === null) {
+            return null;
+        }
+
+        $resolvedMax = $maxPosition !== null && $maxPosition > 0
+            ? $maxPosition
+            : $scoresByStudent->count();
+        if ($resolvedMax > 0 && $position > $resolvedMax) {
+            return $resolvedMax;
+        }
+
+        return $position;
+    }
+
+    private function scoreInPositionRanges(float $score, Collection $positionRanges): bool
+    {
+        return $positionRanges->contains(function (PositionRange $range) use ($score) {
+            return $score >= $range->min_score && $score <= $range->max_score;
+        });
+    }
+
     private function resolveResultPageSettings(?School $school): array
     {
         return [
@@ -1233,6 +1385,7 @@ class ResultViewController extends Controller
             'show_lowest' => $school?->result_show_lowest ?? true,
             'show_highest' => $school?->result_show_highest ?? true,
             'show_remarks' => $school?->result_show_remarks ?? true,
+            'comment_mode' => $school?->result_comment_mode ?? 'manual',
         ];
     }
 

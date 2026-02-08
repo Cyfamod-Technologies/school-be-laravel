@@ -7,7 +7,7 @@
         body {
             font-family: "Segoe UI", Arial, sans-serif;
             margin: 0;
-            padding: 24px;
+            padding: 12px;
             background: #f1f5f9;
             color: #0f172a;
         }
@@ -30,25 +30,28 @@
         }
         .card-page {
             page-break-after: always;
-            margin-bottom: 24px;
+            margin-bottom: 8px;
+            padding: 0;
         }
         .card-page:last-child {
             page-break-after: auto;
         }
         .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 4px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .card {
             position: relative;
             background: linear-gradient(135deg, #0f172a, #1d4ed8);
             color: #fff;
-            padding: 20px;
-            border-radius: 14px;
+            padding: 8px;
+            border-radius: 5px;
             box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
             overflow: hidden;
-            min-height: 220px;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             color-adjust: exact;
@@ -58,59 +61,57 @@
             position: absolute;
             inset: 0;
             border: 2px dashed rgba(255, 255, 255, 0.25);
-            border-radius: 14px;
+            border-radius: 5px;
             pointer-events: none;
         }
         .card-logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        .card-logo img {
-            width: 48px;
-            height: 48px;
-            object-fit: contain;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.15);
-            padding: 4px;
-        }
-        .card-logo strong {
-            font-size: 16px;
-            line-height: 1.3;
-        }
-        .card-details {
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-        .card-details div {
+            gap: 6px;
             margin-bottom: 4px;
         }
+        .card-logo img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 2px;
+            flex-shrink: 0;
+        }
+        .card-logo strong {
+            font-size: 10px;
+            line-height: 1.15;
+        }
+        .card-details {
+            margin-bottom: 4px;
+            font-size: 11px;
+            line-height: 1.25;
+        }
+        .card-details div {
+            margin-bottom: 1px;
+        }
         .pin-code {
-            font-size: 26px;
+            font-size: 16px;
             font-weight: 700;
-            letter-spacing: 4px;
+            letter-spacing: 1px;
             background: rgba(15, 23, 42, 0.4);
-            padding: 12px;
-            border-radius: 10px;
+            padding: 5px;
+            border-radius: 4px;
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         .expiry {
-            font-size: 13px;
+            font-size: 10px;
             opacity: 0.9;
+            margin-bottom: 2px;
         }
         .portal-link {
-            margin-top: 6px;
-            font-size: 10px;
-            line-height: 1.2;
+            font-size: 9px;
             color: rgba(255, 255, 255, 0.9);
-            word-break: break-word;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            white-space: nowrap;
             overflow: hidden;
-            max-height: 24px;
+            text-overflow: ellipsis;
         }
         .portal-link a {
             color: #fff;
@@ -123,13 +124,14 @@
             color: #475569;
         }
         @media print {
-            body { background: #fff; padding: 0; }
-            .header, .summary { display: none; }
-            .card-page { page-break-after: always; }
+            * { orphans: 1; widows: 1; }
+            body { background: #fff; padding: 0; margin: 0; }
+            .header, .summary, .footer { display: none; }
+            .card-page { page-break-after: always; page-break-inside: avoid; margin: 0; padding: 2mm; break-inside: avoid; box-sizing: border-box; height: calc(297mm - 8mm); }
             .card-page:last-child { page-break-after: auto; }
-            .cards { grid-template-columns: repeat(2, 1fr); padding: 12px; }
-            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; }
-            @page { size: A4; margin: 10mm; }
+            .cards { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(6, 1fr); padding: 0; gap: 3px; page-break-inside: avoid; break-inside: avoid; height: 100%; }
+            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; page-break-inside: avoid; break-inside: avoid; }
+            @page { size: A4; margin: 4mm; }
         }
     </style>
 </head>
