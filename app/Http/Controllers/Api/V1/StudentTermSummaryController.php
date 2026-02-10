@@ -8,8 +8,8 @@ use App\Models\GradingScale;
 use App\Models\Student;
 use App\Models\TermSummary;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StudentTermSummaryController extends Controller
@@ -65,21 +65,25 @@ class StudentTermSummaryController extends Controller
             ->where('term_id', $termId)
             ->first();
 
-        $commentMode = $student->school?->result_comment_mode ?? 'manual';
-        $commentRanges = $commentMode === 'range'
-            ? $this->resolveCommentRanges($student, $sessionId)
-            : collect();
+        $commentTemplates = $this->resolveCommentTemplates($student, $sessionId);
 
-        $defaultTeacher = $this->generateTeacherComment($termSummary, $commentRanges);
-        $defaultPrincipal = $this->generatePrincipalComment($termSummary, $commentRanges);
+        $teacherComment = $termSummary?->overall_comment;
+        $principalComment = $termSummary?->principal_comment;
 
-        $teacherComment = $commentMode === 'range' ? null : ($termSummary?->overall_comment ?? null);
-        $principalComment = $commentMode === 'range' ? null : ($termSummary?->principal_comment ?? null);
+        if ($teacherComment === null || trim((string) $teacherComment) === '') {
+            $teacherComment = $this->generateTeacherComment($termSummary);
+        }
+
+        if ($principalComment === null || trim((string) $principalComment) === '') {
+            $principalComment = $this->generatePrincipalComment($termSummary);
+        }
 
         return response()->json([
             'data' => [
-                'class_teacher_comment' => $teacherComment ?? $defaultTeacher,
-                'principal_comment' => $principalComment ?? $defaultPrincipal,
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
+                'class_teacher_comment_options' => $commentTemplates['class_teacher_comment_options'],
+                'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary?->days_present,
                 'days_absent' => $termSummary?->days_absent,
             ],
@@ -173,11 +177,18 @@ class StudentTermSummaryController extends Controller
         }
         $termSummary->save();
 
+        $commentTemplates = $this->resolveCommentTemplates(
+            $student,
+            $validated['session_id'] ?? null
+        );
+
         return response()->json([
             'message' => 'Comments updated successfully.',
             'data' => [
                 'class_teacher_comment' => $termSummary->overall_comment,
                 'principal_comment' => $termSummary->principal_comment,
+                'class_teacher_comment_options' => $commentTemplates['class_teacher_comment_options'],
+                'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary->days_present,
                 'days_absent' => $termSummary->days_absent,
             ],
@@ -193,19 +204,8 @@ class StudentTermSummaryController extends Controller
         }
     }
 
-    private function generateTeacherComment(?TermSummary $summary, Collection $commentRanges): string
+    private function generateTeacherComment(?TermSummary $summary): string
     {
-        if ($summary && $summary->average_score !== null && $commentRanges->isNotEmpty()) {
-            $average = (float) $summary->average_score;
-            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
-                return $average >= $range->min_score && $average <= $range->max_score;
-            });
-
-            if ($matched && trim((string) $matched->teacher_comment) !== '') {
-                return trim((string) $matched->teacher_comment);
-            }
-        }
-
         if (! $summary || $summary->average_score === null) {
             return 'This student is good.';
         }
@@ -231,19 +231,8 @@ class StudentTermSummaryController extends Controller
         return 'Below expectation. Close monitoring and extra support are recommended.';
     }
 
-    private function generatePrincipalComment(?TermSummary $summary, Collection $commentRanges): string
+    private function generatePrincipalComment(?TermSummary $summary): string
     {
-        if ($summary && $summary->average_score !== null && $commentRanges->isNotEmpty()) {
-            $average = (float) $summary->average_score;
-            $matched = $commentRanges->first(function (CommentRange $range) use ($average) {
-                return $average >= $range->min_score && $average <= $range->max_score;
-            });
-
-            if ($matched && trim((string) $matched->principal_comment) !== '') {
-                return trim((string) $matched->principal_comment);
-            }
-        }
-
         if (! $summary || $summary->average_score === null) {
             return 'This student is hardworking.';
         }
@@ -269,11 +258,11 @@ class StudentTermSummaryController extends Controller
         return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
     }
 
-    private function resolveCommentRanges(Student $student, ?string $sessionId): Collection
+    private function resolveCommentTemplates(Student $student, ?string $sessionId): array
     {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
-            ->with(['comment_ranges' => fn ($query) => $query->orderByDesc('min_score')]);
+            ->with(['comment_ranges' => fn ($query) => $query->orderBy('created_at')]);
 
         $gradeScale = null;
 
@@ -290,9 +279,30 @@ class StudentTermSummaryController extends Controller
         }
 
         if (! $gradeScale) {
-            return collect();
+            return [
+                'class_teacher_comment_options' => [],
+                'principal_comment_options' => [],
+            ];
         }
 
-        return $gradeScale->comment_ranges->sortByDesc('min_score')->values();
+        /** @var Collection<int, CommentRange> $ranges */
+        $ranges = $gradeScale->comment_ranges->sortBy('created_at')->values();
+
+        return [
+            'class_teacher_comment_options' => $ranges
+                ->pluck('teacher_comment')
+                ->map(fn ($comment) => trim((string) $comment))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+            'principal_comment_options' => $ranges
+                ->pluck('principal_comment')
+                ->map(fn ($comment) => trim((string) $comment))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+        ];
     }
 }
