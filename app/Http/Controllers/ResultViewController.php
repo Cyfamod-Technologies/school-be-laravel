@@ -460,8 +460,10 @@ class ResultViewController extends Controller
         );
         $subjectCount = $this->resolveSubjectCount($student);
         if ($subjectCount > 0) {
-            $overallStats['total_possible'] = $subjectCount * 100;
-            if ($overallStats['total_obtained'] !== null) {
+            if ($overallStats['total_possible'] === null) {
+                $overallStats['total_possible'] = $subjectCount * 100;
+            }
+            if ($overallStats['average'] === null && $overallStats['total_obtained'] !== null) {
                 $overallStats['average'] = round($overallStats['total_obtained'] / $subjectCount, 2);
             }
         }
