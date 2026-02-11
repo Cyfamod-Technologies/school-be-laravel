@@ -46,7 +46,7 @@
         }
         .card {
             position: relative;
-            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            background: linear-gradient(135deg, #0f172a, #000000);
             color: #fff;
             padding: 8px;
             border-radius: 5px;
@@ -108,8 +108,9 @@
         }
         .portal-link {
             font-size: 9px;
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(236, 15, 15, 0.9);
             white-space: nowrap;
+            font-weight: 700;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -130,7 +131,7 @@
             .card-page { page-break-after: always; page-break-inside: avoid; margin: 0; padding: 2mm; break-inside: avoid; box-sizing: border-box; height: calc(297mm - 8mm); }
             .card-page:last-child { page-break-after: auto; }
             .cards { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(6, 1fr); padding: 0; gap: 3px; page-break-inside: avoid; break-inside: avoid; height: 100%; }
-            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #1d4ed8) !important; page-break-inside: avoid; break-inside: avoid; }
+            .card { box-shadow: none; background: linear-gradient(135deg, #0f172a, #000000) !important; page-break-inside: avoid; break-inside: avoid; }
             @page { size: A4; margin: 4mm; }
         }
     </style>
@@ -183,13 +184,13 @@
                         <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
                     </div>
                     <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
-                    <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
+                    <div class="expiry">Valid until: {{ $card['expires_at'] }} || Student portal link:</div>
                     @php
                         $studentPortalLink = trim((string) ($studentPortalLink ?? ''));
                     @endphp
                     @if($studentPortalLink !== '')
                         <div class="portal-link">
-                            <strong>Student portal link:</strong>
+                            <!-- <strong>Student portal link:</strong> <br> -->
                             <a href="{{ $studentPortalLink }}" target="_blank" rel="noreferrer">
                                 {{ $studentPortalLink }}
                             </a>

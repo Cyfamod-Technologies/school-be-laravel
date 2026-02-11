@@ -52,7 +52,7 @@ class GradeScaleController extends Controller
                     $query->orderBy('position');
                 },
                 'comment_ranges' => function ($query) {
-                    $query->orderByDesc('min_score');
+                    $query->orderBy('created_at');
                 },
             ])
             ->orderBy('name')
@@ -80,7 +80,7 @@ class GradeScaleController extends Controller
                     $query->orderBy('position');
                 },
                 'comment_ranges' => function ($query) {
-                    $query->orderByDesc('min_score');
+                    $query->orderBy('created_at');
                 },
             ])
         );
@@ -175,7 +175,7 @@ class GradeScaleController extends Controller
                     $query->orderBy('position');
                 },
                 'comment_ranges' => function ($query) {
-                    $query->orderByDesc('min_score');
+                    $query->orderBy('created_at');
                 },
             ]),
         ]);
@@ -249,7 +249,7 @@ class GradeScaleController extends Controller
                     $query->orderBy('position');
                 },
                 'comment_ranges' => function ($query) {
-                    $query->orderByDesc('min_score');
+                    $query->orderBy('created_at');
                 },
             ]),
         ]);
@@ -274,8 +274,8 @@ class GradeScaleController extends Controller
         $validated = $request->validate([
             'ranges' => ['required', 'array'],
             'ranges.*.id' => ['nullable', 'uuid'],
-            'ranges.*.min_score' => ['required', 'numeric', 'between:0,100'],
-            'ranges.*.max_score' => ['required', 'numeric', 'between:0,100'],
+            'ranges.*.min_score' => ['nullable', 'numeric', 'between:0,100'],
+            'ranges.*.max_score' => ['nullable', 'numeric', 'between:0,100'],
             'ranges.*.teacher_comment' => ['required', 'string', 'max:2000'],
             'ranges.*.principal_comment' => ['required', 'string', 'max:2000'],
             'deleted_ids' => ['nullable', 'array'],
@@ -328,7 +328,7 @@ class GradeScaleController extends Controller
         });
 
         return response()->json([
-            'message' => 'Comment ranges updated successfully.',
+            'message' => 'Comment templates updated successfully.',
             'data' => $gradingScale->fresh([
                 'grade_ranges' => function ($query) {
                     $query->orderByDesc('min_score');
@@ -337,7 +337,7 @@ class GradeScaleController extends Controller
                     $query->orderBy('position');
                 },
                 'comment_ranges' => function ($query) {
-                    $query->orderByDesc('min_score');
+                    $query->orderBy('created_at');
                 },
             ]),
         ]);
@@ -351,7 +351,7 @@ class GradeScaleController extends Controller
         $commentRange->delete();
 
         return response()->json([
-            'message' => 'Comment range deleted successfully.',
+            'message' => 'Comment template deleted successfully.',
         ]);
     }
 
@@ -400,7 +400,7 @@ class GradeScaleController extends Controller
                 $query->orderBy('position');
             },
             'comment_ranges' => function ($query) {
-                $query->orderByDesc('min_score');
+                $query->orderBy('created_at');
             },
         ]);
     }
@@ -559,12 +559,24 @@ class GradeScaleController extends Controller
         }
 
         $normalized = collect($ranges)->map(function (array $range) {
-            $min = (float) $range['min_score'];
-            $max = (float) $range['max_score'];
+            $min = is_numeric(Arr::get($range, 'min_score'))
+                ? (float) Arr::get($range, 'min_score')
+                : 0.0;
+            $max = is_numeric(Arr::get($range, 'max_score'))
+                ? (float) Arr::get($range, 'max_score')
+                : 100.0;
+            $teacherComment = trim((string) Arr::get($range, 'teacher_comment'));
+            $principalComment = trim((string) Arr::get($range, 'principal_comment'));
 
             if ($min > $max) {
                 throw ValidationException::withMessages([
-                    'ranges' => ['Minimum score cannot be greater than maximum score.'],
+                    'ranges' => ['Comment template minimum score cannot be greater than maximum score.'],
+                ]);
+            }
+
+            if ($teacherComment === '' || $principalComment === '') {
+                throw ValidationException::withMessages([
+                    'ranges' => ['Teacher and principal comments cannot be empty.'],
                 ]);
             }
 
@@ -572,22 +584,10 @@ class GradeScaleController extends Controller
                 'id' => Arr::get($range, 'id'),
                 'min_score' => round($min, 2),
                 'max_score' => round($max, 2),
-                'teacher_comment' => trim((string) $range['teacher_comment']),
-                'principal_comment' => trim((string) $range['principal_comment']),
+                'teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
             ];
         });
-
-        $sortedByScore = $normalized->sortBy('min_score')->values();
-        for ($i = 1; $i < $sortedByScore->count(); $i++) {
-            $previous = $sortedByScore[$i - 1];
-            $current = $sortedByScore[$i];
-
-            if ($previous['max_score'] >= $current['min_score']) {
-                throw ValidationException::withMessages([
-                    'ranges' => ['Comment ranges must not overlap.'],
-                ]);
-            }
-        }
 
         return $normalized->all();
     }
