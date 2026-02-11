@@ -136,7 +136,7 @@ class ParentController extends Controller
      */
     public function store(Request $request)
     {
-        $this->ensurePermission($request, ['parents.create', 'parents.manage']);
+        $this->ensurePermission($request, 'parents.create');
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -291,7 +291,7 @@ class ParentController extends Controller
      */
     public function update(Request $request, SchoolParent $parent)
     {
-        $this->ensurePermission($request, ['parents.update', 'parents.manage']);
+        $this->ensurePermission($request, 'parents.update');
         if ($parent->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -359,7 +359,7 @@ class ParentController extends Controller
      */
     public function destroy(Request $request, SchoolParent $parent)
     {
-        $this->ensurePermission($request, ['parents.delete', 'parents.manage']);
+        $this->ensurePermission($request, 'parents.delete');
         if ($parent->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }

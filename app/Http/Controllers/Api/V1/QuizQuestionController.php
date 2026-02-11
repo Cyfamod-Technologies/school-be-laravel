@@ -19,7 +19,7 @@ class QuizQuestionController extends Controller
 
 	private function ensureManager(Request $request): void
 	{
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.create');
 	}
 
 	private function formatOption(QuizOption $option, bool $includeCorrect = false): array

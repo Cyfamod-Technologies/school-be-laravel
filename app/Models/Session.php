@@ -122,6 +122,8 @@ class Session extends Model
 
 	public function terms()
 	{
-		return $this->hasMany(Term::class);
+		return $this->hasMany(Term::class)
+			->orderBy('term_number')
+			->orderBy('start_date');
 	}
 }

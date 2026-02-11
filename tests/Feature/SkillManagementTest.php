@@ -80,6 +80,30 @@ it('lists skill types with category names', function () {
         ->assertJsonPath('data.0.category', 'Behaviour');
 });
 
+it('filters skill types by selected category', function () {
+    $secondCategory = SkillCategory::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Affective',
+        'description' => 'Affective skills',
+    ]);
+
+    SkillType::create([
+        'id' => (string) Str::uuid(),
+        'skill_category_id' => $secondCategory->id,
+        'school_id' => $this->school->id,
+        'name' => 'Empathy',
+        'description' => 'Shows empathy',
+        'weight' => 2.00,
+    ]);
+
+    getJson(route('skill-types.index', ['skill_category_id' => $this->category->id]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.name', 'Punctuality')
+        ->assertJsonPath('data.0.category', 'Behaviour');
+});
+
 it('creates a skill type', function () {
     postJson(route('skill-types.store'), [
         'skill_category_id' => $this->category->id,
@@ -90,6 +114,36 @@ it('creates a skill type', function () {
         ->assertJsonPath('data.name', 'Neatness');
 
     expect(SkillType::where('name', 'Neatness')->where('school_id', $this->school->id)->exists())->toBeTrue();
+});
+
+it('creates a skill type with a long name', function () {
+    $longName = trim(str_repeat('Very descriptive behaviour skill ', 12));
+
+    postJson(route('skill-types.store'), [
+        'skill_category_id' => $this->category->id,
+        'name' => $longName,
+        'weight' => 2,
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.name', $longName);
+
+    expect(SkillType::where('name', $longName)->where('school_id', $this->school->id)->exists())->toBeTrue();
+});
+
+it('creates multiple skill types in one request', function () {
+    postJson(route('skill-types.bulk-store'), [
+        'skill_category_id' => $this->category->id,
+        'names' => [
+            'Neatness',
+            'Communication',
+            'Leadership',
+        ],
+    ])
+        ->assertCreated()
+        ->assertJsonCount(3, 'data');
+
+    expect(SkillType::where('school_id', $this->school->id)->count())->toBe(4);
+    expect(SkillType::where('name', 'Communication')->where('school_id', $this->school->id)->exists())->toBeTrue();
 });
 
 it('updates a skill type', function () {
