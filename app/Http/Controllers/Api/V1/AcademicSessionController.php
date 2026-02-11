@@ -7,7 +7,7 @@ use App\Models\Session;
 use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Str; // at the top if you want to auto-generate slug
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -315,9 +315,18 @@ class AcademicSessionController extends Controller
      *       )
      *     )
      */
-    public function getTermsForSession(Session $session)
+    public function getTermsForSession(Request $request, Session $session)
     {
-        return response()->json($session->terms);
+        if ($session->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        return response()->json(
+            $session->terms()
+                ->orderBy('term_number')
+                ->orderBy('start_date')
+                ->get()
+        );
     }
 
     /**
@@ -334,7 +343,11 @@ class AcademicSessionController extends Controller
         $schoolId = $user->school_id;
         $terms = Term::whereHas('session', function ($query) use ($schoolId) {
             $query->where('school_id', $schoolId);
-        })->get();
+        })
+            ->orderBy('session_id')
+            ->orderBy('term_number')
+            ->orderBy('start_date')
+            ->get();
 
         return response()->json($terms);
     }
@@ -376,11 +389,16 @@ class AcademicSessionController extends Controller
      */
     public function storeTerm(Request $request, Session $session)
     {
+        if ($session->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string',
+            'name' => 'required|string|max:100',
+            'term_number' => 'nullable|integer|min:1|max:10',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            // You can add more rules as needed
+            'slug' => 'nullable|string|max:120',
         ]);
     
         if ($validator->fails()) {
@@ -388,9 +406,32 @@ class AcademicSessionController extends Controller
         }
     
         $validated = $validator->validated();
+        $termNumber = $this->resolveRequestedTermNumber(
+            name: (string) ($validated['name'] ?? ''),
+            termNumber: array_key_exists('term_number', $validated) ? (int) $validated['term_number'] : null,
+            session: $session
+        );
+
+        if ($termNumber === null) {
+            return response()->json([
+                'error' => ['term_number' => ['Unable to determine the term slot. Provide term_number explicitly.']],
+            ], 400);
+        }
+
+        $existingSlot = $session->terms()
+            ->where('term_number', $termNumber)
+            ->exists();
+
+        if ($existingSlot) {
+            return response()->json([
+                'error' => ['term_number' => ['Another term already uses this slot in the selected session.']],
+            ], 400);
+        }
+
         $validated['id'] = \Illuminate\Support\Str::uuid();
         $validated['session_id'] = $session->id;
-        $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']);
+        $validated['term_number'] = $termNumber;
+        $validated['slug'] = $validated['slug'] ?? Str::slug($validated['name'].'-'.$termNumber);
         $validated['school_id'] = auth()->user()->school_id; // or $session->school_id;
         $validated['status'] = 'active';
 
@@ -485,9 +526,14 @@ class AcademicSessionController extends Controller
      */
     public function updateTerm(Request $request, Term $term)
     {
+        if ($term->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string',
-            'slug' => 'string',
+            'name' => 'required|string|max:100',
+            'term_number' => 'nullable|integer|min:1|max:10',
+            'slug' => 'nullable|string|max:120',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
         ]);
@@ -497,6 +543,29 @@ class AcademicSessionController extends Controller
         }
 
         $validated = $validator->validated();
+        $termNumber = $this->resolveRequestedTermNumber(
+            name: (string) ($validated['name'] ?? ''),
+            termNumber: array_key_exists('term_number', $validated) ? (int) $validated['term_number'] : $term->term_number,
+            session: $term->session,
+            ignoreTermId: $term->id
+        );
+
+        if ($termNumber === null) {
+            return response()->json([
+                'error' => ['term_number' => ['Unable to determine the term slot. Provide term_number explicitly.']],
+            ], 400);
+        }
+
+        $existingSlot = $term->session->terms()
+            ->where('id', '!=', $term->id)
+            ->where('term_number', $termNumber)
+            ->exists();
+
+        if ($existingSlot) {
+            return response()->json([
+                'error' => ['term_number' => ['Another term already uses this slot in the selected session.']],
+            ], 400);
+        }
 
         $existingTerm = $term->session->terms()->where('id', '!=', $term->id)
             ->where(function ($query) use ($validated) {
@@ -507,6 +576,9 @@ class AcademicSessionController extends Controller
         if ($existingTerm) {
             return response()->json(['error' => 'A term already exists within the specified date range for this session.'], 400);
         }
+
+        $validated['term_number'] = $termNumber;
+        $validated['slug'] = $validated['slug'] ?? Str::slug($validated['name'].'-'.$termNumber);
 
         $term->update($validated);
         return response()->json(['message' => 'Term updated successfully', 'data' => $term]);
@@ -547,5 +619,35 @@ class AcademicSessionController extends Controller
 
         $term->delete();
         return response()->json(['message' => 'Term deleted successfully']);
+    }
+
+    private function resolveRequestedTermNumber(
+        string $name,
+        ?int $termNumber,
+        Session $session,
+        ?string $ignoreTermId = null
+    ): ?int {
+        if ($termNumber !== null && $termNumber > 0) {
+            return $termNumber;
+        }
+
+        $inferred = Term::inferTermNumber($name);
+        if ($inferred !== null) {
+            return $inferred;
+        }
+
+        $usedNumbers = $session->terms()
+            ->when($ignoreTermId, fn ($query) => $query->where('id', '!=', $ignoreTermId))
+            ->pluck('term_number')
+            ->filter()
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
+        $candidate = 1;
+        while ($usedNumbers->contains($candidate)) {
+            $candidate++;
+        }
+
+        return $candidate;
     }
 }

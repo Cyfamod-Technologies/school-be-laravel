@@ -249,9 +249,9 @@ class ComprehensiveSchoolSeeder extends Seeder
 
             // Create 3 terms for this session
             $termDefinitions = [
-                ['name' => '1st', 'months' => 4],
-                ['name' => '2nd', 'months' => 4],
-                ['name' => '3rd', 'months' => 4],
+                ['name' => '1st', 'term_number' => 1, 'months' => 4],
+                ['name' => '2nd', 'term_number' => 2, 'months' => 4],
+                ['name' => '3rd', 'term_number' => 3, 'months' => 4],
             ];
 
             $startDate = Carbon::parse($sessionData['start']);
@@ -263,6 +263,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                     'school_id' => $this->school->id,
                     'session_id' => $session->id,
                     'name' => $termData['name'],
+                    'term_number' => $termData['term_number'],
                     'slug' => Str::slug($termData['name'] . '-' . $session->name),
                     'start_date' => $startDate,
                     'end_date' => $endDate,
