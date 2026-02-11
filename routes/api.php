@@ -402,6 +402,8 @@ Route::prefix('api/v1')->group(function () {
                 ->except(['create', 'edit']);
             Route::apiResource('skill-categories', SkillCategoryController::class)
                 ->except(['create', 'edit', 'show']);
+            Route::post('skill-types/bulk', [SkillTypeController::class, 'bulkStore'])
+                ->name('skill-types.bulk-store');
             Route::apiResource('skill-types', SkillTypeController::class)
                 ->except(['create', 'edit', 'show']);
         });
