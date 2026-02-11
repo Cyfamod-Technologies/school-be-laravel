@@ -284,6 +284,41 @@ class SchoolController extends Controller
 
         return response()->json(['message' => 'Logged out successfully']);
     }
+
+    /**
+     * Logout all other authenticated devices for the current admin user.
+     */
+    public function logoutOtherDevices(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $roleName = strtolower(trim((string) ($user->role ?? '')));
+        $isAdminRole = in_array($roleName, ['admin', 'super_admin'], true);
+        $hasAdminRole = $this->withTeamContext($user->school_id, function () use ($user) {
+            return $user->hasRole('admin') || $user->hasRole('super_admin');
+        });
+
+        if (! $isAdminRole && ! $hasAdminRole) {
+            return response()->json([
+                'message' => 'Only admins can log out other devices.',
+            ], 403);
+        }
+
+        $currentTokenId = optional($user->currentAccessToken())->id;
+
+        $tokens = $user->tokens();
+        if ($currentTokenId) {
+            $tokens->where('id', '!=', $currentTokenId);
+        }
+
+        $revoked = $tokens->delete();
+
+        return response()->json([
+            'message' => 'Other devices logged out successfully.',
+            'revoked_tokens' => $revoked,
+        ]);
+    }
     /**
      * @OA\Put(
      *     path="/api/v1/school",

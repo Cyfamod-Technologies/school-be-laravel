@@ -96,6 +96,7 @@ Route::prefix('api/v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [SchoolController::class, 'logout']);
+        Route::post('/logout/other-devices', [SchoolController::class, 'logoutOtherDevices']);
         Route::get('/school', [SchoolController::class, 'showSchoolProfile']);
         Route::put('/school', [SchoolController::class, 'updateSchoolProfile']);
         Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);            

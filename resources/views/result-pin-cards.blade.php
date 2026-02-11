@@ -184,13 +184,13 @@
                         <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
                     </div>
                     <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
-                    <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
+                    <div class="expiry">Valid until: {{ $card['expires_at'] }} || Student portal link:</div>
                     @php
                         $studentPortalLink = trim((string) ($studentPortalLink ?? ''));
                     @endphp
                     @if($studentPortalLink !== '')
                         <div class="portal-link">
-                            <strong>portal link:</strong>
+                            <!-- <strong>Student portal link:</strong> <br> -->
                             <a href="{{ $studentPortalLink }}" target="_blank" rel="noreferrer">
                                 {{ $studentPortalLink }}
                             </a>
