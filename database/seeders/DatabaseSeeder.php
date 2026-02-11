@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         // Seed RBAC permissions
         $this->call([
             CBTPermissionSeeder::class,
+            FrontendPermissionSeeder::class,
         ]);
 
         // Seed comprehensive demo school data
