@@ -139,7 +139,7 @@ class StaffController extends Controller
             'name' => $validated['full_name'],
             'email' => $validated['email'],
             'password' => Hash::make($temporaryPassword),
-            'role' => $systemRole,
+            'role' => $this->normalizePersistedUserRole($systemRole),
             'phone' => $validated['phone'],
         ]);
 
@@ -350,7 +350,9 @@ class StaffController extends Controller
         }
 
         if ($systemRole) {
-            $staff->user->forceFill(['role' => $systemRole])->save();
+            $staff->user->forceFill([
+                'role' => $this->normalizePersistedUserRole($systemRole),
+            ])->save();
 
             $primaryRole = $this->resolveRoleModel($staff->school_id, $systemRole);
             $staffRole = $this->resolveRoleModel($staff->school_id, 'staff');
@@ -417,6 +419,10 @@ class StaffController extends Controller
     {
         $normalized = trim(Str::lower((string) $label));
 
+        if ($normalized === 'support' || Str::contains($normalized, 'support')) {
+            return 'support';
+        }
+
         if ($normalized === 'teacher') {
             return 'teacher';
         }
@@ -433,6 +439,7 @@ class StaffController extends Controller
         $guard = config('permission.default_guard', 'sanctum');
 
         $description = match ($roleName) {
+            'support' => 'Support',
             'teacher' => 'Teacher',
             'accountant' => 'Accountant',
             'staff' => 'School staff',
@@ -449,6 +456,11 @@ class StaffController extends Controller
                 'description' => $description,
             ]
         );
+    }
+
+    private function normalizePersistedUserRole(string $roleName): string
+    {
+        return $roleName === 'support' ? 'staff' : $roleName;
     }
 
     /**

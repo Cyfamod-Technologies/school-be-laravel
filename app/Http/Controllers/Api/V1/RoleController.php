@@ -119,6 +119,7 @@ class RoleController extends Controller
                 )->ignore($role->id),
             ],
             'description' => ['nullable', 'string'],
+            'permissions' => ['sometimes', 'array'],
             'permissions.*' => [
                 'integer',
                 Rule::exists('permissions', 'id')->where(fn ($query) => $query
@@ -137,20 +138,6 @@ class RoleController extends Controller
             ]));
 
             if ($permissions !== null) {
-                // For teacher role, ensure locked permissions are always included
-                if (strtolower($role->name) === 'teacher') {
-                    $lockedPermissionNames = ['profile.view', 'profile.edit', 'profile.password'];
-                    $lockedPermissions = Permission::query()
-                        ->where('school_id', $schoolId)
-                        ->where('guard_name', config('permission.default_guard', 'sanctum'))
-                        ->whereIn('name', $lockedPermissionNames)
-                        ->pluck('id')
-                        ->toArray();
-                    
-                    // Merge locked permissions with provided permissions
-                    $permissions = array_unique(array_merge($permissions, $lockedPermissions));
-                }
-
                 $permissionModels = Permission::query()
                     ->where('school_id', $schoolId)
                     ->where('guard_name', config('permission.default_guard', 'sanctum'))

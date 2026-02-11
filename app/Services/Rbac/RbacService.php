@@ -90,7 +90,9 @@ class RbacService
 
         ['name' => 'result.pin.view', 'description' => 'View result pins'],
         ['name' => 'result.pin.create', 'description' => 'Generate result pins'],
-        ['name' => 'result.pin.delete', 'description' => 'Invalidate result pins'],
+        ['name' => 'result.pin.bulk-create', 'description' => 'Bulk create result pins'],
+        ['name' => 'result.pin.invalidate', 'description' => 'Invalidate result pins'],
+        ['name' => 'result.pin.export', 'description' => 'Export result pins'],
         ['name' => 'analytics.academics', 'description' => 'View academic analytics dashboard'],
 
         ['name' => 'promotions.history', 'description' => 'View promotion history'],
@@ -244,7 +246,7 @@ class RbacService
             return $carry;
         }, []);
 
-        return collect($allPermissions)->map(fn (array $attributes) => Permission::query()->updateOrCreate(
+        $synced = collect($allPermissions)->map(fn (array $attributes) => Permission::query()->updateOrCreate(
             [
                 'school_id' => $school->id,
                 'name' => $attributes['name'],
@@ -254,6 +256,10 @@ class RbacService
                 'description' => $attributes['description'],
             ]
         ));
+
+        $this->migrateLegacyResultPinDeletePermission($school->id, $guard);
+
+        return $synced;
     }
 
     public function ensureAdminRole(School $school): Role
@@ -315,7 +321,9 @@ class RbacService
             $role->save();
         }
 
-        $this->syncPresetPermissionsForRole($role, $roleName);
+        if ($wasRecentlyCreated) {
+            $this->syncPresetPermissionsForRole($role, $roleName);
+        }
 
         return $role->fresh();
     }
@@ -424,5 +432,32 @@ class RbacService
 
             $registrar->forgetCachedPermissions();
         }
+    }
+
+    private function migrateLegacyResultPinDeletePermission(string $schoolId, string $guard): void
+    {
+        $legacyPermission = Permission::query()
+            ->where('school_id', $schoolId)
+            ->where('guard_name', $guard)
+            ->where('name', 'result.pin.delete')
+            ->first();
+
+        if (! $legacyPermission) {
+            return;
+        }
+
+        $invalidatePermission = Permission::query()
+            ->where('school_id', $schoolId)
+            ->where('guard_name', $guard)
+            ->where('name', 'result.pin.invalidate')
+            ->first();
+
+        if ($invalidatePermission) {
+            $legacyPermission->roles()
+                ->each(fn (Role $role) => $role->givePermissionTo($invalidatePermission));
+        }
+
+        $legacyPermission->roles()->detach();
+        $legacyPermission->delete();
     }
 }

@@ -336,6 +336,8 @@ class ResultPinController extends Controller
      */
     public function printCards(Request $request)
     {
+        $this->ensurePermission($request, 'result.pin.export');
+
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],

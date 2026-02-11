@@ -15,9 +15,10 @@ class UserRoleController extends Controller
 {
     public function index(Request $request, User $user)
     {
-        $this->assertUserBelongsToSchool($user, $this->resolveSchoolId($request));
-
         $schoolId = $this->resolveSchoolId($request);
+        $this->assertUserBelongsToSchool($user, $schoolId);
+        $this->assertSupportUser($user, $schoolId);
+
         $roles = $this->withTeamContext($schoolId, function () use ($user, $schoolId) {
             return $user->roles()
                 ->where('roles.school_id', $schoolId)
@@ -34,6 +35,7 @@ class UserRoleController extends Controller
     {
         $schoolId = $this->resolveSchoolId($request);
         $this->assertUserBelongsToSchool($user, $schoolId);
+        $this->assertSupportUser($user, $schoolId);
 
         $validated = $request->validate([
             'roles' => ['required', 'array'],
@@ -82,27 +84,6 @@ class UserRoleController extends Controller
             $user->syncRoles($roleModels);
         });
 
-        $rolePriority = collect([
-            'super_admin',
-            'admin',
-            'teacher',
-            'accountant',
-            'staff',
-            'parent',
-        ]);
-
-        $assignedRoles = $roleModels->pluck('name');
-
-        $primaryRole = $rolePriority->first(function ($role) use ($assignedRoles) {
-            return $assignedRoles->contains($role);
-        });
-
-        if (! $primaryRole) {
-            $primaryRole = 'staff';
-        }
-
-        $user->forceFill(['role' => $primaryRole])->save();
-
         $assignedRoles = $this->withTeamContext($schoolId, function () use ($user, $schoolId) {
             return $user->roles()
                 ->where('roles.school_id', $schoolId)
@@ -131,6 +112,33 @@ class UserRoleController extends Controller
     private function assertUserBelongsToSchool(User $user, string $schoolId): void
     {
         abort_unless($user->school_id === $schoolId, 404, 'User not found.');
+    }
+
+    private function assertSupportUser(User $user, string $schoolId): void
+    {
+        $directRole = strtolower(trim((string) ($user->getRawOriginal('role') ?? $user->role ?? '')));
+        if ($directRole === 'support') {
+            return;
+        }
+
+        $staffSupportRole = $user->staff()
+            ->where('school_id', $schoolId)
+            ->whereRaw('LOWER(COALESCE(role, "")) = ?', ['support'])
+            ->exists();
+
+        if ($staffSupportRole) {
+            return;
+        }
+
+        $hasSupportRole = $this->withTeamContext($schoolId, function () use ($user, $schoolId) {
+            return $user->roles()
+                ->where('roles.school_id', $schoolId)
+                ->where('roles.guard_name', config('permission.default_guard', 'sanctum'))
+                ->whereRaw('LOWER(roles.name) = ?', ['support'])
+                ->exists();
+        });
+
+        abort_unless($hasSupportRole, 422, 'Roles can only be managed for users with the Support role.');
     }
 
     /**
