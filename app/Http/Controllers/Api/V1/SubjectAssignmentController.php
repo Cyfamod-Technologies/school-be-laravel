@@ -97,7 +97,7 @@ class SubjectAssignmentController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"subject_id","school_class_id","class_arm_id"},
+     *             required={"subject_id","school_class_id"},
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
@@ -122,17 +122,17 @@ class SubjectAssignmentController extends Controller
         $validated = $request->validate([
             'subject_id' => ['required', 'uuid'],
             'school_class_id' => ['required', 'uuid'],
-            'class_arm_id' => ['required', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
         ]);
 
         [$subject, $class, $classArm] = $this->resolveAssignmentEntities(
             $school->id,
             $validated['subject_id'],
             $validated['school_class_id'],
-            $validated['class_arm_id']
+            $validated['class_arm_id'] ?? null
         );
 
-        if ($this->assignmentExists($subject->id, $class->id, $classArm->id)) {
+        if ($this->assignmentExists($subject->id, $class->id, $classArm?->id)) {
             return response()->json([
                 'message' => 'Subject is already assigned to the selected class context.',
             ], 422);
@@ -142,7 +142,7 @@ class SubjectAssignmentController extends Controller
             'id' => (string) Str::uuid(),
             'subject_id' => $subject->id,
             'school_class_id' => $class->id,
-            'class_arm_id' => $classArm->id,
+            'class_arm_id' => $classArm?->id,
             'class_section_id' => null,
         ]);
 
@@ -206,12 +206,14 @@ class SubjectAssignmentController extends Controller
         $validated = $request->validate([
             'subject_id' => ['sometimes', 'required', 'uuid'],
             'school_class_id' => ['sometimes', 'required', 'uuid'],
-            'class_arm_id' => ['sometimes', 'required', 'uuid'],
+            'class_arm_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
 
         $subjectId = $validated['subject_id'] ?? $assignment->subject_id;
         $classId = $validated['school_class_id'] ?? $assignment->school_class_id;
-        $classArmId = $validated['class_arm_id'] ?? $assignment->class_arm_id;
+        $classArmId = array_key_exists('class_arm_id', $validated)
+            ? $validated['class_arm_id']
+            : $assignment->class_arm_id;
 
         $school = $request->user()->school;
 
@@ -228,7 +230,7 @@ class SubjectAssignmentController extends Controller
             $classArmId
         );
 
-        if ($this->assignmentExists($subject->id, $class->id, $classArm->id, $assignment->id)) {
+        if ($this->assignmentExists($subject->id, $class->id, $classArm?->id, $assignment->id)) {
             return response()->json([
                 'message' => 'Subject is already assigned to the selected class context.',
             ], 422);
@@ -237,7 +239,7 @@ class SubjectAssignmentController extends Controller
         $assignment->fill([
             'subject_id' => $subject->id,
             'school_class_id' => $class->id,
-            'class_arm_id' => $classArm->id,
+            'class_arm_id' => $classArm?->id,
             'class_section_id' => null,
         ]);
 
@@ -286,7 +288,7 @@ class SubjectAssignmentController extends Controller
         string $schoolId,
         string $subjectId,
         string $classId,
-        string $classArmId
+        ?string $classArmId
     ): array {
         $subject = Subject::where('id', $subjectId)
             ->where('school_id', $schoolId)
@@ -304,23 +306,30 @@ class SubjectAssignmentController extends Controller
             abort(404, 'Class not found for the authenticated school.');
         }
 
-        $classArm = ClassArm::where('id', $classArmId)
-            ->where('school_class_id', $class->id)
-            ->first();
+        $classArm = null;
+        if (! empty($classArmId)) {
+            $classArm = ClassArm::where('id', $classArmId)
+                ->where('school_class_id', $class->id)
+                ->first();
 
-        if (! $classArm) {
-            abort(404, 'Class arm not found or does not belong to the selected class.');
+            if (! $classArm) {
+                abort(404, 'Class arm not found or does not belong to the selected class.');
+            }
         }
 
         return [$subject, $class, $classArm];
     }
 
-    private function assignmentExists(string $subjectId, string $classId, string $classArmId, ?string $ignoreId = null): bool
+    private function assignmentExists(string $subjectId, string $classId, ?string $classArmId, ?string $ignoreId = null): bool
     {
         $query = SubjectAssignment::query()
             ->where('subject_id', $subjectId)
             ->where('school_class_id', $classId)
-            ->where('class_arm_id', $classArmId);
+            ->when(
+                $classArmId,
+                fn (Builder $builder) => $builder->where('class_arm_id', $classArmId),
+                fn (Builder $builder) => $builder->whereNull('class_arm_id'),
+            );
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);

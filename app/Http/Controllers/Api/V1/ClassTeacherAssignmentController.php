@@ -110,7 +110,7 @@ class ClassTeacherAssignmentController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"staff_id","school_class_id","class_arm_id","session_id","term_id"},
+     *             required={"staff_id","school_class_id","session_id","term_id"},
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
@@ -137,12 +137,15 @@ class ClassTeacherAssignmentController extends Controller
         $validated = $request->validate([
             'staff_id' => ['required', 'uuid'],
             'school_class_id' => ['required', 'uuid'],
-            'class_arm_id' => ['required', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
         ]);
 
-        $entities = $this->resolveEntities($school->id, $validated);
+        $entities = $this->resolveEntities($school->id, [
+            ...$validated,
+            'class_arm_id' => $validated['class_arm_id'] ?? null,
+        ]);
 
         if ($this->assignmentExists($entities, null)) {
             return response()->json([
@@ -154,7 +157,7 @@ class ClassTeacherAssignmentController extends Controller
             'id' => (string) Str::uuid(),
             'staff_id' => $entities['staff']->id,
             'school_class_id' => $entities['class']->id,
-            'class_arm_id' => $entities['class_arm']->id,
+            'class_arm_id' => $entities['class_arm']?->id,
             'class_section_id' => null,
             'session_id' => $entities['session']->id,
             'term_id' => $entities['term']->id,
@@ -230,7 +233,7 @@ class ClassTeacherAssignmentController extends Controller
         $validated = $request->validate([
             'staff_id' => ['sometimes', 'required', 'uuid'],
             'school_class_id' => ['sometimes', 'required', 'uuid'],
-            'class_arm_id' => ['sometimes', 'required', 'uuid'],
+            'class_arm_id' => ['sometimes', 'nullable', 'uuid'],
             'session_id' => ['sometimes', 'required', 'uuid'],
             'term_id' => ['sometimes', 'required', 'uuid'],
         ]);
@@ -238,7 +241,9 @@ class ClassTeacherAssignmentController extends Controller
         $payload = [
             'staff_id' => $validated['staff_id'] ?? $classTeacher->staff_id,
             'school_class_id' => $validated['school_class_id'] ?? $classTeacher->school_class_id,
-            'class_arm_id' => $validated['class_arm_id'] ?? $classTeacher->class_arm_id,
+            'class_arm_id' => array_key_exists('class_arm_id', $validated)
+                ? $validated['class_arm_id']
+                : $classTeacher->class_arm_id,
             'session_id' => $validated['session_id'] ?? $classTeacher->session_id,
             'term_id' => $validated['term_id'] ?? $classTeacher->term_id,
         ];
@@ -254,7 +259,7 @@ class ClassTeacherAssignmentController extends Controller
         $classTeacher->fill([
             'staff_id' => $entities['staff']->id,
             'school_class_id' => $entities['class']->id,
-            'class_arm_id' => $entities['class_arm']->id,
+            'class_arm_id' => $entities['class_arm']?->id,
             'class_section_id' => null,
             'session_id' => $entities['session']->id,
             'term_id' => $entities['term']->id,
@@ -321,12 +326,15 @@ class ClassTeacherAssignmentController extends Controller
             abort(404, 'Class not found for the authenticated school.');
         }
 
-        $classArm = ClassArm::where('id', $payload['class_arm_id'])
-            ->where('school_class_id', $class->id)
-            ->first();
+        $classArm = null;
+        if (! empty($payload['class_arm_id'] ?? null)) {
+            $classArm = ClassArm::where('id', $payload['class_arm_id'])
+                ->where('school_class_id', $class->id)
+                ->first();
 
-        if (! $classArm) {
-            abort(404, 'Class arm not found or does not belong to the selected class.');
+            if (! $classArm) {
+                abort(404, 'Class arm not found or does not belong to the selected class.');
+            }
         }
 
         $session = Session::where('id', $payload['session_id'])
@@ -363,7 +371,11 @@ class ClassTeacherAssignmentController extends Controller
         $query = ClassTeacher::query()
             ->where('staff_id', $entities['staff']->id)
             ->where('school_class_id', $entities['class']->id)
-            ->where('class_arm_id', $entities['class_arm']->id)
+            ->when(
+                $entities['class_arm'],
+                fn (Builder $builder, ClassArm $arm) => $builder->where('class_arm_id', $arm->id),
+                fn (Builder $builder) => $builder->whereNull('class_arm_id'),
+            )
             ->where('session_id', $entities['session']->id)
             ->where('term_id', $entities['term']->id);
 
