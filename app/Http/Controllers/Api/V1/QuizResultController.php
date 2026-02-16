@@ -34,7 +34,7 @@ class QuizResultController extends Controller
 
 		// Check if user is the student or admin
 		if ($result->student_id !== $user->id) {
-			$this->ensurePermission($request, 'cbt.manage');
+			$this->ensurePermission($request, 'cbt.view_results');
 		}
 
 		return response()->json([
@@ -79,7 +79,7 @@ class QuizResultController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.view_results');
 
 		$quiz = Quiz::find($quizId);
 
@@ -129,7 +129,7 @@ class QuizResultController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.view_results');
 
 		$quiz = Quiz::find($quizId);
 
@@ -215,7 +215,7 @@ class QuizResultController extends Controller
 		}
 
 		if ($result->student_id !== $user->id) {
-			$this->ensurePermission($request, 'cbt.manage');
+			$this->ensurePermission($request, 'cbt.view_results');
 		} elseif (! $quiz->allow_review) {
 			return response()->json(['message' => 'Quiz does not allow review'], 403);
 		}

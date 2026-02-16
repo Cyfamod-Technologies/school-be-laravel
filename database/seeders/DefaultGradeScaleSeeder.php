@@ -40,6 +40,9 @@ class DefaultGradeScaleSeeder extends Seeder
         $defaults = collect(self::defaultRanges());
 
         $existingLabels = $scale->grade_ranges()->pluck('grade_label');
+        if ($existingLabels->isNotEmpty()) {
+            return;
+        }
 
         $defaults->each(function (array $range) use ($scale, $existingLabels) {
             $payload = [

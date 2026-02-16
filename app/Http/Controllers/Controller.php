@@ -30,6 +30,12 @@ class Controller extends BaseController
             abort(403, 'You do not have permission to perform this action.');
         }
 
+        // Keep endpoint access simple: authenticated users are allowed unless strict
+        // endpoint permission enforcement is explicitly enabled.
+        if (! config('features.enforce_endpoint_permissions', false)) {
+            return;
+        }
+
         /** @var \Spatie\Permission\PermissionRegistrar $registrar */
         $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
         $previousTeamId = method_exists($registrar, 'getPermissionsTeamId')

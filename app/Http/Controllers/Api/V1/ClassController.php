@@ -56,12 +56,12 @@ class ClassController extends Controller
         $user = $request->user();
         $schoolId = $user->school_id;
         
-        // Check permission - teachers can view classes they're assigned to even without classes.manage
+        // Check permission - teachers can view classes they're assigned to even without classes.view
         $scope = $this->teacherAccess->forUser($user);
         $isTeacher = $scope->isTeacher();
         
         if (! $isTeacher) {
-            $this->ensurePermission($request, 'classes.manage');
+            $this->ensurePermission($request, 'classes.view');
         }
         
         $query = SchoolClass::where('school_id', $schoolId);
@@ -104,7 +104,7 @@ class ClassController extends Controller
      */
     public function store(Request $request)
     {
-        $this->ensurePermission($request, ['classes.create', 'classes.manage']);
+        $this->ensurePermission($request, 'classes.create');
         $request->validate([
             'name' => [
                 'required',
@@ -154,7 +154,7 @@ class ClassController extends Controller
      */
     public function show(SchoolClass $schoolClass)
     {
-        $this->ensurePermission(request(), 'classes.manage');
+        $this->ensurePermission(request(), 'classes.view');
         return $schoolClass;
     }
 
@@ -189,7 +189,7 @@ class ClassController extends Controller
      */
     public function update(Request $request, SchoolClass $schoolClass)
     {
-        $this->ensurePermission($request, ['classes.update', 'classes.manage']);
+        $this->ensurePermission($request, 'classes.update');
         $request->validate([
             'name' => [
                 'required',
@@ -235,7 +235,7 @@ class ClassController extends Controller
      */
     public function destroy(SchoolClass $schoolClass)
     {
-        $this->ensurePermission(request(), ['classes.delete', 'classes.manage']);
+        $this->ensurePermission(request(), 'classes.delete');
         if ($schoolClass->class_arms()->exists() || $schoolClass->students()->exists()) {
             return response()->json(['error' => 'Cannot delete class with associated arms or students.'], 422);
         }
@@ -277,7 +277,7 @@ class ClassController extends Controller
         $isTeacher = $scope->isTeacher();
         
         if (! $isTeacher) {
-            $this->ensurePermission($request, 'classes.manage');
+            $this->ensurePermission($request, 'classes.view');
             return $schoolClass->class_arms;
         }
         
@@ -344,7 +344,7 @@ class ClassController extends Controller
      */
     public function storeArm(Request $request, SchoolClass $schoolClass)
     {
-        $this->ensurePermission($request, ['class-arms.create', 'classes.manage']);
+        $this->ensurePermission($request, 'class-arms.create');
         $request->validate([
             'name' => [
                 'required',
@@ -398,7 +398,7 @@ class ClassController extends Controller
      */
     public function showArm(SchoolClass $schoolClass, string $armId)
     {
-        $this->ensurePermission(request(), 'classes.manage');
+        $this->ensurePermission(request(), 'classes.view');
         return $schoolClass->class_arms()->findOrFail($armId);
     }
 
@@ -443,7 +443,7 @@ class ClassController extends Controller
      */
     public function updateArm(Request $request, SchoolClass $schoolClass, string $armId)
     {
-        $this->ensurePermission($request, ['class-arms.update', 'classes.manage']);
+        $this->ensurePermission($request, 'class-arms.update');
         $arm = $schoolClass->class_arms()->findOrFail($armId);
 
         $request->validate([
@@ -498,7 +498,7 @@ class ClassController extends Controller
      */
     public function destroyArm(SchoolClass $schoolClass, string $armId)
     {
-        $this->ensurePermission(request(), ['class-arms.delete', 'classes.manage']);
+        $this->ensurePermission(request(), 'class-arms.delete');
         $arm = $schoolClass->class_arms()->findOrFail($armId);
 
         if ($arm->students()->exists()) {

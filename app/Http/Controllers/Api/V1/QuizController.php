@@ -68,7 +68,7 @@ class QuizController extends Controller
 		$role = strtolower((string) ($user->role ?? ''));
 		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
 		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
-		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage') || $user->can('cbt.view');
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.admin.view');
 
 		if ($canManage) {
 			$query = Quiz::query()->with('subject:id,name')->orderBy('created_at', 'desc');
@@ -225,7 +225,7 @@ class QuizController extends Controller
 		$role = strtolower((string) ($user->role ?? ''));
 		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
 		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
-		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage') || $user->can('cbt.view');
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.admin.view');
 
 		// Check permission for students (admins can access drafts)
 		if (!$canManage && ! $this->quizService->canStudentTakeQuiz($user, $quiz)) {
@@ -307,7 +307,7 @@ class QuizController extends Controller
 		$role = strtolower((string) ($user->role ?? ''));
 		$isAdminRole = in_array($role, ['admin', 'super_admin'], true);
 		$hasAdminSpatieRole = $user->hasAnyRole(['admin', 'super_admin']);
-		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.manage');
+		$canManage = $isAdminRole || $hasAdminSpatieRole || $user->can('cbt.create');
 		$canView = $canManage || $user->can('cbt.view');
 		$includeCorrect = $request->boolean('include_correct') && $canManage;
 
@@ -400,7 +400,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.create');
 
 		$validated = $request->validate([
 			'title' => 'required|string|max:255',
@@ -440,7 +440,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.update');
 
 		$quiz = Quiz::find($id);
 
@@ -486,7 +486,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.delete');
 
 		$quiz = Quiz::find($id);
 
@@ -513,7 +513,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.update');
 
 		$quiz = Quiz::find($id);
 
@@ -547,7 +547,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.update');
 
 		$quiz = Quiz::find($id);
 
@@ -575,7 +575,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.update');
 
 		$quiz = Quiz::find($id);
 
@@ -603,7 +603,7 @@ class QuizController extends Controller
 		}
 
 		// Check permission
-		$this->ensurePermission($request, 'cbt.manage');
+		$this->ensurePermission($request, 'cbt.view');
 
 		$quiz = Quiz::find($id);
 

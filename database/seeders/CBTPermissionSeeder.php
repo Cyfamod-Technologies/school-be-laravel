@@ -15,14 +15,10 @@ class CBTPermissionSeeder extends Seeder
         // Define CBT permissions
         $permissions = [
             'cbt.view',
-            'cbt.manage',
             'cbt.create',
-            'cbt.edit',
+            'cbt.update',
             'cbt.delete',
-            'cbt.publish',
-            'cbt.close',
             'cbt.view_results',
-            'cbt.manage_results',
         ];
 
         foreach ($permissions as $permission) {

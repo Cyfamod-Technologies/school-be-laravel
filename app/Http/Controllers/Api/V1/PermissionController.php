@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PermissionResource;
 use App\Models\Permission;
+use Database\Seeders\FrontendPermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,12 +15,18 @@ class PermissionController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = max((int) $request->input('per_page', 15), 1);
+        // Allow up to 500 per page to fetch all permissions at once for role management
+        $perPage = min(max((int) $request->input('per_page', 15), 1), 500);
         $schoolId = $this->resolveSchoolId($request);
+        $guardName = config('permission.default_guard', 'sanctum');
+
+        // Auto-seed permissions for this school if they don't exist
+        // This ensures all schools have permissions without manual seeding
+        $this->ensurePermissionsExist($schoolId, $guardName);
 
         $permissions = Permission::query()
             ->where('school_id', $schoolId)
-            ->where('guard_name', config('permission.default_guard', 'sanctum'))
+            ->where('guard_name', $guardName)
             ->when($request->filled('search'), function ($query) use ($request) {
                 $term = $request->input('search');
                 $query->where(fn ($builder) => $builder
@@ -31,6 +38,28 @@ class PermissionController extends Controller
             ->withQueryString();
 
         return PermissionResource::collection($permissions);
+    }
+
+    /**
+     * Ensure all frontend permissions exist for the given school.
+     * This is called automatically when listing permissions.
+     */
+    private function ensurePermissionsExist(string $schoolId, string $guardName): void
+    {
+        // Quick check: if the school already has permissions, skip seeding
+        $existingCount = Permission::where('school_id', $schoolId)
+            ->where('guard_name', $guardName)
+            ->count();
+
+        $catalogCount = count(FrontendPermissionSeeder::$permissions);
+
+        // If school has all or most permissions, skip (allow some tolerance for updates)
+        if ($existingCount >= $catalogCount) {
+            return;
+        }
+
+        // Seed missing permissions for this school
+        FrontendPermissionSeeder::seedForSchool($schoolId, $guardName);
     }
 
     public function store(Request $request)

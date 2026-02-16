@@ -28,7 +28,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function index(Request $request, string $componentId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $user = $request->user();
 
@@ -57,7 +57,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function store(Request $request, string $componentId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $validated = $request->validate([
             'cbt_exam_id' => ['required', 'uuid', 'exists:quizzes,id'],
@@ -179,7 +179,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function importScores(Request $request, string $linkId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $user = $request->user();
 
@@ -278,7 +278,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function pendingScores(Request $request, string $linkId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $link = CbtAssessmentLink::with('assessmentComponent')->findOrFail($linkId);
 
@@ -298,7 +298,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function approveScores(Request $request, string $linkId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $validated = $request->validate([
             'import_ids' => ['required', 'array', 'min:1'],
@@ -332,7 +332,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function rejectScores(Request $request, string $linkId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $validated = $request->validate([
             'import_ids' => ['required', 'array', 'min:1'],
@@ -364,7 +364,7 @@ class CbtAssessmentLinkController extends Controller
 
     public function destroy(Request $request, string $linkId)
     {
-        $this->ensurePermission($request, ['results.enter', 'cbt.manage']);
+        $this->ensurePermission($request, ['results.enter', 'cbt.view']);
 
         $link = CbtAssessmentLink::with('assessmentComponent')->findOrFail($linkId);
 

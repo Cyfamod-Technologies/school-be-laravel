@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\QuizQuestionController;
 use App\Http\Controllers\Api\V1\QuizAttemptController;
 use App\Http\Controllers\Api\V1\QuizAnswerController;
 use App\Http\Controllers\Api\V1\QuizResultController;
+use App\Http\Controllers\Api\V1\PermissionSeedController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 
@@ -119,6 +120,14 @@ Route::prefix('api/v1')->group(function () {
 
         Route::get('permissions/hierarchy', [PermissionHierarchyController::class, 'index'])
             ->name('permissions.hierarchy.index');
+
+        // Permission Seeding & Sync (for frontend catalog)
+        Route::get('permissions/catalog', [PermissionSeedController::class, 'catalog'])
+            ->name('permissions.catalog');
+        Route::post('permissions/seed', [PermissionSeedController::class, 'seed'])
+            ->name('permissions.seed');
+        Route::post('permissions/sync', [PermissionSeedController::class, 'sync'])
+            ->name('permissions.sync');
 
         // RBAC - Roles
         Route::get('roles', [RoleController::class, 'index'])
@@ -393,6 +402,8 @@ Route::prefix('api/v1')->group(function () {
                 ->except(['create', 'edit']);
             Route::apiResource('skill-categories', SkillCategoryController::class)
                 ->except(['create', 'edit', 'show']);
+            Route::post('skill-types/bulk', [SkillTypeController::class, 'bulkStore'])
+                ->name('skill-types.bulk-store');
             Route::apiResource('skill-types', SkillTypeController::class)
                 ->except(['create', 'edit', 'show']);
         });

@@ -95,7 +95,46 @@ class RbacManagementTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_assign_roles_to_user(): void
+    public function test_admin_can_assign_roles_to_support_user(): void
+    {
+        [$school, $admin] = $this->createSchoolAdmin();
+
+        $supportUser = User::query()->create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'name' => 'Support User',
+            'email' => 'support.user@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'support',
+            'status' => 'active',
+        ]);
+
+        $role = Role::query()->updateOrCreate(
+            [
+                'name' => 'subject_teacher',
+                'school_id' => $school->id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'Handles subject allocations',
+            ]
+        );
+
+        Sanctum::actingAs($admin);
+
+        $response = $this->putJson("/api/v1/users/{$supportUser->id}/roles", [
+            'roles' => [$role->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.user_id', $supportUser->id);
+
+        $freshSupportUser = $supportUser->fresh();
+        $this->assertTrue($freshSupportUser->hasRole('subject_teacher'));
+        $this->assertSame('staff', strtolower((string) $freshSupportUser->role));
+    }
+
+    public function test_admin_cannot_assign_roles_to_non_support_user(): void
     {
         [$school, $admin] = $this->createSchoolAdmin();
 
@@ -105,6 +144,7 @@ class RbacManagementTest extends TestCase
             'name' => 'Subject Teacher',
             'email' => 'subject.teacher@example.com',
             'password' => bcrypt('password'),
+            'role' => 'teacher',
             'status' => 'active',
         ]);
 
@@ -125,10 +165,8 @@ class RbacManagementTest extends TestCase
             'roles' => [$role->id],
         ]);
 
-        $response->assertOk()
-            ->assertJsonPath('data.user_id', $teacher->id);
-
-        $this->assertTrue($teacher->fresh()->hasRole('subject_teacher'));
+        $response->assertStatus(422);
+        $this->assertFalse($teacher->fresh()->hasRole('subject_teacher'));
     }
 
     private function createSchoolAdmin(): array

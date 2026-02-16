@@ -119,7 +119,10 @@ class StudentBulkUploadService
         $columnMap = collect($columns)->keyBy('key');
 
         $sessions = $school->sessions()->orderBy('name')->get();
-        $terms = $school->terms()->orderBy('name')->get();
+        $terms = $school->terms()
+            ->orderBy('term_number')
+            ->orderBy('start_date')
+            ->get();
         $classes = SchoolClass::query()
             ->where('school_id', $school->id)
             ->with(['class_arms.class_sections'])
