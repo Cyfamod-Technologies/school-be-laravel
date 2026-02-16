@@ -543,8 +543,9 @@ class ClassController extends Controller
      */
     public function indexSections(SchoolClass $schoolClass, string $armId)
     {
-        $arm = $schoolClass->class_arms()->findOrFail($armId);
-        return $arm->class_sections;
+        return response()->json([
+            'message' => 'Class section feature has been removed.',
+        ], 410);
     }
 
     /**
@@ -587,26 +588,9 @@ class ClassController extends Controller
      */
     public function storeSection(Request $request, SchoolClass $schoolClass, string $armId)
     {
-        $arm = $schoolClass->class_arms()->findOrFail($armId);
-
-        $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('class_sections')->where(function ($query) use ($arm) {
-                    return $query->where('class_arm_id', $arm->id);
-                }),
-            ],
-        ]);
-
-        $section = $arm->class_sections()->create([
-            'id' => Str::uuid(),
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-        ]);
-
-        return response()->json($section, 201);
+        return response()->json([
+            'message' => 'Class section feature has been removed.',
+        ], 410);
     }
 
     /**
@@ -651,8 +635,9 @@ class ClassController extends Controller
      */
     public function showSection(SchoolClass $schoolClass, string $armId, string $sectionId)
     {
-        $arm = $schoolClass->class_arms()->findOrFail($armId);
-        return $arm->class_sections()->findOrFail($sectionId);
+        return response()->json([
+            'message' => 'Class section feature has been removed.',
+        ], 410);
     }
 
     /**
@@ -704,26 +689,9 @@ class ClassController extends Controller
      */
     public function updateSection(Request $request, SchoolClass $schoolClass, string $armId, string $sectionId)
     {
-        $arm = $schoolClass->class_arms()->findOrFail($armId);
-        $section = $arm->class_sections()->findOrFail($sectionId);
-
-        $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('class_sections')->where(function ($query) use ($arm, $section) {
-                    return $query->where('class_arm_id', $arm->id)->where('id', '!=', $section->id);
-                }),
-            ],
-        ]);
-
-        $section->update([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-        ]);
-
-        return response()->json($section);
+        return response()->json([
+            'message' => 'Class section feature has been removed.',
+        ], 410);
     }
 
     /**
@@ -768,15 +736,8 @@ class ClassController extends Controller
      */
     public function destroySection(SchoolClass $schoolClass, string $armId, string $sectionId)
     {
-        $arm = $schoolClass->class_arms()->findOrFail($armId);
-        $section = $arm->class_sections()->findOrFail($sectionId);
-
-        if ($section->students()->exists()) {
-            return response()->json(['error' => 'Cannot delete section with associated students.'], 422);
-        }
-
-        $section->delete();
-
-        return response()->json(null, 204);
+        return response()->json([
+            'message' => 'Class section feature has been removed.',
+        ], 410);
     }
 }

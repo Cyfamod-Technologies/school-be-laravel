@@ -66,12 +66,6 @@ class FrontendPermissionSeeder extends Seeder
         'class-arms.update' => 'Edit existing class arms',
         'class-arms.delete' => 'Delete class arms',
         
-        // Class Sections
-        'class-sections.view' => 'View class sections',
-        'class-sections.create' => 'Create new class sections',
-        'class-sections.update' => 'Edit existing class sections',
-        'class-sections.delete' => 'Delete class sections',
-        
         // Parents
         'parents.view' => 'View parent records',
         'parents.create' => 'Create new parent records',
