@@ -44,7 +44,6 @@ class PromotionService
             ->findOrFail($payload['target_class_id']);
 
         $targetClassArmId = Arr::get($payload, 'target_class_arm_id');
-        $targetSectionId = Arr::get($payload, 'target_section_id');
 
         // If a target class arm is explicitly provided, ensure it exists
         // for the target class. Otherwise, keep the student's existing arm.
@@ -61,7 +60,6 @@ class PromotionService
             'term_id' => $student->current_term_id,
             'class_id' => $student->school_class_id,
             'class_arm_id' => $student->class_arm_id,
-            'section_id' => $student->class_section_id,
         ];
 
         $targetTermId = $this->resolveFirstTermId($targetSession);
@@ -76,7 +74,7 @@ class PromotionService
         $student->current_term_id = $targetTermId;
         $student->school_class_id = $targetClass->id;
         $student->class_arm_id = $targetClassArmId;
-        $student->class_section_id = $targetSectionId ?: $student->class_section_id;
+        $student->class_section_id = null;
         $student->save();
 
         $log = PromotionLog::create([
@@ -87,8 +85,8 @@ class PromotionService
             'to_class_id' => $targetClass->id,
             'from_class_arm_id' => $previousState['class_arm_id'],
             'to_class_arm_id' => $targetClassArmId ?: null,
-            'from_section_id' => $previousState['section_id'],
-            'to_section_id' => $targetSectionId ?: null,
+            'from_section_id' => null,
+            'to_section_id' => null,
             'performed_by' => $userId,
             'meta' => [
                 'retain_subjects' => (bool) Arr::get($payload, 'retain_subjects', false),

@@ -163,7 +163,7 @@ Route::prefix('api/v1')->group(function () {
         Route::put('terms/{term}', [AcademicSessionController::class, 'updateTerm']);
         Route::delete('terms/{term}', [AcademicSessionController::class, 'destroyTerm']);
 
-        // Class, Class Arm, and Class Arm Section Routes
+        // Class and Class Arm Routes
         Route::apiResource('classes', ClassController::class)->parameters([
             'classes' => 'schoolClass'
         ]);
@@ -175,16 +175,6 @@ Route::prefix('api/v1')->group(function () {
                 Route::get('arms/{armId}', [ClassController::class, 'showArm'])->whereUuid('armId');
                 Route::put('arms/{armId}', [ClassController::class, 'updateArm'])->whereUuid('armId');
                 Route::delete('arms/{armId}', [ClassController::class, 'destroyArm'])->whereUuid('armId');
-
-                Route::prefix('arms/{armId}')
-                    ->whereUuid('armId')
-                    ->group(function () {
-                        Route::get('sections', [ClassController::class, 'indexSections']);
-                        Route::post('sections', [ClassController::class, 'storeSection']);
-                        Route::get('sections/{sectionId}', [ClassController::class, 'showSection'])->whereUuid('sectionId');
-                        Route::put('sections/{sectionId}', [ClassController::class, 'updateSection'])->whereUuid('sectionId');
-                        Route::delete('sections/{sectionId}', [ClassController::class, 'destroySection'])->whereUuid('sectionId');
-                    });
             });
 
         // Parent Routes

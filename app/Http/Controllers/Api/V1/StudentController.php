@@ -120,9 +120,6 @@ class StudentController extends Controller
             ->when($request->filled('class_arm_id'), function ($query) use ($request) {
                 $query->where('class_arm_id', $request->class_arm_id);
             })
-            ->when($request->filled('class_section_id'), function ($query) use ($request) {
-                $query->where('class_section_id', $request->class_section_id);
-            })
             ->when($request->filled('parent_id'), function ($query) use ($request) {
                 $query->where('parent_id', $request->parent_id);
             })
@@ -237,8 +234,7 @@ class StudentController extends Controller
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
             'school_class_id' => 'required|exists:classes,id',
-            'class_arm_id' => 'required|exists:class_arms,id',
-            'class_section_id' => 'nullable|exists:class_sections,id',
+            'class_arm_id' => 'nullable|exists:class_arms,id',
             'parent_id' => 'nullable|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
@@ -263,10 +259,11 @@ class StudentController extends Controller
         if (! array_key_exists('parent_id', $studentData) || ! $studentData['parent_id']) {
             $studentData['parent_id'] = null;
         }
-
-        if (array_key_exists('class_section_id', $studentData) && ! $studentData['class_section_id']) {
-            $studentData['class_section_id'] = null;
+        if (! array_key_exists('class_arm_id', $studentData) || ! $studentData['class_arm_id']) {
+            $studentData['class_arm_id'] = null;
         }
+
+        $studentData['class_section_id'] = null;
 
         foreach (['house', 'club'] as $field) {
             if (array_key_exists($field, $studentData)) {
@@ -469,20 +466,20 @@ class StudentController extends Controller
             'current_session_id' => 'required|exists:sessions,id',
             'current_term_id' => 'required|exists:terms,id',
             'school_class_id' => 'required|exists:classes,id',
-            'class_arm_id' => 'required|exists:class_arms,id',
-            'class_section_id' => 'nullable|exists:class_sections,id',
+            'class_arm_id' => 'nullable|exists:class_arms,id',
             'parent_id' => 'nullable|exists:parents,id',
             'admission_date' => 'required|date',
             'photo_url' => 'nullable|string|max:255',
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
-        if (array_key_exists('class_section_id', $validated) && ! $validated['class_section_id']) {
-            $validated['class_section_id'] = null;
-        }
+        $validated['class_section_id'] = null;
 
         if (array_key_exists('parent_id', $validated) && ! $validated['parent_id']) {
             $validated['parent_id'] = null;
+        }
+        if (array_key_exists('class_arm_id', $validated) && ! $validated['class_arm_id']) {
+            $validated['class_arm_id'] = null;
         }
 
         foreach (['house', 'club'] as $field) {
@@ -602,7 +599,7 @@ class StudentController extends Controller
 
     protected function studentRelations(): array
     {
-        return ['school_class', 'class_arm', 'class_section', 'parent', 'session', 'term', 'blood_group'];
+        return ['school_class', 'class_arm', 'parent', 'session', 'term', 'blood_group'];
     }
 
     protected function prepareRelationshipInput(Request $request): void
@@ -615,7 +612,7 @@ class StudentController extends Controller
             $request->merge(['school_class_id' => (string) $classIdentifier]);
         }
 
-        foreach (['school_class_id', 'class_arm_id', 'class_section_id', 'parent_id', 'current_session_id', 'current_term_id', 'blood_group_id'] as $field) {
+        foreach (['school_class_id', 'class_arm_id', 'parent_id', 'current_session_id', 'current_term_id', 'blood_group_id'] as $field) {
             if (! $request->has($field)) {
                 continue;
             }

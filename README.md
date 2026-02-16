@@ -8,6 +8,8 @@
 
 A comprehensive Laravel-based school management system designed to streamline administrative tasks, student management, and academic operations.
 
+source ~/.nvm/nvm.sh && nvm use 20 && npm run dev
+
 ## Features
 
 - **Student Management**: Registration, profiles, attendance tracking

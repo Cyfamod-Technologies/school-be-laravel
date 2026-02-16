@@ -65,10 +65,9 @@ class ResultController extends Controller
 
         $query = Result::query()
             ->with([
-                'student:id,first_name,last_name,middle_name,admission_no,school_class_id,class_arm_id,class_section_id,current_session_id,current_term_id',
+                'student:id,first_name,last_name,middle_name,admission_no,school_class_id,class_arm_id,current_session_id,current_term_id',
                 'student.school_class:id,name',
                 'student.class_arm:id,name',
-                'student.class_section:id,name',
                 'subject:id,name,code',
                 'session:id,name',
                 'term:id,name,session_id',
@@ -111,11 +110,6 @@ class ResultController extends Controller
         if ($request->filled('class_arm_id')) {
             $armId = $request->input('class_arm_id');
             $query->whereHas('student', fn (Builder $builder) => $builder->where('class_arm_id', $armId));
-        }
-
-        if ($request->filled('class_section_id')) {
-            $sectionId = $request->input('class_section_id');
-            $query->whereHas('student', fn (Builder $builder) => $builder->where('class_section_id', $sectionId));
         }
 
         if ($request->filled('min_score')) {
@@ -422,10 +416,9 @@ class ResultController extends Controller
 
                 $savedResults->push(
                     $result->fresh([
-                        'student:id,first_name,last_name,middle_name,admission_no,school_class_id,class_arm_id,class_section_id',
+                        'student:id,first_name,last_name,middle_name,admission_no,school_class_id,class_arm_id',
                         'student.school_class:id,name',
                         'student.class_arm:id,name',
-                        'student.class_section:id,name',
                         'subject:id,name,code',
                         'session:id,name',
                         'term:id,name',
