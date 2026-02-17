@@ -1106,8 +1106,7 @@ class StudentBulkUploadService
         $admissionNos = [];
         $firstNames = [];
         $lastNames = [];
-        $birthDates = [];
-        $nameDobKeys = [];
+        $nameKeys = [];
 
         foreach ($preparedRows as $row) {
             $admissionNo = $row['admission_no_input'] ?? null;
@@ -1117,20 +1116,17 @@ class StudentBulkUploadService
 
             $firstName = $row['student']['first_name'] ?? null;
             $lastName = $row['student']['last_name'] ?? null;
-            $dateOfBirth = $row['student']['date_of_birth'] ?? null;
-            if ($firstName && $lastName && $dateOfBirth) {
+            if ($firstName && $lastName) {
                 $firstLower = strtolower($firstName);
                 $lastLower = strtolower($lastName);
-                $dobValue = strtolower($dateOfBirth);
-                $nameDobKeys[] = "{$firstLower}|{$lastLower}|{$dobValue}";
+                $nameKeys[] = "{$firstLower}|{$lastLower}";
                 $firstNames[$firstLower] = true;
                 $lastNames[$lastLower] = true;
-                $birthDates[$dobValue] = true;
             }
         }
 
         $admissionNos = array_values(array_unique($admissionNos));
-        $nameDobKeys = array_values(array_unique($nameDobKeys));
+        $nameKeys = array_values(array_unique($nameKeys));
 
         $byAdmissionNo = [];
         if (! empty($admissionNos)) {
@@ -1143,22 +1139,17 @@ class StudentBulkUploadService
             }
         }
 
-        $byNameDob = [];
-        if (! empty($birthDates) && ! empty($firstNames) && ! empty($lastNames)) {
+        $byName = [];
+        if (! empty($nameKeys) && ! empty($firstNames) && ! empty($lastNames)) {
             $students = Student::query()
                 ->where('school_id', $school->id)
-                ->whereIn(DB::raw('LOWER(first_name)'), array_keys($firstNames))
-                ->whereIn(DB::raw('LOWER(last_name)'), array_keys($lastNames))
-                ->whereIn(DB::raw('DATE(date_of_birth)'), array_keys($birthDates))
+                ->whereIn(DB::raw('LOWER(TRIM(first_name))'), array_keys($firstNames))
+                ->whereIn(DB::raw('LOWER(TRIM(last_name))'), array_keys($lastNames))
                 ->get();
 
             foreach ($students as $student) {
-                $dob = $student->date_of_birth?->toDateString() ?? null;
-                if (! $dob) {
-                    continue;
-                }
-                $key = strtolower($student->first_name) . '|' . strtolower($student->last_name) . '|' . strtolower($dob);
-                $byNameDob[$key] = $student;
+                $key = strtolower(trim($student->first_name)) . '|' . strtolower(trim($student->last_name));
+                $byName[$key] = $student;
             }
         }
 
@@ -1175,12 +1166,11 @@ class StudentBulkUploadService
             if (! $duplicate) {
                 $firstName = $row['student']['first_name'] ?? null;
                 $lastName = $row['student']['last_name'] ?? null;
-                $dateOfBirth = $row['student']['date_of_birth'] ?? null;
-                if ($firstName && $lastName && $dateOfBirth) {
-                    $key = strtolower($firstName) . '|' . strtolower($lastName) . '|' . strtolower($dateOfBirth);
-                    $match = $byNameDob[$key] ?? null;
+                if ($firstName && $lastName) {
+                    $key = strtolower(trim($firstName)) . '|' . strtolower(trim($lastName));
+                    $match = $byName[$key] ?? null;
                     if ($match) {
-                        $duplicate = $this->formatDuplicateInfo($match, 'name_dob');
+                        $duplicate = $this->formatDuplicateInfo($match, 'name');
                     }
                 }
             }
@@ -1252,13 +1242,11 @@ class StudentBulkUploadService
 
         $firstName = $row['student']['first_name'] ?? null;
         $lastName = $row['student']['last_name'] ?? null;
-        $dateOfBirth = $row['student']['date_of_birth'] ?? null;
-        if ($firstName && $lastName && $dateOfBirth) {
+        if ($firstName && $lastName) {
             return Student::query()
                 ->where('school_id', $school->id)
-                ->whereRaw('LOWER(first_name) = ?', [strtolower($firstName)])
-                ->whereRaw('LOWER(last_name) = ?', [strtolower($lastName)])
-                ->whereRaw('DATE(date_of_birth) = ?', [strtolower($dateOfBirth)])
+                ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower(trim($firstName))])
+                ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower(trim($lastName))])
                 ->first();
         }
 
