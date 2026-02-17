@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -283,6 +284,11 @@ class StudentController extends Controller
             $studentData['admission_no'] = $value === '' ? null : $value;
         }
 
+        $duplicateStudent = $this->findDuplicateStudent($school->id, $studentData);
+        if ($duplicateStudent) {
+            return $this->duplicateStudentResponse($duplicateStudent);
+        }
+
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
             $studentData['photo_url'] = $this->formatStoredFileUrl($photoPath);
@@ -492,6 +498,11 @@ class StudentController extends Controller
             }
         }
 
+        $duplicateStudent = $this->findDuplicateStudent($student->school_id, $validated, $student->id);
+        if ($duplicateStudent) {
+            return $this->duplicateStudentResponse($duplicateStudent);
+        }
+
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
             if ($student->photo_url) {
@@ -652,5 +663,38 @@ class StudentController extends Controller
         } elseif (! str_contains($url, '://')) {
             Storage::disk('public')->delete(ltrim($url, '/'));
         }
+    }
+
+    private function findDuplicateStudent(string $schoolId, array $studentData, ?string $excludeStudentId = null): ?Student
+    {
+        $firstName = strtolower(trim((string) ($studentData['first_name'] ?? '')));
+        $lastName = strtolower(trim((string) ($studentData['last_name'] ?? '')));
+
+        if ($firstName === '' || $lastName === '') {
+            return null;
+        }
+
+        return Student::query()
+            ->where('school_id', $schoolId)
+            ->when($excludeStudentId, function ($query) use ($excludeStudentId) {
+                $query->where('id', '!=', $excludeStudentId);
+            })
+            ->whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName])
+            ->whereRaw('LOWER(TRIM(last_name)) = ?', [$lastName])
+            ->first();
+    }
+
+    private function duplicateStudentResponse(Student $student): JsonResponse
+    {
+        return response()->json([
+            'message' => 'A student with the same first and last name already exists.',
+            'is_duplicate' => true,
+            'duplicate' => [
+                'id' => $student->id,
+                'admission_no' => $student->admission_no,
+                'name' => trim("{$student->first_name} {$student->last_name}"),
+                'match' => 'name',
+            ],
+        ], 409);
     }
 }
