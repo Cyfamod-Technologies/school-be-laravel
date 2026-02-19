@@ -139,7 +139,7 @@ class CommissionService
                 'invoice_id' => $lockedInvoice->id,
                 'payment_number' => $currentPaymentCount + 1,
                 'commission_amount' => $commissionAmount,
-                'status' => 'pending',
+                'status' => 'approved',
             ]);
 
             if ($freshRegistration) {
@@ -178,6 +178,8 @@ class CommissionService
      */
     public function getAgentEarnings(Agent $agent): array
     {
+        $this->autoApprovePendingCommissions($agent);
+
         $totalPending = $agent->commissions()
             ->where('status', 'pending')
             ->sum('commission_amount');
@@ -192,15 +194,19 @@ class CommissionService
 
         $totalEarnings = $totalPending + $totalApproved + $totalPaid;
         $minPayoutThreshold = (int) config('commission.min_payout_threshold', 5000);
+        $availableForPayout = (float) $agent->commissions()
+            ->where('status', 'approved')
+            ->whereNull('payout_id')
+            ->sum('commission_amount');
 
         return [
             'total' => $totalEarnings,
             'pending' => $totalPending,
             'approved' => $totalApproved,
             'paid' => $totalPaid,
-            'available_for_payout' => max(0, $totalApproved - $this->getTotalPendingPayouts($agent)),
+            'available_for_payout' => $availableForPayout,
             'min_payout_threshold' => $minPayoutThreshold,
-            'can_request_payout' => $totalApproved >= $minPayoutThreshold,
+            'can_request_payout' => $availableForPayout >= $minPayoutThreshold,
         ];
     }
 
@@ -209,6 +215,8 @@ class CommissionService
      */
     public function getCommissionHistory(Agent $agent, int $page = 1, int $perPage = 20)
     {
+        $this->autoApprovePendingCommissions($agent);
+
         return $agent->commissions()
             ->with(['referral', 'school'])
             ->orderBy('created_at', 'desc')
@@ -235,22 +243,21 @@ class CommissionService
     }
 
     /**
-     * Get total pending payouts for agent
-     */
-    private function getTotalPendingPayouts(Agent $agent): float
-    {
-        return $agent->payouts()
-            ->whereIn('status', ['pending', 'approved', 'processing'])
-            ->sum('total_amount');
-    }
-
-    /**
      * Bulk approve commissions
      */
     public function bulkApproveCommissions(array $commissionIds): int
     {
         return AgentCommission::whereIn('id', $commissionIds)
             ->where('status', 'pending')
+            ->update(['status' => 'approved']);
+    }
+
+    private function autoApprovePendingCommissions(Agent $agent): int
+    {
+        return AgentCommission::query()
+            ->where('agent_id', $agent->id)
+            ->where('status', 'pending')
+            ->whereNull('payout_id')
             ->update(['status' => 'approved']);
     }
 

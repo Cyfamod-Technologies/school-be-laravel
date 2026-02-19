@@ -13,6 +13,8 @@ use App\Models\Term;
 use App\Models\TermPaymentTransaction;
 use App\Services\CommissionService;
 use App\Services\SubscriptionService;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -326,7 +328,6 @@ class TermController extends Controller
         }
 
         $secretKey = trim((string) config('services.paystack.secret_key'));
-        $baseUrl = rtrim((string) config('services.paystack.base_url', 'https://api.paystack.co'), '/');
         if ($secretKey === '') {
             return response()->json([
                 'message' => 'Paystack is not configured on the server.',
@@ -434,10 +435,25 @@ class TermController extends Controller
             ], 500);
         }
 
-        $response = Http::timeout(20)
-            ->acceptJson()
-            ->withToken($secretKey)
-            ->get($baseUrl . '/transaction/verify/' . urlencode($transaction->reference));
+        try {
+            $response = $this->paystackHttpClient($secretKey)
+                ->get($baseUrl . '/transaction/verify/' . urlencode($transaction->reference));
+        } catch (ConnectionException $exception) {
+            $transaction->update([
+                'gateway_response' => [
+                    'request' => $requestMeta,
+                    'initialize' => $existingResponse['initialize'] ?? null,
+                    'verify' => [
+                        'message' => 'Unable to connect to Paystack verify endpoint.',
+                        'error' => $exception->getMessage(),
+                    ],
+                ],
+            ]);
+
+            throw ValidationException::withMessages([
+                'payment' => $this->paystackConnectionErrorMessage(),
+            ]);
+        }
 
         $payload = $response->json();
         $isValidPayload = is_array($payload);
@@ -750,23 +766,38 @@ class TermController extends Controller
             ],
         ]);
 
-        $response = Http::timeout(20)
-            ->acceptJson()
-            ->withToken($secretKey)
-            ->post($baseUrl . '/transaction/initialize', [
-                'email' => $email,
-                'amount' => $amountInKobo,
-                'reference' => $reference,
-                'currency' => 'NGN',
-                'callback_url' => $callbackUrl,
-                'metadata' => [
-                    'scope' => $scope,
-                    'school_id' => $school->id,
-                    'session_id' => $sessionId,
-                    'term_ids' => $termIds,
-                    'purpose' => $purpose,
+        try {
+            $response = $this->paystackHttpClient($secretKey)
+                ->post($baseUrl . '/transaction/initialize', [
+                    'email' => $email,
+                    'amount' => $amountInKobo,
+                    'reference' => $reference,
+                    'currency' => 'NGN',
+                    'callback_url' => $callbackUrl,
+                    'metadata' => [
+                        'scope' => $scope,
+                        'school_id' => $school->id,
+                        'session_id' => $sessionId,
+                        'term_ids' => $termIds,
+                        'purpose' => $purpose,
+                    ],
+                ]);
+        } catch (ConnectionException $exception) {
+            $transaction->update([
+                'status' => 'failed',
+                'gateway_response' => [
+                    'request' => $requestMeta,
+                    'initialize' => [
+                        'message' => 'Unable to connect to Paystack initialize endpoint.',
+                        'error' => $exception->getMessage(),
+                    ],
                 ],
             ]);
+
+            throw ValidationException::withMessages([
+                'payment' => $this->paystackConnectionErrorMessage(),
+            ]);
+        }
 
         $payload = $response->json();
         $isValidPayload = is_array($payload);
@@ -915,6 +946,35 @@ class TermController extends Controller
         } while (TermPaymentTransaction::where('reference', $reference)->exists());
 
         return $reference;
+    }
+
+    private function paystackHttpClient(string $secretKey): PendingRequest
+    {
+        $timeoutSeconds = max(10, (int) config('services.paystack.timeout', 30));
+        $connectTimeoutSeconds = max(5, (int) config('services.paystack.connect_timeout', 15));
+        $retryTimes = max(0, (int) config('services.paystack.retry_times', 2));
+        $retrySleepMs = max(100, (int) config('services.paystack.retry_sleep_ms', 400));
+
+        $client = Http::acceptJson()
+            ->withToken($secretKey)
+            ->timeout($timeoutSeconds)
+            ->connectTimeout($connectTimeoutSeconds);
+
+        if ($retryTimes > 0) {
+            $client = $client->retry(
+                $retryTimes,
+                $retrySleepMs,
+                fn ($exception) => $exception instanceof ConnectionException,
+                throw: false
+            );
+        }
+
+        return $client;
+    }
+
+    private function paystackConnectionErrorMessage(): string
+    {
+        return 'Unable to reach Paystack right now. Please confirm internet/server outbound access and try again.';
     }
 
     private function mapPaystackStatus(string $gatewayStatus): string

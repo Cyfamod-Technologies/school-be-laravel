@@ -457,6 +457,8 @@ class SchoolController extends Controller
 
         $previousSessionId = $school->current_session_id;
         $previousTermId = $school->current_term_id;
+        $session = null;
+        $term = null;
 
         if (array_key_exists('current_session_id', $data) && $sessionId !== null) {
             $session = Session::where('id', $sessionId)
@@ -476,19 +478,54 @@ class SchoolController extends Controller
             if (! $term) {
                 return response()->json(['message' => 'Selected term was not found for this school.'], 404);
             }
+        }
 
-            if ($sessionId !== null && $term->session_id !== $sessionId) {
+        $isSwitchingSession = $sessionId !== null && (string) $sessionId !== (string) ($previousSessionId ?? '');
+        if ($isSwitchingSession && $termId === null) {
+            $term = Term::query()
+                ->where('school_id', $school->id)
+                ->where('session_id', $sessionId)
+                ->orderBy('start_date')
+                ->orderBy('term_number')
+                ->first();
+
+            if (! $term) {
+                return response()->json([
+                    'message' => 'Cannot switch session because it has no terms configured.',
+                ], 422);
+            }
+
+            $termId = (string) $term->id;
+            $data['current_term_id'] = $termId;
+        }
+
+        if ($term) {
+            if ($sessionId !== null && (string) $term->session_id !== (string) $sessionId) {
                 return response()->json(['message' => 'The selected term does not belong to the chosen session.'], 422);
             }
 
             if ($sessionId === null) {
-                $sessionId = $term->session_id;
+                $sessionId = (string) $term->session_id;
                 $data['current_session_id'] = $sessionId;
             }
 
-            $isSwitchingToDifferentTerm = (string) $termId !== (string) ($previousTermId ?? '');
+            $isSwitchingToDifferentTerm = (string) ($termId ?? '') !== (string) ($previousTermId ?? '');
             if ($isSwitchingToDifferentTerm && $school->requiresSubscription()) {
                 $term->loadMissing(['school', 'invoices', 'midtermAdditions']);
+
+                $previousUnpaidTerm = $this->getPreviousUnpaidTermForTarget($term);
+                if ($previousUnpaidTerm) {
+                    $contextSessionName = $previousUnpaidTerm->session?->name;
+                    $context = $contextSessionName
+                        ? $previousUnpaidTerm->name . ' (' . $contextSessionName . ')'
+                        : $previousUnpaidTerm->name;
+                    $contextOutstanding = number_format((float) $previousUnpaidTerm->getOutstandingBalance(), 2);
+
+                    return response()->json([
+                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared for '
+                            . $context . '. Outstanding: ₦' . $contextOutstanding . '.',
+                    ], 422);
+                }
 
                 if (! $subscriptionService->isFreeTrialTerm($term)) {
                     $originalInvoice = $term->invoices
@@ -549,6 +586,38 @@ class SchoolController extends Controller
                 'currentTerm:id,name,session_id,start_date,end_date,status',
             ]),
         ]);
+    }
+
+    private function getPreviousUnpaidTermForTarget(Term $term): ?Term
+    {
+        $query = Term::query()
+            ->with('session')
+            ->where('school_id', $term->school_id)
+            ->where('id', '!=', $term->id)
+            ->whereRaw(
+                '((COALESCE(amount_due, 0) + COALESCE(midterm_amount_due, 0)) - (COALESCE(amount_paid, 0) + COALESCE(midterm_amount_paid, 0))) > 0'
+            );
+
+        if ($term->start_date) {
+            $query->where(function ($inner) use ($term) {
+                $inner
+                    ->where('start_date', '<', $term->start_date)
+                    ->orWhere(function ($sameDate) use ($term) {
+                        $sameDate
+                            ->where('start_date', '=', $term->start_date)
+                            ->where('term_number', '<', (int) ($term->term_number ?? 0));
+                    });
+            });
+        } else {
+            $query
+                ->where('session_id', $term->session_id)
+                ->where('term_number', '<', (int) ($term->term_number ?? 0));
+        }
+
+        return $query
+            ->orderBy('start_date')
+            ->orderBy('term_number')
+            ->first();
     }
 
     /**

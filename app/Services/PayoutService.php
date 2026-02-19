@@ -16,17 +16,37 @@ class PayoutService
     {
         $minThreshold = (int) config('commission.min_payout_threshold', 5000);
 
+        // Manual commission approval is disabled: convert legacy pending records.
+        AgentCommission::query()
+            ->where('agent_id', $agent->id)
+            ->where('status', 'pending')
+            ->whereNull('payout_id')
+            ->update(['status' => 'approved']);
+
+        $existingOpenPayout = $agent->payouts()
+            ->whereIn('status', ['pending', 'approved', 'processing'])
+            ->exists();
+
+        if ($existingOpenPayout) {
+            throw new \Exception('You already have a payout request in progress.');
+        }
+
         // Get approved commissions not yet paid out
         $approvedCommissions = $agent->commissions()
             ->where('status', 'approved')
             ->whereNull('payout_id')
             ->get();
 
-        $totalAmount = $approvedCommissions->sum('commission_amount');
+        $totalAmount = (float) $approvedCommissions->sum('commission_amount');
 
         // Check if meets minimum threshold
         if ($totalAmount < $minThreshold) {
-            throw new \Exception("Minimum payout threshold not met. Required: ₦$minThreshold, Available: ₦$totalAmount");
+            throw new \Exception(
+                'Minimum payout threshold not met. Required: ₦'
+                . number_format($minThreshold, 2)
+                . ', Available: ₦'
+                . number_format($totalAmount, 2)
+            );
         }
 
         return DB::transaction(function () use ($agent, $approvedCommissions, $totalAmount) {
