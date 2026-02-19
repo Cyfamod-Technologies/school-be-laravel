@@ -147,12 +147,26 @@ class SubscriptionService
             ]);
         }
 
-        // Update term
-        $term->increment('midterm_amount_due', $totalAmount);
+        // Update term balances and payment status.
+        $nextMidtermDue = (float) ($term->midterm_amount_due ?? 0) + $totalAmount;
+        $nextMidtermPaid = (float) ($term->midterm_amount_paid ?? 0);
         if ($isFreeTrialTerm && $totalAmount > 0) {
-            $term->increment('midterm_amount_paid', $totalAmount);
+            $nextMidtermPaid += $totalAmount;
         }
-        $term->update(['has_midterm_additions' => true]);
+
+        $totalDueAfter = (float) ($term->amount_due ?? 0) + $nextMidtermDue;
+        $totalPaidAfter = (float) ($term->amount_paid ?? 0) + $nextMidtermPaid;
+        $outstandingAfter = max(0, $totalDueAfter - $totalPaidAfter);
+        $nextPaymentStatus = $outstandingAfter <= 0
+            ? 'paid'
+            : ($totalPaidAfter > 0 ? 'partial' : 'invoiced');
+
+        $term->update([
+            'midterm_amount_due' => $nextMidtermDue,
+            'midterm_amount_paid' => $nextMidtermPaid,
+            'has_midterm_additions' => true,
+            'payment_status' => $nextPaymentStatus,
+        ]);
 
         return $invoice;
     }

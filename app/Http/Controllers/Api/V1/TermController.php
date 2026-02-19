@@ -110,7 +110,16 @@ class TermController extends Controller
             ->orderBy('term_number', 'asc')
             ->paginate($request->input('per_page', 20));
 
-        $formattedTerms = $terms->getCollection()
+        $hydratedTerms = $terms->getCollection()
+            ->map(function (Term $term) use ($school) {
+                if ((string) $term->id === (string) ($school->current_term_id ?? '')) {
+                    return $this->ensureTermReadyForPayment($term);
+                }
+
+                return $term;
+            });
+
+        $formattedTerms = $hydratedTerms
             ->map(fn (Term $term) => $this->formatTerm($term))
             ->values();
         $terms->setCollection($formattedTerms);
@@ -130,6 +139,8 @@ class TermController extends Controller
         if (! $school || $term->school_id !== $school->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        $term = $this->ensureTermReadyForPayment($term->load(['school', 'invoices']));
 
         if (! $term->school->requiresSubscription()) {
             return response()->json([
@@ -210,6 +221,15 @@ class TermController extends Controller
         $school = $this->resolveAuthenticatedSchool($request);
         if (! $school || $term->school_id !== $school->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $term = $this->ensureTermReadyForPayment($term->load(['school', 'invoices']));
+
+        $paymentLockReason = $this->getPaymentOrderLockReason($term);
+        if ($paymentLockReason !== null) {
+            throw ValidationException::withMessages([
+                'term_id' => $paymentLockReason,
+            ]);
         }
 
         if (! $term->school->requiresSubscription()) {
@@ -354,6 +374,7 @@ class TermController extends Controller
             ->with('school')
             ->where('school_id', $school->id)
             ->where('session_id', $validated['session_id'])
+            ->orderBy('start_date')
             ->orderBy('term_number')
             ->get();
 
@@ -361,6 +382,17 @@ class TermController extends Controller
             throw ValidationException::withMessages([
                 'session_id' => 'No terms were found for this session.',
             ]);
+        }
+
+        /** @var Term|null $firstTermInSession */
+        $firstTermInSession = $terms->first();
+        if ($firstTermInSession) {
+            $sessionPaymentLockReason = $this->getPaymentOrderLockReason($firstTermInSession);
+            if ($sessionPaymentLockReason !== null) {
+                throw ValidationException::withMessages([
+                    'session_id' => $sessionPaymentLockReason,
+                ]);
+            }
         }
 
         $outstandingTerms = $terms
@@ -763,6 +795,7 @@ class TermController extends Controller
 
     private function formatTerm(Term $term): array
     {
+        $paymentLockReason = $this->getPaymentOrderLockReason($term);
         $sessionName = $term->relationLoaded('session') ? $term->session?->name : null;
         $invoices = $term->relationLoaded('invoices') ? $term->invoices : collect();
 
@@ -817,6 +850,8 @@ class TermController extends Controller
             'students_left_for_payment' => $studentsLeftForPayment,
             'outstanding_balance' => (float) $term->getOutstandingBalance(),
             'payment_due_date' => $term->payment_due_date,
+            'can_pay_term' => $paymentLockReason === null,
+            'payment_lock_reason' => $paymentLockReason,
             'can_switch' => $this->subscriptionService->canSwitchTerm($term),
             'subscription' => [
                 'can_switch' => $this->subscriptionService->canSwitchTerm($term),
@@ -886,5 +921,153 @@ class TermController extends Controller
         $term->midtermAdditions()
             ->where('status', 'pending_payment')
             ->update(['status' => 'paid']);
+    }
+
+    /**
+     * Ensure current term has payable billing state when free trial is disabled.
+     */
+    private function ensureTermReadyForPayment(Term $term): Term
+    {
+        $term->loadMissing(['school', 'invoices', 'midtermAdditions']);
+
+        if (! $term->school || ! $term->school->requiresSubscription()) {
+            return $term;
+        }
+
+        if ($this->subscriptionService->isFreeTrialTerm($term)) {
+            return $term;
+        }
+
+        $originalInvoice = $term->invoices
+            ->first(fn ($invoice) => (string) ($invoice->invoice_type ?? '') === 'original');
+
+        if (! $originalInvoice) {
+            $this->subscriptionService->generateTermInvoice($term);
+
+            return Term::query()
+                ->with(['session', 'invoices', 'school'])
+                ->find($term->id) ?? $term;
+        }
+
+        $pricePerStudent = max(0, (int) config('subscription.price_per_student', 500));
+        $studentCountSnapshot = (int) ($term->student_count_snapshot ?? 0);
+        if ($studentCountSnapshot <= 0) {
+            $studentCountSnapshot = (int) $term->students()->count();
+        }
+
+        $expectedOriginalAmount = (float) ($studentCountSnapshot * $pricePerStudent);
+        $originalInvoiceAmount = (float) ($originalInvoice->total_amount ?? 0);
+
+        if ($originalInvoiceAmount <= 0 && $expectedOriginalAmount > 0) {
+            $originalInvoice->forceFill([
+                'student_count' => $studentCountSnapshot,
+                'price_per_student' => $pricePerStudent,
+                'total_amount' => $expectedOriginalAmount,
+                'status' => 'draft',
+                'paid_at' => null,
+            ])->save();
+
+            $term->forceFill([
+                'invoice_id' => $originalInvoice->id,
+                'student_count_snapshot' => $studentCountSnapshot,
+                'amount_due' => $expectedOriginalAmount,
+                'amount_paid' => 0,
+                'payment_status' => 'invoiced',
+            ])->save();
+        } elseif ((float) ($term->amount_due ?? 0) <= 0 && $originalInvoiceAmount > 0) {
+            $term->forceFill([
+                'invoice_id' => $originalInvoice->id,
+                'student_count_snapshot' => max($studentCountSnapshot, (int) ($originalInvoice->student_count ?? 0)),
+                'amount_due' => $originalInvoiceAmount,
+                'payment_status' => (float) ($term->amount_paid ?? 0) >= $originalInvoiceAmount ? 'paid' : 'invoiced',
+            ])->save();
+        }
+
+        $baseBilledStudents = max(
+            (int) ($term->student_count_snapshot ?? 0),
+            (int) ($originalInvoice->student_count ?? 0),
+        );
+        $midtermBilledStudentIds = $term->midtermAdditions
+            ->pluck('student_id')
+            ->filter(fn ($id) => is_string($id) && $id !== '')
+            ->values();
+        $midtermBilledStudents = $midtermBilledStudentIds->count();
+        $currentStudentIds = $term->students()
+            ->pluck('id')
+            ->filter(fn ($id) => is_string($id) && $id !== '')
+            ->values();
+        $currentStudentCount = $currentStudentIds->count();
+        $unbilledStudentsCount = $currentStudentCount - ($baseBilledStudents + $midtermBilledStudents);
+
+        if ($pricePerStudent > 0 && $unbilledStudentsCount > 0) {
+            $alreadyMidtermBilled = $midtermBilledStudentIds->all();
+            $candidateStudentIds = $currentStudentIds
+                ->filter(fn ($id) => ! in_array($id, $alreadyMidtermBilled, true))
+                ->take($unbilledStudentsCount)
+                ->values()
+                ->all();
+
+            if ($candidateStudentIds !== []) {
+                $this->subscriptionService->generateMidtermInvoice($term, $candidateStudentIds);
+            }
+        }
+
+        return Term::query()
+            ->with(['session', 'invoices', 'school'])
+            ->find($term->id) ?? $term;
+    }
+
+    private function getPaymentOrderLockReason(Term $term): ?string
+    {
+        $term->loadMissing(['school', 'session']);
+
+        if (! $term->school || ! $term->school->requiresSubscription()) {
+            return null;
+        }
+
+        $previousUnpaidTerm = $this->findPreviousUnpaidTerm($term);
+        if (! $previousUnpaidTerm) {
+            return null;
+        }
+
+        $previousSessionName = $previousUnpaidTerm->session?->name;
+        $context = $previousSessionName
+            ? $previousUnpaidTerm->name . ' (' . $previousSessionName . ')'
+            : $previousUnpaidTerm->name;
+        $outstanding = number_format($previousUnpaidTerm->getOutstandingBalance(), 2);
+
+        return 'Please settle ' . $context . ' before paying ' . $term->name . '. Outstanding: ₦' . $outstanding . '.';
+    }
+
+    private function findPreviousUnpaidTerm(Term $term): ?Term
+    {
+        $query = Term::query()
+            ->with('session')
+            ->where('school_id', $term->school_id)
+            ->where('id', '!=', $term->id)
+            ->whereRaw(
+                '((COALESCE(amount_due, 0) + COALESCE(midterm_amount_due, 0)) - (COALESCE(amount_paid, 0) + COALESCE(midterm_amount_paid, 0))) > 0'
+            );
+
+        if ($term->start_date) {
+            $query->where(function ($inner) use ($term) {
+                $inner
+                    ->where('start_date', '<', $term->start_date)
+                    ->orWhere(function ($sameDate) use ($term) {
+                        $sameDate
+                            ->where('start_date', '=', $term->start_date)
+                            ->where('term_number', '<', (int) ($term->term_number ?? 0));
+                    });
+            });
+        } else {
+            $query
+                ->where('session_id', $term->session_id)
+                ->where('term_number', '<', (int) ($term->term_number ?? 0));
+        }
+
+        return $query
+            ->orderByDesc('start_date')
+            ->orderByDesc('term_number')
+            ->first();
     }
 }
