@@ -50,7 +50,15 @@ class Term extends Model
 	protected $casts = [
 		'start_date' => 'datetime',
 		'end_date' => 'datetime',
-		'term_number' => 'integer'
+		'term_number' => 'integer',
+		'student_count_snapshot' => 'integer',
+		'amount_due' => 'decimal:2',
+		'amount_paid' => 'decimal:2',
+		'midterm_amount_due' => 'decimal:2',
+		'midterm_amount_paid' => 'decimal:2',
+		'outstanding_balance' => 'decimal:2',
+		'payment_due_date' => 'date',
+		'has_midterm_additions' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -62,7 +70,16 @@ class Term extends Model
 		'slug',
 		'start_date',
 		'end_date',
-		'status'
+		'status',
+		'payment_status',
+		'invoice_id',
+		'student_count_snapshot',
+		'amount_due',
+		'amount_paid',
+		'payment_due_date',
+		'has_midterm_additions',
+		'midterm_amount_due',
+		'midterm_amount_paid',
 	];
 
 	protected static function booted(): void

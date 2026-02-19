@@ -434,6 +434,15 @@ Route::prefix('api/v1')->group(function () {
             Route::post('{term}/send-reminder', [TermController::class, 'sendPaymentReminder'])
                 ->whereUuid('term')
                 ->name('terms.send-reminder');
+            Route::post('{term}/paystack/initialize', [TermController::class, 'initializePaystackPayment'])
+                ->whereUuid('term')
+                ->name('terms.paystack.initialize');
+            Route::post('paystack/initialize-session', [TermController::class, 'initializeSessionPaystackPayment'])
+                ->name('terms.paystack.initialize-session');
+            Route::post('paystack/verify', [TermController::class, 'verifyPaystackPayment'])
+                ->name('terms.paystack.verify');
+            Route::get('payments/history', [TermController::class, 'paymentHistory'])
+                ->name('terms.payments.history');
         });
 
         
