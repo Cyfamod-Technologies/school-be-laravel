@@ -451,6 +451,12 @@ Route::prefix('api/v1')->group(function () {
 
         // Protected agent routes
         Route::middleware('auth:agent')->group(function () {
+            Route::get('profile', [AgentController::class, 'profile'])
+                ->name('agents.profile');
+            Route::put('profile', [AgentController::class, 'updateProfile'])
+                ->name('agents.profile.update');
+            Route::put('profile/password', [AgentController::class, 'changePassword'])
+                ->name('agents.profile.password');
             Route::get('dashboard', [AgentController::class, 'dashboard'])
                 ->name('agents.dashboard');
             Route::post('referrals/generate', [AgentController::class, 'generateReferral'])

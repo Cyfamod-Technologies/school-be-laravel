@@ -11,6 +11,7 @@ use App\Services\PayoutService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AgentController extends Controller
@@ -149,6 +150,109 @@ class AgentController extends Controller
     }
 
     /**
+     * Get authenticated agent profile
+     */
+    public function profile(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        return response()->json([
+            'agent' => $agent,
+            'has_password' => ! empty($agent->password),
+        ]);
+    }
+
+    /**
+     * Update authenticated agent profile
+     */
+    public function updateProfile(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'full_name' => 'sometimes|required|string|max:255',
+            'email' => [
+                'sometimes',
+                'required',
+                'email',
+                Rule::unique('agents', 'email')->ignore($agent->id),
+            ],
+            'phone' => 'nullable|string|max:20',
+            'whatsapp_number' => 'nullable|string|max:20',
+            'bank_account_name' => 'nullable|string|max:255',
+            'bank_account_number' => 'nullable|string|max:255',
+            'bank_name' => 'nullable|string|max:255',
+            'company_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:1000',
+        ]);
+
+        if (array_key_exists('email', $validated)) {
+            $validated['email'] = strtolower((string) $validated['email']);
+        }
+
+        $agent->update($validated);
+        $updatedAgent = $agent->fresh();
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'agent' => $updatedAgent,
+            'has_password' => ! empty($updatedAgent->password),
+        ]);
+    }
+
+    /**
+     * Change authenticated agent password
+     */
+    public function changePassword(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $hasPassword = ! empty($agent->password);
+        $rules = [
+            'password' => 'required|string|min:8|confirmed',
+        ];
+
+        if ($hasPassword) {
+            $rules['current_password'] = 'required|string';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($hasPassword && ! Hash::check($validated['current_password'], (string) $agent->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Current password is incorrect.',
+            ]);
+        }
+
+        if ($hasPassword && Hash::check($validated['password'], (string) $agent->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'New password must be different from current password.',
+            ]);
+        }
+
+        $agent->update([
+            'password' => $validated['password'],
+        ]);
+
+        return response()->json([
+            'message' => 'Password updated successfully.',
+            'has_password' => true,
+        ]);
+    }
+
+    /**
      * Generate referral code and link
      */
     public function generateReferral(Request $request)
@@ -161,6 +265,19 @@ class AgentController extends Controller
 
         if (!$agent->isApproved()) {
             return response()->json(['message' => 'Agent not approved'], 403);
+        }
+
+        $maxCodes = $this->referralService->getMaxCodesPerAgent();
+        $usedCodes = $agent->referrals()->count();
+        $remainingCodes = max($maxCodes - $usedCodes, 0);
+
+        if ($remainingCodes <= 0) {
+            return response()->json([
+                'message' => "Referral code limit reached ({$maxCodes}).",
+                'max_referral_codes' => $maxCodes,
+                'used_referral_codes' => $usedCodes,
+                'remaining_referral_codes' => 0,
+            ], 422);
         }
 
         $validated = $request->validate([
@@ -176,6 +293,9 @@ class AgentController extends Controller
             return response()->json([
                 'message' => 'Referral created successfully',
                 'referral' => $referral,
+                'max_referral_codes' => $maxCodes,
+                'used_referral_codes' => $usedCodes + 1,
+                'remaining_referral_codes' => max($remainingCodes - 1, 0),
             ], 201);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
