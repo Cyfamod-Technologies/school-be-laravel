@@ -761,6 +761,35 @@ class TermController extends Controller
     private function formatTerm(Term $term): array
     {
         $sessionName = $term->relationLoaded('session') ? $term->session?->name : null;
+        $invoices = $term->relationLoaded('invoices') ? $term->invoices : collect();
+
+        $originalSnapshot = (int) ($term->student_count_snapshot ?? 0);
+        if ($originalSnapshot <= 0) {
+            $originalSnapshot = (int) $invoices
+                ->where('invoice_type', 'original')
+                ->sum(fn ($invoice) => (int) ($invoice->student_count ?? 0));
+        }
+
+        $midtermStudentCount = (int) $invoices
+            ->where('invoice_type', 'midterm_addition')
+            ->sum(fn ($invoice) => (int) ($invoice->student_count ?? 0));
+
+        $totalStudentsBilled = max(0, $originalSnapshot + $midtermStudentCount);
+        $totalDue = (float) (($term->amount_due ?? 0) + ($term->midterm_amount_due ?? 0));
+        $totalPaid = (float) (($term->amount_paid ?? 0) + ($term->midterm_amount_paid ?? 0));
+
+        if ($totalStudentsBilled > 0 && $totalDue > 0) {
+            $studentsPaidEstimate = (int) floor(($totalPaid / $totalDue) * $totalStudentsBilled);
+        } else {
+            $studentsPaidEstimate = 0;
+        }
+
+        if ((string) ($term->payment_status ?? '') === 'paid' || $term->getOutstandingBalance() <= 0) {
+            $studentsPaidEstimate = $totalStudentsBilled;
+        }
+
+        $studentsPaidEstimate = min($totalStudentsBilled, max(0, $studentsPaidEstimate));
+        $studentsLeftForPayment = max(0, $totalStudentsBilled - $studentsPaidEstimate);
 
         return [
             'id' => $term->id,
@@ -776,6 +805,11 @@ class TermController extends Controller
             'amount_paid' => (float) ($term->amount_paid ?? 0),
             'midterm_amount_due' => (float) ($term->midterm_amount_due ?? 0),
             'midterm_amount_paid' => (float) ($term->midterm_amount_paid ?? 0),
+            'student_count_snapshot' => $originalSnapshot,
+            'midterm_student_count' => $midtermStudentCount,
+            'total_students_billed' => $totalStudentsBilled,
+            'students_paid_estimate' => $studentsPaidEstimate,
+            'students_left_for_payment' => $studentsLeftForPayment,
             'outstanding_balance' => (float) $term->getOutstandingBalance(),
             'payment_due_date' => $term->payment_due_date,
             'can_switch' => $this->subscriptionService->canSwitchTerm($term),
@@ -798,6 +832,8 @@ class TermController extends Controller
         return [
             'id' => $invoice->id,
             'invoice_type' => $invoice->invoice_type,
+            'student_count' => (int) ($invoice->student_count ?? 0),
+            'price_per_student' => (float) ($invoice->price_per_student ?? 0),
             'amount_due' => $amountDue,
             'amount_paid' => $amountPaid,
             'payment_status' => $invoice->status,
