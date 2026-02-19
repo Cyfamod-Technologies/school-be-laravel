@@ -127,6 +127,12 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+        'agents' => [
+            'provider' => 'agents',
+            'table' => env('AUTH_AGENT_PASSWORD_RESET_TOKEN_TABLE', env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens')),
+            'expire' => 60,
+            'throttle' => 60,
+        ],
     ],
 
     /*

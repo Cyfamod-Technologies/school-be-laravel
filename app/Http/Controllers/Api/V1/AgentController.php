@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AgentResetPassword;
 use App\Models\Agent;
 use App\Models\Referral;
 use App\Services\ReferralService;
 use App\Services\CommissionService;
 use App\Services\PayoutService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -205,6 +209,120 @@ class AgentController extends Controller
             'message' => 'Profile updated successfully.',
             'agent' => $updatedAgent,
             'has_password' => ! empty($updatedAgent->password),
+        ]);
+    }
+
+    /**
+     * Send agent password reset link
+     */
+    public function requestPasswordReset(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $agent = Agent::query()
+            ->where('email', $email)
+            ->first();
+
+        $successMessage = 'If an account exists for this email, a password reset link has been sent.';
+
+        // Always return success to avoid email enumeration.
+        if (! $agent) {
+            return response()->json([
+                'message' => $successMessage,
+            ]);
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $hashedToken = hash('sha256', $token);
+
+        $table = config('auth.passwords.agents.table', config('auth.passwords.users.table', 'password_reset_tokens'));
+        $expiresMinutes = (int) config('auth.passwords.agents.expire', config('auth.passwords.users.expire', 60));
+        $expiresAt = Carbon::now()->addMinutes(max($expiresMinutes, 5));
+
+        DB::table($table)->updateOrInsert(
+            ['email' => $agent->email],
+            [
+                'token' => $hashedToken,
+                'created_at' => now(),
+            ]
+        );
+
+        $frontendBase = (string) env('FRONTEND_URL', rtrim((string) config('app.url'), '/'));
+        $resetUrl = rtrim($frontendBase, '/') . '/agent/reset-password?token=' . urlencode($token) . '&email=' . urlencode($agent->email);
+
+        try {
+            Mail::to($agent->email)->send(new AgentResetPassword($agent, $resetUrl, $expiresAt));
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        return response()->json([
+            'message' => $successMessage,
+        ]);
+    }
+
+    /**
+     * Reset agent password with reset token
+     */
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $table = config('auth.passwords.agents.table', config('auth.passwords.users.table', 'password_reset_tokens'));
+
+        $record = DB::table($table)
+            ->where('email', $email)
+            ->first();
+
+        if (! $record) {
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link is invalid or has expired.'],
+            ]);
+        }
+
+        $hashedToken = hash('sha256', $validated['token']);
+        if (! hash_equals($record->token, $hashedToken)) {
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link is invalid or has expired.'],
+            ]);
+        }
+
+        $expiresMinutes = (int) config('auth.passwords.agents.expire', config('auth.passwords.users.expire', 60));
+        $createdAt = Carbon::parse($record->created_at);
+        if ($createdAt->addMinutes(max($expiresMinutes, 5))->isPast()) {
+            DB::table($table)->where('email', $email)->delete();
+
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link has expired. Please request a new one.'],
+            ]);
+        }
+
+        $agent = Agent::query()
+            ->where('email', $email)
+            ->first();
+
+        if (! $agent) {
+            throw ValidationException::withMessages([
+                'email' => ['Agent account for this email was not found.'],
+            ]);
+        }
+
+        $agent->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        DB::table($table)->where('email', $email)->delete();
+
+        return response()->json([
+            'message' => 'Password has been reset successfully. You can now log in.',
         ]);
     }
 

@@ -448,6 +448,10 @@ Route::prefix('api/v1')->group(function () {
             ->name('agents.google-auth');
         Route::post('login', [AgentController::class, 'login'])
             ->name('agents.login');
+        Route::post('password/forgot', [AgentController::class, 'requestPasswordReset'])
+            ->name('agents.password.forgot');
+        Route::post('password/reset', [AgentController::class, 'resetPassword'])
+            ->name('agents.password.reset');
 
         // Protected agent routes
         Route::middleware('auth:agent')->group(function () {

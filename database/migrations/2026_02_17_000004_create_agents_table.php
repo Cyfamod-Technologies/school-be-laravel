@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('bank_name')->nullable();
             $table->string('company_name')->nullable();
             $table->text('address')->nullable();
-            $table->enum('status', ['pending', 'approved', 'suspended', 'inactive'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'suspended', 'inactive'])->default('approved');
             $table->timestamp('approved_at')->nullable();
             $table->uuid('approved_by')->nullable()->comment('Admin user who approved');
             $table->text('rejection_reason')->nullable();
