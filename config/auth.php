@@ -55,6 +55,11 @@ return [
             'driver' => 'sanctum',
             'provider' => 'students',
         ],
+
+        'agent' => [
+            'driver' => 'sanctum',
+            'provider' => 'agents',
+        ],
     ],
 
     /*
@@ -83,6 +88,11 @@ return [
         'students' => [
             'driver' => 'eloquent',
             'model' => App\Models\Student::class,
+        ],
+
+        'agents' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Agent::class,
         ],
 
         // 'users' => [

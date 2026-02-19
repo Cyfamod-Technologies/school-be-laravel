@@ -269,4 +269,40 @@ class School extends Model
 	{
 		return $this->hasMany(BankDetail::class);
 	}
+
+	public function invoices()
+	{
+		return $this->hasMany(Invoice::class);
+	}
+
+	public function referrals()
+	{
+		return $this->hasMany(Referral::class);
+	}
+
+	public function commissions()
+	{
+		return $this->hasMany(AgentCommission::class);
+	}
+
+	public function midtermAdditions()
+	{
+		return $this->hasMany(MidtermStudentAddition::class);
+	}
+
+	/**
+	 * Check if this is a demo school
+	 */
+	public function isDemo(): bool
+	{
+		return $this->subdomain === 'demo';
+	}
+
+	/**
+	 * Check if subscription applies to this school
+	 */
+	public function requiresSubscription(): bool
+	{
+		return !$this->isDemo();
+	}
 }

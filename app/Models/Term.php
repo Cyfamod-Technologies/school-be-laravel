@@ -186,4 +186,51 @@ class Term extends Model
 	{
 		return $this->hasMany(TermSummary::class);
 	}
+
+	public function invoice()
+	{
+		return $this->belongsTo(Invoice::class);
+	}
+
+	public function invoices()
+	{
+		return $this->hasMany(Invoice::class);
+	}
+
+	public function midtermAdditions()
+	{
+		return $this->hasMany(MidtermStudentAddition::class);
+	}
+
+	/**
+	 * Check if subscription payment is made (demo schools exempt)
+	 */
+	public function isPaymentRequired(): bool
+	{
+		return $this->school->subdomain !== 'demo';
+	}
+
+	/**
+	 * Check if all fees are paid (original + mid-term)
+	 */
+	public function allFeesPaid(): bool
+	{
+		if (!$this->isPaymentRequired()) {
+			return true;
+		}
+
+		return $this->outstanding_balance <= 0;
+	}
+
+	/**
+	 * Get outstanding balance
+	 */
+	public function getOutstandingBalance(): float
+	{
+		if (!$this->isPaymentRequired()) {
+			return 0;
+		}
+
+		return max(0, ($this->amount_due + $this->midterm_amount_due) - ($this->amount_paid + $this->midterm_amount_paid));
+	}
 }
