@@ -3,23 +3,35 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentCommission;
+use App\Models\Invoice;
+use App\Models\Referral;
+use App\Models\ReferralRegistration;
 use App\Models\School;
+use App\Models\Student;
 use App\Models\Term;
 use App\Models\TermPaymentTransaction;
+use App\Services\CommissionService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Collection;
 
 class TermController extends Controller
 {
     private SubscriptionService $subscriptionService;
+    private CommissionService $commissionService;
 
-    public function __construct(SubscriptionService $subscriptionService)
+    public function __construct(
+        SubscriptionService $subscriptionService,
+        CommissionService $commissionService
+    )
     {
         $this->subscriptionService = $subscriptionService;
+        $this->commissionService = $commissionService;
     }
 
     /**
@@ -83,10 +95,29 @@ class TermController extends Controller
         // Generate invoice for next term if needed
         if ($school->requiresSubscription() && !$nextTerm->invoice_id) {
             $this->subscriptionService->generateTermInvoice($nextTerm);
+            $nextTerm = Term::query()
+                ->with(['school', 'invoices', 'session'])
+                ->where('id', $nextTerm->id)
+                ->first() ?? $nextTerm;
+        } else {
+            $nextTerm->loadMissing(['school', 'invoices', 'session']);
+        }
+
+        $nextTermOutstanding = round((float) $nextTerm->getOutstandingBalance(), 2);
+        if ($school->requiresSubscription() && ! $this->subscriptionService->isFreeTrialTerm($nextTerm) && $nextTermOutstanding > 0) {
+            throw ValidationException::withMessages([
+                'term_switch' => 'Cannot switch to ' . $nextTerm->name . ' until payment is cleared. Outstanding: ₦' . number_format($nextTermOutstanding, 2) . '.',
+            ]);
         }
 
         // Update current term in school
         $school->update(['current_term_id' => $nextTerm->id]);
+        Student::query()
+            ->where('school_id', $school->id)
+            ->where('current_session_id', $nextTerm->session_id)
+            ->update([
+                'current_term_id' => $nextTerm->id,
+            ]);
 
         return response()->json([
             'message' => 'Term switched successfully',
@@ -112,7 +143,11 @@ class TermController extends Controller
 
         $hydratedTerms = $terms->getCollection()
             ->map(function (Term $term) use ($school) {
-                if ((string) $term->id === (string) ($school->current_term_id ?? '')) {
+                $schoolCurrentSessionId = (string) ($school->current_session_id ?? '');
+                if (
+                    $schoolCurrentSessionId === ''
+                    || (string) $term->session_id === $schoolCurrentSessionId
+                ) {
                     return $this->ensureTermReadyForPayment($term);
                 }
 
@@ -218,17 +253,24 @@ class TermController extends Controller
      */
     public function initializePaystackPayment(Term $term, Request $request)
     {
+        $validated = $request->validate([
+            'include_previous_unpaid' => 'sometimes|boolean',
+        ]);
+
         $school = $this->resolveAuthenticatedSchool($request);
         if (! $school || $term->school_id !== $school->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $term = $this->ensureTermReadyForPayment($term->load(['school', 'invoices']));
+        $includePreviousUnpaid = (bool) ($validated['include_previous_unpaid'] ?? false);
+        $previousUnpaidTerms = $this->getPreviousUnpaidTerms($term);
 
-        $paymentLockReason = $this->getPaymentOrderLockReason($term);
-        if ($paymentLockReason !== null) {
+        if ($previousUnpaidTerms->isNotEmpty() && ! $includePreviousUnpaid) {
+            $paymentLockReason = $this->getPaymentOrderLockReason($term);
             throw ValidationException::withMessages([
-                'term_id' => $paymentLockReason,
+                'term_id' => ($paymentLockReason ?? 'Please settle previous term before paying this term.')
+                    . ' Or use the "Pay Outstanding + Selected Term" option.',
             ]);
         }
 
@@ -238,114 +280,35 @@ class TermController extends Controller
             ], 422);
         }
 
-        $outstandingBalance = round((float) $term->getOutstandingBalance(), 2);
-        if ($outstandingBalance <= 0) {
+        $currentTermOutstanding = round((float) $term->getOutstandingBalance(), 2);
+        if ($currentTermOutstanding <= 0) {
             return response()->json([
                 'message' => 'No outstanding balance for this term.',
             ], 422);
         }
 
-        $secretKey = trim((string) config('services.paystack.secret_key'));
-        $baseUrl = rtrim((string) config('services.paystack.base_url', 'https://api.paystack.co'), '/');
-        if ($secretKey === '') {
-            return response()->json([
-                'message' => 'Paystack is not configured on the server.',
-            ], 500);
-        }
+        $termsToPay = $includePreviousUnpaid
+            ? $previousUnpaidTerms->push($term)->unique('id')->values()
+            : collect([$term]);
 
-        $email = strtolower(
-            trim((string) ($request->user()?->email ?? $school->email ?? ''))
+        $isCombinedPayment = $termsToPay->count() > 1;
+        $scope = $isCombinedPayment ? 'outstanding_plus_term' : 'term';
+        $purpose = $isCombinedPayment
+            ? 'Outstanding terms + selected term payment'
+            : 'Single term payment';
+
+        return $this->initializeCheckoutForTerms(
+            request: $request,
+            school: $school,
+            terms: $termsToPay,
+            scope: $scope,
+            sessionId: $term->session_id,
+            referencePrefix: $isCombinedPayment ? 'MIXED' : 'TERM',
+            message: $isCombinedPayment
+                ? 'Outstanding and selected term payment initialized successfully.'
+                : 'Payment initialized successfully.',
+            purpose: $purpose,
         );
-        if ($email === '') {
-            throw ValidationException::withMessages([
-                'email' => 'A school/admin email is required to initialize payment.',
-            ]);
-        }
-
-        $reference = $this->generatePaystackReference();
-        $frontendBase = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
-        $callbackUrl = $frontendBase . '/settings/payment';
-        $amountInKobo = (int) round($outstandingBalance * 100);
-
-        $requestMeta = [
-            'scope' => 'term',
-            'term_ids' => [$term->id],
-            'session_id' => $term->session_id,
-        ];
-
-        $transaction = TermPaymentTransaction::create([
-            'school_id' => $school->id,
-            'term_id' => $term->id,
-            'invoice_id' => $term->invoice_id,
-            'created_by' => $request->user()?->id,
-            'provider' => 'paystack',
-            'reference' => $reference,
-            'amount' => $outstandingBalance,
-            'currency' => 'NGN',
-            'status' => 'initialized',
-            'gateway_response' => [
-                'request' => $requestMeta,
-            ],
-        ]);
-
-        $response = Http::timeout(20)
-            ->acceptJson()
-            ->withToken($secretKey)
-            ->post($baseUrl . '/transaction/initialize', [
-                'email' => $email,
-                'amount' => $amountInKobo,
-                'reference' => $reference,
-                'currency' => 'NGN',
-                'callback_url' => $callbackUrl,
-                'metadata' => [
-                    'school_id' => $school->id,
-                    'term_id' => $term->id,
-                    'invoice_id' => $term->invoice_id,
-                ],
-            ]);
-
-        $payload = $response->json();
-        $isValidPayload = is_array($payload);
-        $isSuccessful = $response->ok() && $isValidPayload && (($payload['status'] ?? false) === true);
-
-        if (! $isSuccessful) {
-            $message = is_array($payload) && ! empty($payload['message'])
-                ? (string) $payload['message']
-                : 'Unable to initialize payment at this time.';
-
-            $transaction->update([
-                'status' => 'failed',
-                'gateway_response' => [
-                    'request' => $requestMeta,
-                    'initialize' => $isValidPayload ? $payload : ['raw' => (string) $response->body()],
-                ],
-            ]);
-
-            throw ValidationException::withMessages([
-                'payment' => $message,
-            ]);
-        }
-
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-
-        $transaction->update([
-            'status' => 'pending',
-            'access_code' => (string) ($data['access_code'] ?? ''),
-            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
-            'gateway_response' => [
-                'request' => $requestMeta,
-                'initialize' => $payload,
-            ],
-        ]);
-
-        return response()->json([
-            'message' => 'Payment initialized successfully.',
-            'reference' => $reference,
-            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
-            'access_code' => (string) ($data['access_code'] ?? ''),
-            'amount' => $outstandingBalance,
-            'currency' => 'NGN',
-        ]);
     }
 
     /**
@@ -395,134 +358,16 @@ class TermController extends Controller
             }
         }
 
-        $outstandingTerms = $terms
-            ->map(function (Term $term) {
-                return [
-                    'term' => $term,
-                    'outstanding' => round((float) $term->getOutstandingBalance(), 2),
-                ];
-            })
-            ->filter(fn (array $row) => $row['outstanding'] > 0)
-            ->values();
-
-        if ($outstandingTerms->isEmpty()) {
-            throw ValidationException::withMessages([
-                'session_id' => 'All terms in this session are already fully paid.',
-            ]);
-        }
-
-        $totalOutstanding = round(
-            $outstandingTerms->sum(fn (array $row) => $row['outstanding']),
-            2
+        return $this->initializeCheckoutForTerms(
+            request: $request,
+            school: $school,
+            terms: $terms,
+            scope: 'session',
+            sessionId: $validated['session_id'],
+            referencePrefix: 'SESSION',
+            message: 'Session payment initialized successfully.',
+            purpose: 'Outstanding terms in selected session',
         );
-
-        $email = strtolower(
-            trim((string) ($request->user()?->email ?? $school->email ?? ''))
-        );
-        if ($email === '') {
-            throw ValidationException::withMessages([
-                'email' => 'A school/admin email is required to initialize payment.',
-            ]);
-        }
-
-        /** @var Term $primaryTerm */
-        $primaryTerm = $outstandingTerms[0]['term'];
-        $reference = $this->generatePaystackReference('SESSION');
-        $frontendBase = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
-        $callbackUrl = $frontendBase . '/settings/payment';
-        $amountInKobo = (int) round($totalOutstanding * 100);
-
-        $termIds = $outstandingTerms->map(fn (array $row) => $row['term']->id)->values()->all();
-        $termBreakdown = $outstandingTerms->map(fn (array $row) => [
-            'term_id' => $row['term']->id,
-            'term_name' => $row['term']->name,
-            'amount' => $row['outstanding'],
-        ])->values()->all();
-
-        $requestMeta = [
-            'scope' => 'session',
-            'session_id' => $validated['session_id'],
-            'term_ids' => $termIds,
-            'breakdown' => $termBreakdown,
-        ];
-
-        $transaction = TermPaymentTransaction::create([
-            'school_id' => $school->id,
-            'term_id' => $primaryTerm->id,
-            'invoice_id' => $primaryTerm->invoice_id,
-            'created_by' => $request->user()?->id,
-            'provider' => 'paystack',
-            'reference' => $reference,
-            'amount' => $totalOutstanding,
-            'currency' => 'NGN',
-            'status' => 'initialized',
-            'gateway_response' => [
-                'request' => $requestMeta,
-            ],
-        ]);
-
-        $response = Http::timeout(20)
-            ->acceptJson()
-            ->withToken($secretKey)
-            ->post($baseUrl . '/transaction/initialize', [
-                'email' => $email,
-                'amount' => $amountInKobo,
-                'reference' => $reference,
-                'currency' => 'NGN',
-                'callback_url' => $callbackUrl,
-                'metadata' => [
-                    'scope' => 'session',
-                    'school_id' => $school->id,
-                    'session_id' => $validated['session_id'],
-                    'term_ids' => $termIds,
-                ],
-            ]);
-
-        $payload = $response->json();
-        $isValidPayload = is_array($payload);
-        $isSuccessful = $response->ok() && $isValidPayload && (($payload['status'] ?? false) === true);
-
-        if (! $isSuccessful) {
-            $message = is_array($payload) && ! empty($payload['message'])
-                ? (string) $payload['message']
-                : 'Unable to initialize session payment at this time.';
-
-            $transaction->update([
-                'status' => 'failed',
-                'gateway_response' => [
-                    'request' => $requestMeta,
-                    'initialize' => $isValidPayload ? $payload : ['raw' => (string) $response->body()],
-                ],
-            ]);
-
-            throw ValidationException::withMessages([
-                'payment' => $message,
-            ]);
-        }
-
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-
-        $transaction->update([
-            'status' => 'pending',
-            'access_code' => (string) ($data['access_code'] ?? ''),
-            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
-            'gateway_response' => [
-                'request' => $requestMeta,
-                'initialize' => $payload,
-            ],
-        ]);
-
-        return response()->json([
-            'message' => 'Session payment initialized successfully.',
-            'reference' => $reference,
-            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
-            'access_code' => (string) ($data['access_code'] ?? ''),
-            'amount' => $totalOutstanding,
-            'currency' => 'NGN',
-            'session_id' => $validated['session_id'],
-            'term_count' => count($termIds),
-            'breakdown' => $termBreakdown,
-        ]);
     }
 
     /**
@@ -555,6 +400,24 @@ class TermController extends Controller
         $requestMeta = is_array($existingResponse['request'] ?? null) ? $existingResponse['request'] : [];
 
         if ($transaction->isSuccessful()) {
+            $termIds = collect($requestMeta['term_ids'] ?? [])
+                ->filter(fn ($id) => is_string($id) && $id !== '')
+                ->values();
+            if ($termIds->isEmpty() && is_string($transaction->term_id) && $transaction->term_id !== '') {
+                $termIds = collect([$transaction->term_id]);
+            }
+
+            if ($termIds->isNotEmpty()) {
+                $settledTerms = Term::query()
+                    ->with(['invoices', 'invoice', 'school'])
+                    ->where('school_id', $school->id)
+                    ->whereIn('id', $termIds->all())
+                    ->orderBy('start_date')
+                    ->orderBy('term_number')
+                    ->get();
+                $this->applyReferralCommissionsForSettledTerms($school, $settledTerms);
+            }
+
             $term = Term::query()->where('id', $transaction->term_id)->first();
             return response()->json([
                 'message' => 'Payment already verified.',
@@ -638,7 +501,9 @@ class TermController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($transaction, $payload, $gatewayData, $school) {
+        $settledTermIds = [];
+
+        DB::transaction(function () use ($transaction, $payload, $gatewayData, $school, &$settledTermIds) {
             $lockedTransaction = TermPaymentTransaction::query()
                 ->where('id', $transaction->id)
                 ->lockForUpdate()
@@ -655,17 +520,20 @@ class TermController extends Controller
                 ? $lockedResponse['request']
                 : [];
             $scope = (string) ($lockedRequestMeta['scope'] ?? 'term');
+            $sessionId = (string) ($lockedRequestMeta['session_id'] ?? '');
+            $termIds = collect($lockedRequestMeta['term_ids'] ?? [])
+                ->filter(fn ($id) => is_string($id) && $id !== '')
+                ->values()
+                ->all();
+            $isMultiTermScope = $scope === 'session'
+                || $scope === 'outstanding_plus_term'
+                || count($termIds) > 1;
 
-            if ($scope === 'session') {
-                $sessionId = (string) ($lockedRequestMeta['session_id'] ?? '');
-                $termIds = collect($lockedRequestMeta['term_ids'] ?? [])
-                    ->filter(fn ($id) => is_string($id) && $id !== '')
-                    ->values()
-                    ->all();
+            if ($isMultiTermScope) {
 
                 if ($sessionId === '' && $termIds === []) {
                     throw ValidationException::withMessages([
-                        'payment' => 'Session payment metadata is invalid.',
+                        'payment' => 'Multi-term payment metadata is invalid.',
                     ]);
                 }
 
@@ -684,12 +552,13 @@ class TermController extends Controller
 
                 if ($termsToSettle->isEmpty()) {
                     throw ValidationException::withMessages([
-                        'payment' => 'No terms were found to settle for this session payment.',
+                        'payment' => 'No terms were found to settle for this payment.',
                     ]);
                 }
 
                 foreach ($termsToSettle as $term) {
                     $this->markTermAsFullyPaid($term);
+                    $settledTermIds[] = (string) $term->id;
                 }
             } else {
                 $term = Term::query()
@@ -705,6 +574,7 @@ class TermController extends Controller
                 }
 
                 $this->markTermAsFullyPaid($term);
+                $settledTermIds[] = (string) $term->id;
             }
 
             $lockedTransaction->update([
@@ -719,6 +589,15 @@ class TermController extends Controller
                 'paid_at' => now(),
             ]);
         });
+
+        $settledTerms = Term::query()
+            ->with(['invoices', 'invoice', 'school'])
+            ->where('school_id', $school->id)
+            ->whereIn('id', collect($settledTermIds)->filter()->values()->all())
+            ->orderBy('start_date')
+            ->orderBy('term_number')
+            ->get();
+        $this->applyReferralCommissionsForSettledTerms($school, $settledTerms);
 
         $updatedTerm = Term::query()
             ->with(['invoices', 'school'])
@@ -791,6 +670,151 @@ class TermController extends Controller
         }
 
         return School::query()->find($schoolId);
+    }
+
+    private function initializeCheckoutForTerms(
+        Request $request,
+        School $school,
+        Collection $terms,
+        string $scope,
+        ?string $sessionId,
+        string $referencePrefix,
+        string $message,
+        string $purpose
+    ) {
+        $secretKey = trim((string) config('services.paystack.secret_key'));
+        $baseUrl = rtrim((string) config('services.paystack.base_url', 'https://api.paystack.co'), '/');
+        if ($secretKey === '') {
+            return response()->json([
+                'message' => 'Paystack is not configured on the server.',
+            ], 500);
+        }
+
+        $terms = $terms
+            ->map(function (Term $term) {
+                return [
+                    'term' => $term,
+                    'outstanding' => round((float) $term->getOutstandingBalance(), 2),
+                ];
+            })
+            ->filter(fn (array $row) => $row['outstanding'] > 0)
+            ->values();
+
+        if ($terms->isEmpty()) {
+            throw ValidationException::withMessages([
+                'term_id' => 'No outstanding balance found for selected payment scope.',
+            ]);
+        }
+
+        $email = strtolower(trim((string) ($request->user()?->email ?? $school->email ?? '')));
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'email' => 'A school/admin email is required to initialize payment.',
+            ]);
+        }
+
+        /** @var Term $primaryTerm */
+        $primaryTerm = $terms[0]['term'];
+        $reference = $this->generatePaystackReference($referencePrefix);
+        $totalOutstanding = round($terms->sum(fn (array $row) => $row['outstanding']), 2);
+        $frontendBase = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
+        $callbackUrl = $frontendBase . '/settings/payment';
+        $amountInKobo = (int) round($totalOutstanding * 100);
+        $termIds = $terms->map(fn (array $row) => $row['term']->id)->values()->all();
+        $termBreakdown = $terms->map(fn (array $row) => [
+            'term_id' => $row['term']->id,
+            'term_name' => $row['term']->name,
+            'amount' => $row['outstanding'],
+        ])->values()->all();
+
+        $requestMeta = [
+            'scope' => $scope,
+            'session_id' => $sessionId,
+            'term_ids' => $termIds,
+            'breakdown' => $termBreakdown,
+            'purpose' => $purpose,
+        ];
+
+        $transaction = TermPaymentTransaction::create([
+            'school_id' => $school->id,
+            'term_id' => $primaryTerm->id,
+            'invoice_id' => $primaryTerm->invoice_id,
+            'created_by' => $request->user()?->id,
+            'provider' => 'paystack',
+            'reference' => $reference,
+            'amount' => $totalOutstanding,
+            'currency' => 'NGN',
+            'status' => 'initialized',
+            'gateway_response' => [
+                'request' => $requestMeta,
+            ],
+        ]);
+
+        $response = Http::timeout(20)
+            ->acceptJson()
+            ->withToken($secretKey)
+            ->post($baseUrl . '/transaction/initialize', [
+                'email' => $email,
+                'amount' => $amountInKobo,
+                'reference' => $reference,
+                'currency' => 'NGN',
+                'callback_url' => $callbackUrl,
+                'metadata' => [
+                    'scope' => $scope,
+                    'school_id' => $school->id,
+                    'session_id' => $sessionId,
+                    'term_ids' => $termIds,
+                    'purpose' => $purpose,
+                ],
+            ]);
+
+        $payload = $response->json();
+        $isValidPayload = is_array($payload);
+        $isSuccessful = $response->ok() && $isValidPayload && (($payload['status'] ?? false) === true);
+
+        if (! $isSuccessful) {
+            $errorMessage = is_array($payload) && ! empty($payload['message'])
+                ? (string) $payload['message']
+                : 'Unable to initialize payment at this time.';
+
+            $transaction->update([
+                'status' => 'failed',
+                'gateway_response' => [
+                    'request' => $requestMeta,
+                    'initialize' => $isValidPayload ? $payload : ['raw' => (string) $response->body()],
+                ],
+            ]);
+
+            throw ValidationException::withMessages([
+                'payment' => $errorMessage,
+            ]);
+        }
+
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        $transaction->update([
+            'status' => 'pending',
+            'access_code' => (string) ($data['access_code'] ?? ''),
+            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
+            'gateway_response' => [
+                'request' => $requestMeta,
+                'initialize' => $payload,
+            ],
+        ]);
+
+        return response()->json([
+            'message' => $message,
+            'reference' => $reference,
+            'authorization_url' => (string) ($data['authorization_url'] ?? ''),
+            'access_code' => (string) ($data['access_code'] ?? ''),
+            'amount' => $totalOutstanding,
+            'currency' => 'NGN',
+            'scope' => $scope,
+            'session_id' => $sessionId,
+            'term_count' => count($termIds),
+            'breakdown' => $termBreakdown,
+            'purpose' => $purpose,
+        ]);
     }
 
     private function formatTerm(Term $term): array
@@ -987,16 +1011,53 @@ class TermController extends Controller
             (int) ($term->student_count_snapshot ?? 0),
             (int) ($originalInvoice->student_count ?? 0),
         );
+        $sessionStudents = Student::query()
+            ->where('school_id', $term->school_id)
+            ->where('current_session_id', $term->session_id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get(['id']);
+        $currentStudentIds = $sessionStudents
+            ->pluck('id')
+            ->filter(fn ($id) => is_string($id) && $id !== '')
+            ->values();
+        $currentStudentCount = $currentStudentIds->count();
+
+        if (
+            $pricePerStudent > 0
+            && $currentStudentCount > $baseBilledStudents
+            && (string) ($originalInvoice->status ?? '') !== 'paid'
+        ) {
+            $nextStudentCount = $currentStudentCount;
+            $nextOriginalAmount = (float) ($nextStudentCount * $pricePerStudent);
+            $nextAmountPaid = min((float) ($term->amount_paid ?? 0), $nextOriginalAmount);
+            $nextMidtermDue = (float) ($term->midterm_amount_due ?? 0);
+            $nextMidtermPaid = (float) ($term->midterm_amount_paid ?? 0);
+            $nextOutstanding = max(0, ($nextOriginalAmount + $nextMidtermDue) - ($nextAmountPaid + $nextMidtermPaid));
+
+            $originalInvoice->forceFill([
+                'student_count' => $nextStudentCount,
+                'price_per_student' => $pricePerStudent,
+                'total_amount' => $nextOriginalAmount,
+            ])->save();
+
+            $term->forceFill([
+                'student_count_snapshot' => $nextStudentCount,
+                'amount_due' => $nextOriginalAmount,
+                'amount_paid' => $nextAmountPaid,
+                'payment_status' => $nextOutstanding <= 0
+                    ? 'paid'
+                    : ($nextAmountPaid > 0 || $nextMidtermPaid > 0 ? 'partial' : 'invoiced'),
+            ])->save();
+
+            $baseBilledStudents = $nextStudentCount;
+        }
+
         $midtermBilledStudentIds = $term->midtermAdditions
             ->pluck('student_id')
             ->filter(fn ($id) => is_string($id) && $id !== '')
             ->values();
         $midtermBilledStudents = $midtermBilledStudentIds->count();
-        $currentStudentIds = $term->students()
-            ->pluck('id')
-            ->filter(fn ($id) => is_string($id) && $id !== '')
-            ->values();
-        $currentStudentCount = $currentStudentIds->count();
         $unbilledStudentsCount = $currentStudentCount - ($baseBilledStudents + $midtermBilledStudents);
 
         if ($pricePerStudent > 0 && $unbilledStudentsCount > 0) {
@@ -1025,7 +1086,7 @@ class TermController extends Controller
             return null;
         }
 
-        $previousUnpaidTerm = $this->findPreviousUnpaidTerm($term);
+        $previousUnpaidTerm = $this->getPreviousUnpaidTerms($term)->last();
         if (! $previousUnpaidTerm) {
             return null;
         }
@@ -1039,7 +1100,7 @@ class TermController extends Controller
         return 'Please settle ' . $context . ' before paying ' . $term->name . '. Outstanding: ₦' . $outstanding . '.';
     }
 
-    private function findPreviousUnpaidTerm(Term $term): ?Term
+    private function getPreviousUnpaidTerms(Term $term): Collection
     {
         $query = Term::query()
             ->with('session')
@@ -1066,8 +1127,100 @@ class TermController extends Controller
         }
 
         return $query
-            ->orderByDesc('start_date')
-            ->orderByDesc('term_number')
+            ->orderBy('start_date')
+            ->orderBy('term_number')
+            ->get();
+    }
+
+    private function applyReferralCommissionsForSettledTerms(School $school, Collection $terms): void
+    {
+        if ($terms->isEmpty()) {
+            return;
+        }
+
+        $registration = ReferralRegistration::query()
+            ->with('referral')
+            ->where('school_id', $school->id)
             ->first();
+
+        $referral = $registration?->referral;
+        if (! $referral) {
+            $referral = Referral::query()
+                ->where('school_id', $school->id)
+                ->first();
+        }
+
+        if (! $referral) {
+            return;
+        }
+
+        $createdCount = 0;
+        $firstCommissionAmount = null;
+        $hasSuccessfulSettlement = false;
+
+        foreach ($terms as $term) {
+            $termTotalDue = (float) (($term->amount_due ?? 0) + ($term->midterm_amount_due ?? 0));
+            if ($termTotalDue > 0 && (float) $term->getOutstandingBalance() <= 0.0) {
+                $hasSuccessfulSettlement = true;
+            }
+
+            $invoice = $term->invoices
+                ->first(fn ($row) => (string) ($row->invoice_type ?? '') === 'original')
+                ?? $term->invoice;
+
+            if (! $invoice instanceof Invoice) {
+                continue;
+            }
+
+            $alreadyCreated = AgentCommission::query()
+                ->where('referral_id', $referral->id)
+                ->where('invoice_id', $invoice->id)
+                ->exists();
+
+            if ($alreadyCreated) {
+                continue;
+            }
+
+            $invoice->setRelation('school', $school);
+            $commission = $this->commissionService->processCommission($invoice, $referral->fresh());
+
+            if ($commission) {
+                $createdCount++;
+                if ($firstCommissionAmount === null) {
+                    $firstCommissionAmount = (float) ($invoice->total_amount ?? 0);
+                }
+            }
+        }
+
+        if ($registration && ($createdCount > 0 || $hasSuccessfulSettlement)) {
+            $updates = [
+                'active_at' => now(),
+            ];
+
+            if ($createdCount > 0) {
+                $updates['payment_count'] = (int) ($registration->payment_count ?? 0) + $createdCount;
+            }
+
+            if (! $registration->paid_at) {
+                $updates['paid_at'] = now();
+                $updates['first_payment_amount'] = $firstCommissionAmount ?? (float) ($registration->first_payment_amount ?? 0);
+            }
+
+            $registration->update($updates);
+        }
+
+        if ($hasSuccessfulSettlement) {
+            $referralStatus = strtolower((string) ($referral->status ?? ''));
+            if (! in_array($referralStatus, ['paid', 'active'], true)) {
+                $referral->update([
+                    'status' => 'paid',
+                    'paid_at' => $referral->paid_at ?? now(),
+                ]);
+            } elseif (! $referral->paid_at) {
+                $referral->update([
+                    'paid_at' => now(),
+                ]);
+            }
+        }
     }
 }

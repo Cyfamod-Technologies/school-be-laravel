@@ -31,32 +31,49 @@ class CommissionService
             return null;
         }
 
+        $existingCommission = AgentCommission::query()
+            ->where('referral_id', $referral->id)
+            ->where('invoice_id', $invoice->id)
+            ->first();
+        if ($existingCommission) {
+            return $existingCommission;
+        }
+
         // Check if commission should be triggered
         if (!$this->referralService->shouldTriggerCommission($referral)) {
             return null;
         }
 
-        DB::transaction(function () use ($invoice, $referral) {
+        return DB::transaction(function () use ($invoice, $referral) {
+            $freshReferral = $referral->fresh();
+            if (! $freshReferral || ! $this->referralService->shouldTriggerCommission($freshReferral)) {
+                return AgentCommission::query()
+                    ->where('referral_id', $referral->id)
+                    ->where('invoice_id', $invoice->id)
+                    ->first();
+            }
+
             // Calculate commission
             $commissionAmount = $this->subscriptionService->calculateCommission($invoice->total_amount);
 
             // Create commission record
             $commission = AgentCommission::create([
-                'agent_id' => $referral->agent_id,
-                'referral_id' => $referral->id,
+                'agent_id' => $freshReferral->agent_id,
+                'referral_id' => $freshReferral->id,
                 'school_id' => $invoice->school_id,
                 'invoice_id' => $invoice->id,
-                'payment_number' => $referral->payment_count + 1,
+                'payment_number' => $freshReferral->payment_count + 1,
                 'commission_amount' => $commissionAmount,
                 'status' => 'pending',
             ]);
 
             // Increment payment count
-            $this->referralService->incrementPaymentCount($referral);
+            $this->referralService->incrementPaymentCount($freshReferral);
+            $freshReferral->refresh();
 
             // Update referral first payment info if applicable
-            if ($referral->payment_count === 1) {
-                $referral->update([
+            if ((int) $freshReferral->payment_count === 1) {
+                $freshReferral->update([
                     'first_payment_amount' => $invoice->total_amount,
                     'paid_at' => now(),
                     'status' => 'paid',
@@ -65,10 +82,6 @@ class CommissionService
 
             return $commission;
         });
-
-        return AgentCommission::where('invoice_id', $invoice->id)
-            ->where('referral_id', $referral->id)
-            ->first();
     }
 
     /**

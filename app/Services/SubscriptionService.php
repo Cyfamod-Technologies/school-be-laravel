@@ -6,6 +6,7 @@ use App\Models\School;
 use App\Models\Term;
 use App\Models\Invoice;
 use App\Models\MidtermStudentAddition;
+use App\Models\TermPaymentTransaction;
 use Illuminate\Support\Facades\DB;
 
 class SubscriptionService
@@ -230,6 +231,10 @@ class SubscriptionService
             return false;
         }
 
+        if ($this->hasStartedPaidSubscription($school)) {
+            return false;
+        }
+
         if (! $this->freeTrialOptionalPerSchool) {
             return true;
         }
@@ -253,5 +258,40 @@ class SubscriptionService
         }
 
         return $this->isFreeTrialEnabledForSchool($school);
+    }
+
+    private function hasStartedPaidSubscription(School $school): bool
+    {
+        $schoolId = (string) ($school->id ?? '');
+        if ($schoolId === '') {
+            return false;
+        }
+
+        $hasPaidTermAmounts = Term::query()
+            ->where('school_id', $schoolId)
+            ->whereRaw('(COALESCE(amount_paid, 0) + COALESCE(midterm_amount_paid, 0)) > 0')
+            ->exists();
+        if ($hasPaidTermAmounts) {
+            return true;
+        }
+
+        $hasPaidInvoices = Invoice::query()
+            ->where('school_id', $schoolId)
+            ->where('total_amount', '>', 0)
+            ->where(function ($query) {
+                $query
+                    ->whereIn('status', ['paid', 'partial'])
+                    ->orWhereNotNull('paid_at');
+            })
+            ->exists();
+        if ($hasPaidInvoices) {
+            return true;
+        }
+
+        return TermPaymentTransaction::query()
+            ->where('school_id', $schoolId)
+            ->where('status', 'success')
+            ->where('amount', '>', 0)
+            ->exists();
     }
 }

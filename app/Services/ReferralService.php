@@ -150,14 +150,58 @@ class ReferralService
         $visitedReferrals = $agent->referrals()->where('status', 'visited')->count();
         $registeredReferrals = $agent->referrals()->where('status', 'registered')->count();
         $paidReferrals = $agent->referrals()->whereIn('status', ['paid', 'active'])->count();
+        $agentReferralIds = $agent->referrals()->select('id');
         $registrationsCount = ReferralRegistration::query()
-            ->whereIn('referral_id', $agent->referrals()->select('id'))
+            ->whereIn('referral_id', $agentReferralIds)
+            ->count();
+        $paidRegistrationsCount = ReferralRegistration::query()
+            ->whereIn('referral_id', $agentReferralIds)
+            ->where(function ($query) {
+                $query
+                    ->whereNotNull('paid_at')
+                    ->orWhere('payment_count', '>', 0);
+            })
+            ->count();
+        $paidRegistrationsFromBillingCount = ReferralRegistration::query()
+            ->whereIn('referral_id', $agentReferralIds)
+            ->where(function ($query) {
+                $query
+                    ->whereNotNull('paid_at')
+                    ->orWhere('payment_count', '>', 0)
+                    ->orWhereExists(function ($termQuery) {
+                        $termQuery
+                            ->selectRaw('1')
+                            ->from('terms')
+                            ->whereColumn('terms.school_id', 'referral_registrations.school_id')
+                            ->whereRaw('(COALESCE(terms.amount_paid, 0) + COALESCE(terms.midterm_amount_paid, 0)) > 0');
+                    })
+                    ->orWhereExists(function ($paymentQuery) {
+                        $paymentQuery
+                            ->selectRaw('1')
+                            ->from('term_payment_transactions')
+                            ->whereColumn('term_payment_transactions.school_id', 'referral_registrations.school_id')
+                            ->where('status', 'success')
+                            ->where('amount', '>', 0);
+                    });
+            })
             ->count();
         $paidSchoolsTotal = AgentCommission::query()
             ->where('agent_id', $agent->id)
             ->whereNotNull('school_id')
             ->distinct('school_id')
             ->count('school_id');
+        $legacyPaidSchoolsCount = Referral::query()
+            ->where('agent_id', $agent->id)
+            ->whereNotNull('school_id')
+            ->whereIn('status', ['paid', 'active'])
+            ->whereNotExists(function ($query) {
+                $query
+                    ->selectRaw('1')
+                    ->from('referral_registrations')
+                    ->whereColumn('referral_registrations.referral_id', 'referrals.id')
+                    ->whereColumn('referral_registrations.school_id', 'referrals.school_id');
+            })
+            ->count();
         $legacySchoolsCount = Referral::query()
             ->where('agent_id', $agent->id)
             ->whereNotNull('school_id')
@@ -169,6 +213,8 @@ class ReferralService
                     ->whereColumn('referral_registrations.school_id', 'referrals.school_id');
             })
             ->count();
+        $paidSchoolsByRegistration = max($paidRegistrationsCount, $paidRegistrationsFromBillingCount) + $legacyPaidSchoolsCount;
+        $paidSchoolsTotal = max($paidSchoolsTotal, $paidSchoolsByRegistration);
         $registeredSchoolsTotal = $registrationsCount + $legacySchoolsCount;
         $maxCodes = $this->getMaxCodesPerAgent();
         $remainingCodes = max($maxCodes - $totalReferrals, 0);

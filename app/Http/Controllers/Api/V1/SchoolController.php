@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Services\Rbac\RbacService;
 use App\Services\ReferralService;
+use App\Services\SubscriptionService;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
@@ -378,7 +379,7 @@ class SchoolController extends Controller
      *     @OA\Response(response=422, description="Validation error")
      * )
      */
-    public function updateSchoolProfile(Request $request)
+    public function updateSchoolProfile(Request $request, SubscriptionService $subscriptionService)
     {
         $user = Auth::user();
         $school = $user->school;
@@ -483,6 +484,30 @@ class SchoolController extends Controller
             if ($sessionId === null) {
                 $sessionId = $term->session_id;
                 $data['current_session_id'] = $sessionId;
+            }
+
+            $isSwitchingToDifferentTerm = (string) $termId !== (string) ($previousTermId ?? '');
+            if ($isSwitchingToDifferentTerm && $school->requiresSubscription()) {
+                $term->loadMissing(['school', 'invoices', 'midtermAdditions']);
+
+                if (! $subscriptionService->isFreeTrialTerm($term)) {
+                    $originalInvoice = $term->invoices
+                        ->first(fn ($invoice) => (string) ($invoice->invoice_type ?? '') === 'original');
+
+                    if (! $originalInvoice) {
+                        $subscriptionService->generateTermInvoice($term);
+                        $term = Term::query()
+                            ->with(['school', 'invoices', 'midtermAdditions'])
+                            ->find($term->id) ?? $term;
+                    }
+                }
+
+                $outstanding = round((float) $term->getOutstandingBalance(), 2);
+                if ($outstanding > 0) {
+                    return response()->json([
+                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared. Outstanding: ₦' . number_format($outstanding, 2) . '.',
+                    ], 422);
+                }
             }
         }
 
