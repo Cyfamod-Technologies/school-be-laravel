@@ -1197,10 +1197,6 @@ class TermController extends Controller
                 'active_at' => now(),
             ];
 
-            if ($createdCount > 0) {
-                $updates['payment_count'] = (int) ($registration->payment_count ?? 0) + $createdCount;
-            }
-
             if (! $registration->paid_at) {
                 $updates['paid_at'] = now();
                 $updates['first_payment_amount'] = $firstCommissionAmount ?? (float) ($registration->first_payment_amount ?? 0);

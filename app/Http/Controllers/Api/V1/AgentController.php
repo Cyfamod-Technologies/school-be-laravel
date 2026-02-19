@@ -252,6 +252,8 @@ class AgentController extends Controller
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
+        $this->commissionService->reconcileAgentCommissions($agent);
+
         $referralStats = $this->referralService->getStats($agent);
         $earnings = $this->commissionService->getAgentEarnings($agent);
         $referrals = $agent->referrals()
@@ -259,7 +261,17 @@ class AgentController extends Controller
             ->with([
                 'registrations' => function ($query) {
                     $query
-                        ->select(['id', 'referral_id', 'school_id', 'registered_at', 'created_at'])
+                        ->select([
+                            'id',
+                            'referral_id',
+                            'school_id',
+                            'registered_at',
+                            'payment_count',
+                            'first_payment_amount',
+                            'paid_at',
+                            'active_at',
+                            'created_at',
+                        ])
                         ->with([
                             'school' => function ($schoolQuery) {
                                 $schoolQuery->select(['id', 'name'])->withCount('students');
@@ -560,6 +572,8 @@ class AgentController extends Controller
         if (!$agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
+
+        $this->commissionService->reconcileAgentCommissions($agent);
 
         $page = $request->input('page', 1);
         $perPage = $request->input('per_page', 20);
