@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
  * @property string $id
  * @property string $full_name
  * @property string $email
+ * @property Carbon|null $email_verified_at
  * @property string|null $password
  * @property string $phone
  * @property string|null $whatsapp_number
@@ -50,6 +51,7 @@ class Agent extends Authenticatable
     protected $keyType = 'string';
 
     protected $casts = [
+        'email_verified_at' => 'datetime',
         'approved_at' => 'timestamp',
         'password' => 'hashed',
     ];
@@ -58,6 +60,7 @@ class Agent extends Authenticatable
         'id',
         'full_name',
         'email',
+        'email_verified_at',
         'password',
         'phone',
         'whatsapp_number',

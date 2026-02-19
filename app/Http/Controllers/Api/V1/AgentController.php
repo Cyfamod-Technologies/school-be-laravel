@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AgentVerifyEmail;
 use App\Mail\AgentResetPassword;
 use App\Models\Agent;
+use App\Models\AgentEmailVerificationToken;
 use App\Models\Referral;
 use App\Services\ReferralService;
 use App\Services\CommissionService;
 use App\Services\PayoutService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
@@ -52,15 +56,17 @@ class AgentController extends Controller
             'address' => 'nullable|string',
         ]);
 
+        $validated['email'] = strtolower((string) $validated['email']);
+
         $agent = Agent::create(array_merge($validated, [
             'status' => 'pending',
         ]));
-        $token = $agent->createToken('agent-auth')->plainTextToken;
+        $this->sendAgentVerificationEmail($agent);
 
         return response()->json([
-            'message' => 'Agent registration submitted. Awaiting admin approval.',
+            'message' => 'Registration successful. Please verify your email before signing in. Check your inbox/SPAM folder. Your account is pending admin approval.',
             'agent' => $agent,
-            'token' => $token,
+            'verification_required' => true,
         ], 201);
     }
 
@@ -76,6 +82,14 @@ class AgentController extends Controller
         if (! $agent || ! $agent->password || ! Hash::check($validated['password'], $agent->password)) {
             throw ValidationException::withMessages([
                 'email' => 'Invalid email or password.',
+            ]);
+        }
+
+        if (! $agent->email_verified_at) {
+            $this->sendAgentVerificationEmail($agent);
+
+            throw ValidationException::withMessages([
+                'email' => 'Please verify your email before signing in. Check your inbox/SPAM folder for the verification link.',
             ]);
         }
 
@@ -114,9 +128,23 @@ class AgentController extends Controller
                 'full_name' => $googleUser['name'] ?? 'Google Agent',
                 'email' => $googleUser['email'],
                 'status' => 'pending',
+                'email_verified_at' => now(),
             ]);
-        } elseif (! empty($googleUser['name']) && $agent->full_name !== $googleUser['name']) {
-            $agent->update(['full_name' => $googleUser['name']]);
+        } else {
+            $updates = [];
+
+            if (! empty($googleUser['name']) && $agent->full_name !== $googleUser['name']) {
+                $updates['full_name'] = $googleUser['name'];
+            }
+
+            if (! $agent->email_verified_at) {
+                $updates['email_verified_at'] = now();
+            }
+
+            if ($updates !== []) {
+                $agent->update($updates);
+                $agent = $agent->fresh();
+            }
         }
 
         $token = $agent->createToken('agent-google-auth')->plainTextToken;
@@ -128,6 +156,89 @@ class AgentController extends Controller
             'agent' => $agent,
             'token' => $token,
         ]);
+    }
+
+    /**
+     * Verify agent email address
+     */
+    public function verifyEmail(Request $request)
+    {
+        $token = (string) $request->query('token', '');
+
+        if ($token === '') {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                'A verification token is required.',
+                'error'
+            );
+        }
+
+        $hashedToken = hash('sha256', $token);
+
+        $record = AgentEmailVerificationToken::with('agent')
+            ->where('token', $hashedToken)
+            ->first();
+
+        if (! $record) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_NOT_FOUND,
+                'This verification link is invalid or has already been used.',
+                'error'
+            );
+        }
+
+        if ($record->verified_at) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_OK,
+                'Email already verified. You can log in now.',
+                'success'
+            );
+        }
+
+        if ($record->isExpired()) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_GONE,
+                'This verification link has expired. Please request a new one.',
+                'error'
+            );
+        }
+
+        $agent = $record->agent;
+
+        if (! $agent) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_NOT_FOUND,
+                'Agent account for this verification link was not found.',
+                'error'
+            );
+        }
+
+        if (! $agent->email_verified_at) {
+            $agent->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+        }
+
+        $record->forceFill([
+            'verified_at' => now(),
+        ])->save();
+
+        AgentEmailVerificationToken::where('agent_id', $agent->id)
+            ->whereNull('verified_at')
+            ->where('id', '!=', $record->id)
+            ->delete();
+
+        return $this->respondAgentVerification(
+            $request,
+            Response::HTTP_OK,
+            'Email verified successfully. You can now log in.',
+            'success'
+        );
     }
 
     /**
@@ -635,5 +746,48 @@ class AgentController extends Controller
         }
 
         return $result;
+    }
+
+    private function sendAgentVerificationEmail(Agent $agent): void
+    {
+        try {
+            $tokenValue = bin2hex(random_bytes(32));
+            $hashedToken = hash('sha256', $tokenValue);
+            $ttlMinutes = (int) config('features.email_verification_ttl_minutes', 60 * 24);
+            $expiresAt = now()->addMinutes(max($ttlMinutes, 5));
+
+            AgentEmailVerificationToken::where('agent_id', $agent->id)->delete();
+
+            AgentEmailVerificationToken::create([
+                'agent_id' => $agent->id,
+                'token' => $hashedToken,
+                'expires_at' => $expiresAt,
+            ]);
+
+            $verificationUrl = url('/api/v1/agents/email/verify?token=' . $tokenValue);
+
+            Mail::to($agent->email)->send(new AgentVerifyEmail($agent, $verificationUrl, $expiresAt));
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    protected function respondAgentVerification(
+        Request $request,
+        int $status,
+        string $message,
+        string $statusLabel
+    ): JsonResponse|Response {
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json([
+                'message' => $message,
+            ], $status);
+        }
+
+        return response()->view('verification.result', [
+            'status' => $statusLabel,
+            'message' => $message,
+            'redirectUrl' => config('app.frontend_agent_login_url'),
+        ], $status);
     }
 }

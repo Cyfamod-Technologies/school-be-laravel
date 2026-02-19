@@ -448,6 +448,8 @@ Route::prefix('api/v1')->group(function () {
             ->name('agents.google-auth');
         Route::post('login', [AgentController::class, 'login'])
             ->name('agents.login');
+        Route::get('email/verify', [AgentController::class, 'verifyEmail'])
+            ->name('agents.email.verify');
         Route::post('password/forgot', [AgentController::class, 'requestPasswordReset'])
             ->name('agents.password.forgot');
         Route::post('password/reset', [AgentController::class, 'resetPassword'])
