@@ -18,11 +18,13 @@ use App\Models\User;
 use App\Models\Student;
 use App\Models\SchoolParent;
 use App\Models\Staff;
+use App\Models\Referral;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Services\Rbac\RbacService;
+use App\Services\ReferralService;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
@@ -49,7 +51,8 @@ class SchoolController extends Controller
      *              @OA\Property(property="email", type="string", format="email", example="school@example.com"),
      *              @OA\Property(property="password", type="string", format="password", example="password"),
      *              @OA\Property(property="password_confirmation", type="string", format="password", example="password"),
-     *              @OA\Property(property="subdomain", type="string", example="my-school")
+     *              @OA\Property(property="subdomain", type="string", example="my-school"),
+     *              @OA\Property(property="referral_code", type="string", example="AGT-ABC12345")
      *          )
      *      ),
      *      @OA\Response(
@@ -89,7 +92,7 @@ class SchoolController extends Controller
      *      )
      * )
      */
-    public function register(Request $request, RbacService $rbacService)
+    public function register(Request $request, RbacService $rbacService, ReferralService $referralService)
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
@@ -97,9 +100,36 @@ class SchoolController extends Controller
             'email' => 'required|string|email|max:255|unique:schools|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'subdomain' => 'required|string|max:255|unique:schools',
+            'referral_code' => 'nullable|string|max:50',
         ]);
 
-        [$school, $user] = DB::transaction(function () use ($validatedData, $rbacService) {
+        $referralCode = isset($validatedData['referral_code'])
+            ? trim((string) $validatedData['referral_code'])
+            : null;
+        if ($referralCode === '') {
+            $referralCode = null;
+        }
+
+        [$school, $user] = DB::transaction(function () use ($validatedData, $rbacService, $referralCode, $referralService) {
+            $referral = null;
+            if ($referralCode !== null) {
+                $referral = Referral::where('referral_code', $referralCode)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $referral) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => 'Invalid referral code.',
+                    ]);
+                }
+
+                if ($referral->school_id !== null) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => 'This referral code has already been used.',
+                    ]);
+                }
+            }
+
             $acronym = $this->generateSchoolAcronym($validatedData['name']);
             $nextCode = (int) School::query()->lockForUpdate()->max('code_sequence');
             $nextCode = $nextCode > 0 ? $nextCode + 1 : 1;
@@ -129,6 +159,10 @@ class SchoolController extends Controller
 
             $rbacService->bootstrapForSchool($school, $user);
             $user->load('roles');
+
+            if ($referral !== null) {
+                $referralService->recordRegistration($referral, $school);
+            }
 
             return [$school, $user];
         });
