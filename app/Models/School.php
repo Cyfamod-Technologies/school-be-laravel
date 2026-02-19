@@ -66,6 +66,7 @@ class School extends Model
 	protected $casts = [
 		'established_at' => 'datetime',
 		'code_sequence' => 'integer',
+		'enable_free_trial' => 'boolean',
 		'result_show_grade' => 'boolean',
 		'result_show_position' => 'boolean',
 		'result_show_class_average' => 'boolean',
@@ -90,6 +91,7 @@ class School extends Model
 		'established_at',
 		'owner_name',
 		'status',
+		'enable_free_trial',
 		'current_session_id',
 		'current_term_id',
 		'result_show_grade',

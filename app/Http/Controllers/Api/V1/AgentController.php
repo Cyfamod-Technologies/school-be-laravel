@@ -254,7 +254,10 @@ class AgentController extends Controller
 
         $referralStats = $this->referralService->getStats($agent);
         $earnings = $this->commissionService->getAgentEarnings($agent);
-        $referrals = $agent->referrals()->paginate(10);
+        $referrals = $agent->referrals()
+            ->with(['school:id,name'])
+            ->latest()
+            ->paginate(10);
 
         return response()->json([
             'agent' => $agent,

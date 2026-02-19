@@ -101,6 +101,7 @@ class SchoolController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'subdomain' => 'required|string|max:255|unique:schools',
             'referral_code' => 'nullable|string|max:50',
+            'enable_free_trial' => 'sometimes|boolean',
         ]);
 
         $referralCode = isset($validatedData['referral_code'])
@@ -134,6 +135,9 @@ class SchoolController extends Controller
             $nextCode = (int) School::query()->lockForUpdate()->max('code_sequence');
             $nextCode = $nextCode > 0 ? $nextCode + 1 : 1;
             $slug = $this->generateUniqueSchoolSlug($validatedData['name']);
+            $requestedFreeTrial = array_key_exists('enable_free_trial', $validatedData)
+                ? (bool) $validatedData['enable_free_trial']
+                : null;
 
             $school = School::create([
                 'id' => Str::uuid(),
@@ -145,6 +149,7 @@ class SchoolController extends Controller
                 'address' => $validatedData['address'],
                 'email' => $validatedData['email'],
                 'phone' => '1234567890', // Add a dummy phone number
+                'enable_free_trial' => $this->resolveFreeTrialEnabledForNewSchool($requestedFreeTrial),
             ]);
 
             $user = User::create([
@@ -402,6 +407,7 @@ class SchoolController extends Controller
             'owner_name' => 'string|max:255',
             'current_session_id' => 'nullable|uuid',
             'current_term_id' => 'nullable|uuid',
+            'enable_free_trial' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -409,6 +415,21 @@ class SchoolController extends Controller
         }
 
         $data = $validator->validated();
+
+        if (array_key_exists('enable_free_trial', $data)) {
+            $globalTrialEnabled = (bool) config('subscription.free_trial_enabled', false);
+            $optionalPerSchool = (bool) config('subscription.free_trial_optional_per_school', true);
+
+            if (! $globalTrialEnabled && (bool) $data['enable_free_trial'] === true) {
+                return response()->json([
+                    'message' => 'Free trial is globally disabled in server configuration.',
+                ], 422);
+            }
+
+            if ($globalTrialEnabled && ! $optionalPerSchool) {
+                $data['enable_free_trial'] = true;
+            }
+        }
 
         if ($request->hasFile('logo')) {
             $logoPath = $request->file('logo')->store('schools/logos', 'public');
@@ -766,6 +787,25 @@ class SchoolController extends Controller
         }
 
         return Str::limit($acronym ?: 'SCH', 5, '');
+    }
+
+    private function resolveFreeTrialEnabledForNewSchool(?bool $requestedValue): bool
+    {
+        $globalTrialEnabled = (bool) config('subscription.free_trial_enabled', false);
+        if (! $globalTrialEnabled) {
+            return false;
+        }
+
+        $optionalPerSchool = (bool) config('subscription.free_trial_optional_per_school', true);
+        if (! $optionalPerSchool) {
+            return true;
+        }
+
+        if ($requestedValue !== null) {
+            return $requestedValue;
+        }
+
+        return (bool) config('subscription.free_trial_default_for_new_school', false);
     }
 
     private function verifyUserPassword(User $user, string $password): bool

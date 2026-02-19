@@ -44,6 +44,9 @@ class TermController extends Controller
                 'amount_paid' => $term->amount_paid,
                 'midterm_amount_due' => $term->midterm_amount_due,
                 'midterm_amount_paid' => $term->midterm_amount_paid,
+                'is_free_trial_term' => $this->subscriptionService->isFreeTrialTerm($term),
+                'free_trial_enabled_for_school' => $this->subscriptionService->isFreeTrialEnabledForSchool($term->school),
+                'free_trial_terms_limit' => (int) config('subscription.free_trial_terms', 1),
             ],
         ]);
     }
@@ -805,6 +808,8 @@ class TermController extends Controller
             'amount_paid' => (float) ($term->amount_paid ?? 0),
             'midterm_amount_due' => (float) ($term->midterm_amount_due ?? 0),
             'midterm_amount_paid' => (float) ($term->midterm_amount_paid ?? 0),
+            'is_free_trial_term' => $this->subscriptionService->isFreeTrialTerm($term),
+            'free_trial_enabled_for_school' => $this->subscriptionService->isFreeTrialEnabledForSchool($term->school),
             'student_count_snapshot' => $originalSnapshot,
             'midterm_student_count' => $midtermStudentCount,
             'total_students_billed' => $totalStudentsBilled,
