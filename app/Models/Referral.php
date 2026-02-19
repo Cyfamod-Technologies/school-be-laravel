@@ -84,6 +84,11 @@ class Referral extends Model
         return $this->belongsTo(School::class);
     }
 
+    public function registrations()
+    {
+        return $this->hasMany(ReferralRegistration::class);
+    }
+
     public function commissions()
     {
         return $this->hasMany(AgentCommission::class);

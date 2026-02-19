@@ -123,12 +123,6 @@ class SchoolController extends Controller
                         'referral_code' => 'Invalid referral code.',
                     ]);
                 }
-
-                if ($referral->school_id !== null) {
-                    throw ValidationException::withMessages([
-                        'referral_code' => 'This referral code has already been used.',
-                    ]);
-                }
             }
 
             $acronym = $this->generateSchoolAcronym($validatedData['name']);

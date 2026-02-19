@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Agent;
+use App\Models\AgentCommission;
 use App\Models\Referral;
+use App\Models\ReferralRegistration;
 use App\Models\School;
 use Illuminate\Support\Str;
 
@@ -89,11 +91,28 @@ class ReferralService
      */
     public function recordRegistration(Referral $referral, School $school): void
     {
-        $referral->update([
-            'school_id' => $school->id,
+        ReferralRegistration::updateOrCreate(
+            ['school_id' => $school->id],
+            [
+                'referral_id' => $referral->id,
+                'registered_at' => now(),
+            ]
+        );
+
+        $updates = [
             'status' => 'registered',
-            'registered_at' => now(),
-        ]);
+        ];
+
+        if (! $referral->registered_at) {
+            $updates['registered_at'] = now();
+        }
+
+        // Keep backward compatibility for old payloads that expect one attached school.
+        if (! $referral->school_id) {
+            $updates['school_id'] = $school->id;
+        }
+
+        $referral->update($updates);
     }
 
     /**
@@ -131,6 +150,26 @@ class ReferralService
         $visitedReferrals = $agent->referrals()->where('status', 'visited')->count();
         $registeredReferrals = $agent->referrals()->where('status', 'registered')->count();
         $paidReferrals = $agent->referrals()->whereIn('status', ['paid', 'active'])->count();
+        $registrationsCount = ReferralRegistration::query()
+            ->whereIn('referral_id', $agent->referrals()->select('id'))
+            ->count();
+        $paidSchoolsTotal = AgentCommission::query()
+            ->where('agent_id', $agent->id)
+            ->whereNotNull('school_id')
+            ->distinct('school_id')
+            ->count('school_id');
+        $legacySchoolsCount = Referral::query()
+            ->where('agent_id', $agent->id)
+            ->whereNotNull('school_id')
+            ->whereNotExists(function ($query) {
+                $query
+                    ->selectRaw('1')
+                    ->from('referral_registrations')
+                    ->whereColumn('referral_registrations.referral_id', 'referrals.id')
+                    ->whereColumn('referral_registrations.school_id', 'referrals.school_id');
+            })
+            ->count();
+        $registeredSchoolsTotal = $registrationsCount + $legacySchoolsCount;
         $maxCodes = $this->getMaxCodesPerAgent();
         $remainingCodes = max($maxCodes - $totalReferrals, 0);
 
@@ -139,7 +178,9 @@ class ReferralService
             'visited' => $visitedReferrals,
             'registered' => $registeredReferrals,
             'paid' => $paidReferrals,
-            'conversion_rate' => $totalReferrals > 0 ? ($paidReferrals / $totalReferrals) * 100 : 0,
+            'registered_schools_total' => $registeredSchoolsTotal,
+            'paid_schools_total' => $paidSchoolsTotal,
+            'conversion_rate' => $registeredSchoolsTotal > 0 ? ($paidSchoolsTotal / $registeredSchoolsTotal) * 100 : 0,
             'max_referral_codes' => $maxCodes,
             'remaining_referral_codes' => $remainingCodes,
             'can_generate_referral' => $remainingCodes > 0,

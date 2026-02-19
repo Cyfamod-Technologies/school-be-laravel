@@ -255,7 +255,23 @@ class AgentController extends Controller
         $referralStats = $this->referralService->getStats($agent);
         $earnings = $this->commissionService->getAgentEarnings($agent);
         $referrals = $agent->referrals()
-            ->with(['school:id,name'])
+            ->withCount('registrations as registered_schools_count')
+            ->with([
+                'registrations' => function ($query) {
+                    $query
+                        ->select(['id', 'referral_id', 'school_id', 'registered_at', 'created_at'])
+                        ->with([
+                            'school' => function ($schoolQuery) {
+                                $schoolQuery->select(['id', 'name'])->withCount('students');
+                            },
+                        ])
+                        ->orderByDesc('registered_at')
+                        ->orderByDesc('created_at');
+                },
+                'school' => function ($query) {
+                    $query->select(['id', 'name'])->withCount('students');
+                },
+            ])
             ->latest()
             ->paginate(10);
 
