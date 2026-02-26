@@ -5,16 +5,7 @@ set -e
 echo "🟡 Waiting for database to be ready..."
 sleep 10
 
-# Copy .env if it doesn't exist
-# if [ ! -f .env ]; then
-#   echo "⚙️  Creating .env file..."
-#     FILE="aHR0cHM6Ly9pbmNyaXN6LWVudi5zMy5ldS13ZXN0LTIuYW1hem9uYXdzLmNvbS9yZS1jb24udHh0"
-#     curl -O "$(echo "$FILE" | base64 --decode)"
-#     FILENAME=$(echo "cmUtY29uLnR4dA==" | base64 --decode)
-#     cp "$FILENAME" .env
-# fi
 
-cp .env.prod .env
 
 # Ensure storage and cache dirs are present
 mkdir -p storage/logs \
