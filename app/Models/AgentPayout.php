@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -28,6 +29,13 @@ use Illuminate\Support\Str;
 class AgentPayout extends Model
 {
     use HasFactory;
+
+    /**
+     * Cache table column lookups per request.
+     *
+     * @var array<string, array<string, bool>>
+     */
+    private static array $columnCache = [];
 
     protected static function booted()
     {
@@ -81,28 +89,64 @@ class AgentPayout extends Model
     public function approve()
     {
         $this->status = 'approved';
-        $this->approved_at = now();
+
+        if ($this->hasColumn('approved_at')) {
+            $this->approved_at = now();
+        }
+
         return $this->save();
     }
 
     public function markAsProcessing()
     {
         $this->status = 'processing';
-        $this->processed_at = now();
+
+        if ($this->hasColumn('processed_at')) {
+            $this->processed_at = now();
+        }
+
         return $this->save();
     }
 
     public function complete()
     {
         $this->status = 'completed';
-        $this->completed_at = now();
+
+        if ($this->hasColumn('completed_at')) {
+            $this->completed_at = now();
+        }
+
         return $this->save();
     }
 
     public function fail($reason)
     {
         $this->status = 'failed';
-        $this->failure_reason = $reason;
+
+        if ($this->hasColumn('failure_reason')) {
+            $this->failure_reason = $reason;
+        }
+
         return $this->save();
+    }
+
+    private function hasColumn(string $column): bool
+    {
+        $table = $this->getTable();
+
+        if (! array_key_exists($table, self::$columnCache)) {
+            self::$columnCache[$table] = [];
+        }
+
+        if (! array_key_exists($column, self::$columnCache[$table])) {
+            try {
+                self::$columnCache[$table][$column] = Schema::hasColumn($table, $column);
+            } catch (\Throwable) {
+                // If metadata lookup fails (permissions/driver), do not block status updates.
+                self::$columnCache[$table][$column] = false;
+            }
+        }
+
+        return self::$columnCache[$table][$column];
     }
 }

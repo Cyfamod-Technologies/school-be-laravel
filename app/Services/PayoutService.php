@@ -87,8 +87,14 @@ class PayoutService
      */
     public function approvePayout(AgentPayout $payout): bool
     {
-        if ($payout->status !== 'pending') {
-            throw new \Exception('Only pending payouts can be approved');
+        $status = $this->normalizeStatus($payout->status);
+
+        if (in_array($status, ['approved', 'processing', 'completed'], true)) {
+            return true;
+        }
+
+        if ($status !== 'pending') {
+            throw new \Exception('Only pending payouts can be approved. Current status: ' . ($status !== '' ? $status : 'unknown'));
         }
 
         return $payout->approve();
@@ -99,8 +105,14 @@ class PayoutService
      */
     public function processPayout(AgentPayout $payout): bool
     {
-        if ($payout->status !== 'approved') {
-            throw new \Exception('Only approved payouts can be processed');
+        $status = $this->normalizeStatus($payout->status);
+
+        if (in_array($status, ['processing', 'completed'], true)) {
+            return true;
+        }
+
+        if ($status !== 'approved') {
+            throw new \Exception('Only approved payouts can be processed. Current status: ' . ($status !== '' ? $status : 'unknown'));
         }
 
         return $payout->markAsProcessing();
@@ -111,11 +123,105 @@ class PayoutService
      */
     public function completePayout(AgentPayout $payout): bool
     {
-        if ($payout->status !== 'processing') {
-            throw new \Exception('Only processing payouts can be completed');
+        $status = $this->normalizeStatus($payout->status);
+
+        if ($status === 'completed') {
+            return true;
         }
 
-        return $payout->complete();
+        if ($status !== 'processing') {
+            throw new \Exception('Only processing payouts can be completed. Current status: ' . ($status !== '' ? $status : 'unknown'));
+        }
+
+        return DB::transaction(function () use ($payout) {
+            $completed = $payout->complete();
+
+            if (! $completed) {
+                return false;
+            }
+
+            AgentCommission::query()
+                ->where('payout_id', $payout->id)
+                ->update(['status' => 'paid']);
+
+            return true;
+        });
+    }
+
+    /**
+     * Admin override to set payout status directly.
+     */
+    public function setPayoutStatus(AgentPayout $payout, string $targetStatus, ?string $reason = null): bool
+    {
+        $target = $this->normalizeStatus($targetStatus);
+        $current = $this->normalizeStatus($payout->status);
+        $allowed = ['approved', 'processing', 'completed', 'failed'];
+
+        if (! in_array($target, $allowed, true)) {
+            throw new \Exception('Invalid payout status: ' . $targetStatus);
+        }
+
+        if ($target === $current) {
+            return true;
+        }
+
+        return DB::transaction(function () use ($payout, $target, $current, $reason) {
+            if ($target === 'approved') {
+                $updated = $payout->approve();
+
+                if ($updated && $current === 'completed') {
+                    AgentCommission::query()
+                        ->where('payout_id', $payout->id)
+                        ->where('status', 'paid')
+                        ->update(['status' => 'approved']);
+                }
+
+                return $updated;
+            }
+
+            if ($target === 'processing') {
+                $updated = $payout->markAsProcessing();
+
+                if ($updated && $current === 'completed') {
+                    AgentCommission::query()
+                        ->where('payout_id', $payout->id)
+                        ->where('status', 'paid')
+                        ->update(['status' => 'approved']);
+                }
+
+                return $updated;
+            }
+
+            if ($target === 'completed') {
+                $updated = $payout->complete();
+
+                if (! $updated) {
+                    return false;
+                }
+
+                AgentCommission::query()
+                    ->where('payout_id', $payout->id)
+                    ->update(['status' => 'paid']);
+
+                return true;
+            }
+
+            $failureReason = trim((string) $reason);
+            if ($failureReason === '') {
+                $failureReason = 'Marked as failed by admin.';
+            }
+
+            AgentCommission::query()
+                ->where('payout_id', $payout->id)
+                ->update(['payout_id' => null, 'status' => 'approved']);
+
+            return $payout->fail($failureReason);
+        });
+    }
+
+    private function normalizeStatus(?string $status): string
+    {
+        return strtolower(trim((string) $status));
     }
 
     /**

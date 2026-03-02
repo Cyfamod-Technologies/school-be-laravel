@@ -164,6 +164,9 @@ class SchoolController extends Controller
                 $referralService->recordRegistration($referral, $school);
             }
 
+            // Auto-create default session and term for new school
+            $this->createDefaultSessionAndTerm($school);
+
             return [$school, $user];
         });
 
@@ -999,6 +1002,55 @@ class SchoolController extends Controller
         try {
             Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl, $expiresAt));
         } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Create a default session and term for a new school
+     */
+    private function createDefaultSessionAndTerm(School $school): void
+    {
+        try {
+            // Check if school already has sessions
+            if ($school->sessions()->count() > 0) {
+                return;
+            }
+
+            // Create default session for current academic year
+            $currentYear = date('Y');
+            $sessionName = $currentYear . '/' . ($currentYear + 1);
+
+            $session = Session::create([
+                'id' => Str::uuid(),
+                'school_id' => $school->id,
+                'name' => $sessionName,
+                'slug' => Str::slug($sessionName),
+                'start_date' => date('Y-09-01'),
+                'end_date' => date('Y-m-d', strtotime(($currentYear + 1) . '-08-31')),
+                'status' => 'active',
+            ]);
+
+            // Create first term for the session
+            $term = Term::create([
+                'id' => Str::uuid(),
+                'school_id' => $school->id,
+                'session_id' => $session->id,
+                'name' => '1st Term',
+                'term_number' => 1,
+                'slug' => Str::slug('1st-term-' . $sessionName),
+                'start_date' => date('Y-09-01'),
+                'end_date' => date('Y-m-d', strtotime('first Sunday of November ' . $currentYear)),
+                'status' => 'active',
+            ]);
+
+            // Update school with current session and term
+            $school->update([
+                'current_session_id' => $session->id,
+                'current_term_id' => $term->id,
+            ]);
+        } catch (Throwable $exception) {
+            // Log the error but don't fail the registration
             report($exception);
         }
     }

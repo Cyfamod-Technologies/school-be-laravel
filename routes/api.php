@@ -488,24 +488,6 @@ Route::prefix('api/v1')->group(function () {
         });
     });
 
-    // Admin Routes (Protected - requires admin role)
-    Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
-        // Agent Management
-        Route::prefix('agents')->group(function () {
-            Route::get('pending', [AgentController::class, 'pendingAgents'])
-                ->name('admin.agents.pending');
-            Route::post('{agent}/approve', [AgentController::class, 'approveAgent'])
-                ->whereUuid('agent')
-                ->name('admin.agents.approve');
-            Route::post('{agent}/reject', [AgentController::class, 'rejectAgent'])
-                ->whereUuid('agent')
-                ->name('admin.agents.reject');
-            Route::post('{agent}/suspend', [AgentController::class, 'suspendAgent'])
-                ->whereUuid('agent')
-                ->name('admin.agents.suspend');
-        });
-    });
-
     // CBT (Computer-Based Test) Routes
     Route::prefix('cbt')->middleware('auth:sanctum,student')->group(function () {
         // Quiz Management
