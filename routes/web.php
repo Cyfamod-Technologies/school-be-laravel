@@ -24,3 +24,15 @@ Route::get('/reset-password', function (Request $request) {
         'redirectUrl' => $redirectUrl,
     ]);
 });
+
+Route::get('/register', function (Request $request) {
+    $frontendBase = (string) env('FRONTEND_URL', rtrim((string) config('app.url'), '/'));
+    $query = $request->getQueryString();
+    $target = rtrim($frontendBase, '/') . '/register';
+
+    if (is_string($query) && $query !== '') {
+        $target .= '?' . $query;
+    }
+
+    return redirect()->away($target);
+});

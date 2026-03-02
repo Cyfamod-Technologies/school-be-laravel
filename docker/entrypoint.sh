@@ -6,7 +6,6 @@ echo "🟡 Waiting for database to be ready..."
 sleep 10
 
 
-
 # Ensure storage and cache dirs are present
 mkdir -p storage/logs \
          storage/framework/cache \

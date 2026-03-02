@@ -1,0 +1,757 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Mail\AgentVerifyEmail;
+use App\Mail\AgentResetPassword;
+use App\Models\Agent;
+use App\Models\AgentEmailVerificationToken;
+use App\Models\Referral;
+use App\Services\ReferralService;
+use App\Services\CommissionService;
+use App\Services\PayoutService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class AgentController extends Controller
+{
+    private ReferralService $referralService;
+    private CommissionService $commissionService;
+    private PayoutService $payoutService;
+
+    public function __construct(
+        ReferralService $referralService,
+        CommissionService $commissionService,
+        PayoutService $payoutService
+    ) {
+        $this->referralService = $referralService;
+        $this->commissionService = $commissionService;
+        $this->payoutService = $payoutService;
+    }
+
+    /**
+     * Register new agent
+     */
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'full_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:agents',
+            'password' => 'required|string|min:8|confirmed',
+            'phone' => 'nullable|string|max:20',
+            'whatsapp_number' => 'required|string|max:20',
+            'bank_account_name' => 'nullable|string',
+            'bank_account_number' => 'nullable|string',
+            'bank_name' => 'nullable|string',
+            'company_name' => 'nullable|string',
+            'address' => 'nullable|string',
+        ]);
+
+        $validated['email'] = strtolower((string) $validated['email']);
+
+        $agent = Agent::create(array_merge($validated, [
+            'status' => 'pending',
+        ]));
+        $this->sendAgentVerificationEmail($agent);
+
+        return response()->json([
+            'message' => 'Registration successful. Please verify your email before signing in. Check your inbox/SPAM folder. Your account is pending admin approval.',
+            'agent' => $agent,
+            'verification_required' => true,
+        ], 201);
+    }
+
+    public function login(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        $agent = Agent::where('email', strtolower($validated['email']))->first();
+
+        if (! $agent || ! $agent->password || ! Hash::check($validated['password'], $agent->password)) {
+            throw ValidationException::withMessages([
+                'email' => 'Invalid email or password.',
+            ]);
+        }
+
+        if (! $agent->email_verified_at) {
+            $this->sendAgentVerificationEmail($agent);
+
+            throw ValidationException::withMessages([
+                'email' => 'Please verify your email before signing in. Check your inbox/SPAM folder for the verification link.',
+            ]);
+        }
+
+        $token = $agent->createToken('agent-auth')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful.',
+            'agent' => $agent,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Register/Login agent with Google ID token
+     */
+    public function googleAuth(Request $request)
+    {
+        $validated = $request->validate([
+            'credential' => 'required|string',
+        ]);
+
+        try {
+            $googleUser = $this->resolveGoogleUser($validated['credential']);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw ValidationException::withMessages([
+                'google' => 'Google authentication failed. Please try again.',
+            ]);
+        }
+
+        $agent = Agent::where('email', $googleUser['email'])->first();
+
+        if (! $agent) {
+            $agent = Agent::create([
+                'full_name' => $googleUser['name'] ?? 'Google Agent',
+                'email' => $googleUser['email'],
+                'status' => 'pending',
+                'email_verified_at' => now(),
+            ]);
+        } else {
+            $updates = [];
+
+            if (! empty($googleUser['name']) && $agent->full_name !== $googleUser['name']) {
+                $updates['full_name'] = $googleUser['name'];
+            }
+
+            if (! $agent->email_verified_at) {
+                $updates['email_verified_at'] = now();
+            }
+
+            if ($updates !== []) {
+                $agent->update($updates);
+                $agent = $agent->fresh();
+            }
+        }
+
+        $token = $agent->createToken('agent-google-auth')->plainTextToken;
+
+        return response()->json([
+            'message' => $agent->wasRecentlyCreated
+                ? 'Agent registration submitted. Awaiting admin approval.'
+                : 'Google sign-in successful.',
+            'agent' => $agent,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Verify agent email address
+     */
+    public function verifyEmail(Request $request)
+    {
+        $token = (string) $request->query('token', '');
+
+        if ($token === '') {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                'A verification token is required.',
+                'error'
+            );
+        }
+
+        $hashedToken = hash('sha256', $token);
+
+        $record = AgentEmailVerificationToken::with('agent')
+            ->where('token', $hashedToken)
+            ->first();
+
+        if (! $record) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_NOT_FOUND,
+                'This verification link is invalid or has already been used.',
+                'error'
+            );
+        }
+
+        if ($record->verified_at) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_OK,
+                'Email already verified. You can log in now.',
+                'success'
+            );
+        }
+
+        if ($record->isExpired()) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_GONE,
+                'This verification link has expired. Please request a new one.',
+                'error'
+            );
+        }
+
+        $agent = $record->agent;
+
+        if (! $agent) {
+            return $this->respondAgentVerification(
+                $request,
+                Response::HTTP_NOT_FOUND,
+                'Agent account for this verification link was not found.',
+                'error'
+            );
+        }
+
+        if (! $agent->email_verified_at) {
+            $agent->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+        }
+
+        $record->forceFill([
+            'verified_at' => now(),
+        ])->save();
+
+        AgentEmailVerificationToken::where('agent_id', $agent->id)
+            ->whereNull('verified_at')
+            ->where('id', '!=', $record->id)
+            ->delete();
+
+        return $this->respondAgentVerification(
+            $request,
+            Response::HTTP_OK,
+            'Email verified successfully. You can now log in.',
+            'success'
+        );
+    }
+
+    /**
+     * Get agent dashboard
+     */
+    public function dashboard(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $this->commissionService->reconcileAgentCommissions($agent);
+
+        $referralStats = $this->referralService->getStats($agent);
+        $earnings = $this->commissionService->getAgentEarnings($agent);
+        $referrals = $agent->referrals()
+            ->withCount('registrations as registered_schools_count')
+            ->with([
+                'registrations' => function ($query) {
+                    $query
+                        ->select([
+                            'id',
+                            'referral_id',
+                            'school_id',
+                            'registered_at',
+                            'payment_count',
+                            'first_payment_amount',
+                            'paid_at',
+                            'active_at',
+                            'created_at',
+                        ])
+                        ->with([
+                            'school' => function ($schoolQuery) {
+                                $schoolQuery->select(['id', 'name'])->withCount('students');
+                            },
+                        ])
+                        ->orderByDesc('registered_at')
+                        ->orderByDesc('created_at');
+                },
+                'school' => function ($query) {
+                    $query->select(['id', 'name'])->withCount('students');
+                },
+            ])
+            ->latest()
+            ->paginate(10);
+
+        return response()->json([
+            'agent' => $agent,
+            'referrals' => $referralStats,
+            'earnings' => $earnings,
+            'recent_referrals' => $referrals,
+        ]);
+    }
+
+    /**
+     * Get authenticated agent profile
+     */
+    public function profile(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        return response()->json([
+            'agent' => $agent,
+            'has_password' => ! empty($agent->password),
+        ]);
+    }
+
+    /**
+     * Update authenticated agent profile
+     */
+    public function updateProfile(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'full_name' => 'sometimes|required|string|max:255',
+            'email' => [
+                'sometimes',
+                'required',
+                'email',
+                Rule::unique('agents', 'email')->ignore($agent->id),
+            ],
+            'phone' => 'nullable|string|max:20',
+            'whatsapp_number' => 'nullable|string|max:20',
+            'bank_account_name' => 'nullable|string|max:255',
+            'bank_account_number' => 'nullable|string|max:255',
+            'bank_name' => 'nullable|string|max:255',
+            'company_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:1000',
+        ]);
+
+        if (array_key_exists('email', $validated)) {
+            $validated['email'] = strtolower((string) $validated['email']);
+        }
+
+        $agent->update($validated);
+        $updatedAgent = $agent->fresh();
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'agent' => $updatedAgent,
+            'has_password' => ! empty($updatedAgent->password),
+        ]);
+    }
+
+    /**
+     * Send agent password reset link
+     */
+    public function requestPasswordReset(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $agent = Agent::query()
+            ->where('email', $email)
+            ->first();
+
+        $successMessage = 'If an account exists for this email, a password reset link has been sent.';
+
+        // Always return success to avoid email enumeration.
+        if (! $agent) {
+            return response()->json([
+                'message' => $successMessage,
+            ]);
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $hashedToken = hash('sha256', $token);
+
+        $table = config('auth.passwords.agents.table', config('auth.passwords.users.table', 'password_reset_tokens'));
+        $expiresMinutes = (int) config('auth.passwords.agents.expire', config('auth.passwords.users.expire', 60));
+        $expiresAt = Carbon::now()->addMinutes(max($expiresMinutes, 5));
+
+        DB::table($table)->updateOrInsert(
+            ['email' => $agent->email],
+            [
+                'token' => $hashedToken,
+                'created_at' => now(),
+            ]
+        );
+
+        $frontendBase = (string) env('FRONTEND_URL', rtrim((string) config('app.url'), '/'));
+        $resetUrl = rtrim($frontendBase, '/') . '/agent/reset-password?token=' . urlencode($token) . '&email=' . urlencode($agent->email);
+
+        try {
+            Mail::to($agent->email)->send(new AgentResetPassword($agent, $resetUrl, $expiresAt));
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        return response()->json([
+            'message' => $successMessage,
+        ]);
+    }
+
+    /**
+     * Reset agent password with reset token
+     */
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $table = config('auth.passwords.agents.table', config('auth.passwords.users.table', 'password_reset_tokens'));
+
+        $record = DB::table($table)
+            ->where('email', $email)
+            ->first();
+
+        if (! $record) {
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link is invalid or has expired.'],
+            ]);
+        }
+
+        $hashedToken = hash('sha256', $validated['token']);
+        if (! hash_equals($record->token, $hashedToken)) {
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link is invalid or has expired.'],
+            ]);
+        }
+
+        $expiresMinutes = (int) config('auth.passwords.agents.expire', config('auth.passwords.users.expire', 60));
+        $createdAt = Carbon::parse($record->created_at);
+        if ($createdAt->addMinutes(max($expiresMinutes, 5))->isPast()) {
+            DB::table($table)->where('email', $email)->delete();
+
+            throw ValidationException::withMessages([
+                'token' => ['This password reset link has expired. Please request a new one.'],
+            ]);
+        }
+
+        $agent = Agent::query()
+            ->where('email', $email)
+            ->first();
+
+        if (! $agent) {
+            throw ValidationException::withMessages([
+                'email' => ['Agent account for this email was not found.'],
+            ]);
+        }
+
+        $agent->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        DB::table($table)->where('email', $email)->delete();
+
+        return response()->json([
+            'message' => 'Password has been reset successfully. You can now log in.',
+        ]);
+    }
+
+    /**
+     * Change authenticated agent password
+     */
+    public function changePassword(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (! $agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $hasPassword = ! empty($agent->password);
+        $rules = [
+            'password' => 'required|string|min:8|confirmed',
+        ];
+
+        if ($hasPassword) {
+            $rules['current_password'] = 'required|string';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($hasPassword && ! Hash::check($validated['current_password'], (string) $agent->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Current password is incorrect.',
+            ]);
+        }
+
+        if ($hasPassword && Hash::check($validated['password'], (string) $agent->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'New password must be different from current password.',
+            ]);
+        }
+
+        $agent->update([
+            'password' => $validated['password'],
+        ]);
+
+        return response()->json([
+            'message' => 'Password updated successfully.',
+            'has_password' => true,
+        ]);
+    }
+
+    /**
+     * Generate referral code and link
+     */
+    public function generateReferral(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        if (!$agent->isApproved()) {
+            return response()->json(['message' => 'Agent not approved'], 403);
+        }
+
+        $maxCodes = $this->referralService->getMaxCodesPerAgent();
+        $usedCodes = $agent->referrals()->count();
+        $remainingCodes = max($maxCodes - $usedCodes, 0);
+
+        if ($remainingCodes <= 0) {
+            return response()->json([
+                'message' => "Referral code limit reached ({$maxCodes}).",
+                'max_referral_codes' => $maxCodes,
+                'used_referral_codes' => $usedCodes,
+                'remaining_referral_codes' => 0,
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'custom_code' => 'nullable|string|max:50|unique:referrals,referral_code',
+        ]);
+
+        try {
+            $referral = $this->referralService->createReferral(
+                $agent,
+                $validated['custom_code'] ?? null
+            );
+
+            return response()->json([
+                'message' => 'Referral created successfully',
+                'referral' => $referral,
+                'max_referral_codes' => $maxCodes,
+                'used_referral_codes' => $usedCodes + 1,
+                'remaining_referral_codes' => max($remainingCodes - 1, 0),
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Get commission history
+     */
+    public function commissionHistory(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $this->commissionService->reconcileAgentCommissions($agent);
+
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 20);
+
+        $commissions = $this->commissionService->getCommissionHistory($agent, $page, $perPage);
+
+        return response()->json($commissions);
+    }
+
+    /**
+     * Request payout
+     */
+    public function requestPayout(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        try {
+            $payout = $this->payoutService->requestPayout($agent);
+
+            return response()->json([
+                'message' => 'Payout request created successfully',
+                'payout' => $payout,
+            ], 201);
+        } catch (\Exception $e) {
+            throw ValidationException::withMessages([
+                'payout' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Get payout history
+     */
+    public function payoutHistory(Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent) {
+            return response()->json(['message' => 'Agent not found'], 404);
+        }
+
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 20);
+
+        $payouts = $this->payoutService->getPayoutHistory($agent, $page, $perPage);
+
+        return response()->json($payouts);
+    }
+
+    /**
+     * Get referral details
+     */
+    public function getReferral(Referral $referral, Request $request)
+    {
+        $agent = $this->resolveAgent($request);
+
+        if (!$agent || $referral->agent_id !== $agent->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'referral' => $referral->load('school', 'commissions'),
+        ]);
+    }
+
+    private function resolveAgent(Request $request): ?Agent
+    {
+        $user = $request->user();
+        if ($user instanceof Agent) {
+            return $user;
+        }
+
+        $agentId = $request->input('agent_id');
+        if (is_string($agentId) && $agentId !== '') {
+            return Agent::find($agentId);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{email:string,name?:string}
+     */
+    private function resolveGoogleUser(string $credential): array
+    {
+        $response = Http::timeout(10)
+            ->get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $credential,
+            ]);
+
+        if (! $response->ok()) {
+            throw ValidationException::withMessages([
+                'google' => 'Invalid Google credential.',
+            ]);
+        }
+
+        $data = $response->json();
+        if (! is_array($data)) {
+            throw ValidationException::withMessages([
+                'google' => 'Unable to validate Google credential.',
+            ]);
+        }
+
+        $email = (string) ($data['email'] ?? '');
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'google' => 'Google account email is missing.',
+            ]);
+        }
+
+        $verified = filter_var($data['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (! $verified) {
+            throw ValidationException::withMessages([
+                'google' => 'Google email must be verified.',
+            ]);
+        }
+
+        $configuredClientId = (string) config('services.google.client_id');
+        if ($configuredClientId !== '' && ($data['aud'] ?? null) !== $configuredClientId) {
+            throw ValidationException::withMessages([
+                'google' => 'Google client mismatch.',
+            ]);
+        }
+
+        $result = ['email' => strtolower($email)];
+
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name !== '') {
+            $result['name'] = $name;
+        }
+
+        return $result;
+    }
+
+    private function sendAgentVerificationEmail(Agent $agent): void
+    {
+        try {
+            $tokenValue = bin2hex(random_bytes(32));
+            $hashedToken = hash('sha256', $tokenValue);
+            $ttlMinutes = (int) config('features.email_verification_ttl_minutes', 60 * 24);
+            $expiresAt = now()->addMinutes(max($ttlMinutes, 5));
+
+            AgentEmailVerificationToken::where('agent_id', $agent->id)->delete();
+
+            AgentEmailVerificationToken::create([
+                'agent_id' => $agent->id,
+                'token' => $hashedToken,
+                'expires_at' => $expiresAt,
+            ]);
+
+            $verificationUrl = url('/api/v1/agents/email/verify?token=' . $tokenValue);
+
+            Mail::to($agent->email)->send(new AgentVerifyEmail($agent, $verificationUrl, $expiresAt));
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    protected function respondAgentVerification(
+        Request $request,
+        int $status,
+        string $message,
+        string $statusLabel
+    ): JsonResponse|Response {
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json([
+                'message' => $message,
+            ], $status);
+        }
+
+        return response()->view('verification.result', [
+            'status' => $statusLabel,
+            'message' => $message,
+            'redirectUrl' => config('app.frontend_agent_login_url'),
+        ], $status);
+    }
+}

@@ -18,11 +18,14 @@ use App\Models\User;
 use App\Models\Student;
 use App\Models\SchoolParent;
 use App\Models\Staff;
+use App\Models\Referral;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Services\Rbac\RbacService;
+use App\Services\ReferralService;
+use App\Services\SubscriptionService;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
@@ -49,7 +52,8 @@ class SchoolController extends Controller
      *              @OA\Property(property="email", type="string", format="email", example="school@example.com"),
      *              @OA\Property(property="password", type="string", format="password", example="password"),
      *              @OA\Property(property="password_confirmation", type="string", format="password", example="password"),
-     *              @OA\Property(property="subdomain", type="string", example="my-school")
+     *              @OA\Property(property="subdomain", type="string", example="my-school"),
+     *              @OA\Property(property="referral_code", type="string", example="AGT-ABC12345")
      *          )
      *      ),
      *      @OA\Response(
@@ -89,7 +93,7 @@ class SchoolController extends Controller
      *      )
      * )
      */
-    public function register(Request $request, RbacService $rbacService)
+    public function register(Request $request, RbacService $rbacService, ReferralService $referralService)
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
@@ -97,13 +101,38 @@ class SchoolController extends Controller
             'email' => 'required|string|email|max:255|unique:schools|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'subdomain' => 'required|string|max:255|unique:schools',
+            'referral_code' => 'nullable|string|max:50',
+            'enable_free_trial' => 'sometimes|boolean',
         ]);
 
-        [$school, $user] = DB::transaction(function () use ($validatedData, $rbacService) {
+        $referralCode = isset($validatedData['referral_code'])
+            ? trim((string) $validatedData['referral_code'])
+            : null;
+        if ($referralCode === '') {
+            $referralCode = null;
+        }
+
+        [$school, $user] = DB::transaction(function () use ($validatedData, $rbacService, $referralCode, $referralService) {
+            $referral = null;
+            if ($referralCode !== null) {
+                $referral = Referral::where('referral_code', $referralCode)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $referral) {
+                    throw ValidationException::withMessages([
+                        'referral_code' => 'Invalid referral code.',
+                    ]);
+                }
+            }
+
             $acronym = $this->generateSchoolAcronym($validatedData['name']);
             $nextCode = (int) School::query()->lockForUpdate()->max('code_sequence');
             $nextCode = $nextCode > 0 ? $nextCode + 1 : 1;
             $slug = $this->generateUniqueSchoolSlug($validatedData['name']);
+            $requestedFreeTrial = array_key_exists('enable_free_trial', $validatedData)
+                ? (bool) $validatedData['enable_free_trial']
+                : null;
 
             $school = School::create([
                 'id' => Str::uuid(),
@@ -115,6 +144,7 @@ class SchoolController extends Controller
                 'address' => $validatedData['address'],
                 'email' => $validatedData['email'],
                 'phone' => '1234567890', // Add a dummy phone number
+                'enable_free_trial' => $this->resolveFreeTrialEnabledForNewSchool($requestedFreeTrial),
             ]);
 
             $user = User::create([
@@ -129,6 +159,13 @@ class SchoolController extends Controller
 
             $rbacService->bootstrapForSchool($school, $user);
             $user->load('roles');
+
+            if ($referral !== null) {
+                $referralService->recordRegistration($referral, $school);
+            }
+
+            // Auto-create default session and term for new school
+            $this->createDefaultSessionAndTerm($school);
 
             return [$school, $user];
         });
@@ -345,7 +382,7 @@ class SchoolController extends Controller
      *     @OA\Response(response=422, description="Validation error")
      * )
      */
-    public function updateSchoolProfile(Request $request)
+    public function updateSchoolProfile(Request $request, SubscriptionService $subscriptionService)
     {
         $user = Auth::user();
         $school = $user->school;
@@ -368,6 +405,7 @@ class SchoolController extends Controller
             'owner_name' => 'string|max:255',
             'current_session_id' => 'nullable|uuid',
             'current_term_id' => 'nullable|uuid',
+            'enable_free_trial' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -375,6 +413,21 @@ class SchoolController extends Controller
         }
 
         $data = $validator->validated();
+
+        if (array_key_exists('enable_free_trial', $data)) {
+            $globalTrialEnabled = (bool) config('subscription.free_trial_enabled', false);
+            $optionalPerSchool = (bool) config('subscription.free_trial_optional_per_school', true);
+
+            if (! $globalTrialEnabled && (bool) $data['enable_free_trial'] === true) {
+                return response()->json([
+                    'message' => 'Free trial is globally disabled in server configuration.',
+                ], 422);
+            }
+
+            if ($globalTrialEnabled && ! $optionalPerSchool) {
+                $data['enable_free_trial'] = true;
+            }
+        }
 
         if ($request->hasFile('logo')) {
             $logoPath = $request->file('logo')->store('schools/logos', 'public');
@@ -407,6 +460,8 @@ class SchoolController extends Controller
 
         $previousSessionId = $school->current_session_id;
         $previousTermId = $school->current_term_id;
+        $session = null;
+        $term = null;
 
         if (array_key_exists('current_session_id', $data) && $sessionId !== null) {
             $session = Session::where('id', $sessionId)
@@ -426,14 +481,73 @@ class SchoolController extends Controller
             if (! $term) {
                 return response()->json(['message' => 'Selected term was not found for this school.'], 404);
             }
+        }
 
-            if ($sessionId !== null && $term->session_id !== $sessionId) {
+        $isSwitchingSession = $sessionId !== null && (string) $sessionId !== (string) ($previousSessionId ?? '');
+        if ($isSwitchingSession && $termId === null) {
+            $term = Term::query()
+                ->where('school_id', $school->id)
+                ->where('session_id', $sessionId)
+                ->orderBy('start_date')
+                ->orderBy('term_number')
+                ->first();
+
+            if (! $term) {
+                return response()->json([
+                    'message' => 'Cannot switch session because it has no terms configured.',
+                ], 422);
+            }
+
+            $termId = (string) $term->id;
+            $data['current_term_id'] = $termId;
+        }
+
+        if ($term) {
+            if ($sessionId !== null && (string) $term->session_id !== (string) $sessionId) {
                 return response()->json(['message' => 'The selected term does not belong to the chosen session.'], 422);
             }
 
             if ($sessionId === null) {
-                $sessionId = $term->session_id;
+                $sessionId = (string) $term->session_id;
                 $data['current_session_id'] = $sessionId;
+            }
+
+            $isSwitchingToDifferentTerm = (string) ($termId ?? '') !== (string) ($previousTermId ?? '');
+            if ($isSwitchingToDifferentTerm && $school->requiresSubscription()) {
+                $term->loadMissing(['school', 'invoices', 'midtermAdditions']);
+
+                $previousUnpaidTerm = $this->getPreviousUnpaidTermForTarget($term);
+                if ($previousUnpaidTerm) {
+                    $contextSessionName = $previousUnpaidTerm->session?->name;
+                    $context = $contextSessionName
+                        ? $previousUnpaidTerm->name . ' (' . $contextSessionName . ')'
+                        : $previousUnpaidTerm->name;
+                    $contextOutstanding = number_format((float) $previousUnpaidTerm->getOutstandingBalance(), 2);
+
+                    return response()->json([
+                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared for '
+                            . $context . '. Outstanding: ₦' . $contextOutstanding . '.',
+                    ], 422);
+                }
+
+                if (! $subscriptionService->isFreeTrialTerm($term)) {
+                    $originalInvoice = $term->invoices
+                        ->first(fn ($invoice) => (string) ($invoice->invoice_type ?? '') === 'original');
+
+                    if (! $originalInvoice) {
+                        $subscriptionService->generateTermInvoice($term);
+                        $term = Term::query()
+                            ->with(['school', 'invoices', 'midtermAdditions'])
+                            ->find($term->id) ?? $term;
+                    }
+                }
+
+                $outstanding = round((float) $term->getOutstandingBalance(), 2);
+                if ($outstanding > 0) {
+                    return response()->json([
+                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared. Outstanding: ₦' . number_format($outstanding, 2) . '.',
+                    ], 422);
+                }
             }
         }
 
@@ -475,6 +589,38 @@ class SchoolController extends Controller
                 'currentTerm:id,name,session_id,start_date,end_date,status',
             ]),
         ]);
+    }
+
+    private function getPreviousUnpaidTermForTarget(Term $term): ?Term
+    {
+        $query = Term::query()
+            ->with('session')
+            ->where('school_id', $term->school_id)
+            ->where('id', '!=', $term->id)
+            ->whereRaw(
+                '((COALESCE(amount_due, 0) + COALESCE(midterm_amount_due, 0)) - (COALESCE(amount_paid, 0) + COALESCE(midterm_amount_paid, 0))) > 0'
+            );
+
+        if ($term->start_date) {
+            $query->where(function ($inner) use ($term) {
+                $inner
+                    ->where('start_date', '<', $term->start_date)
+                    ->orWhere(function ($sameDate) use ($term) {
+                        $sameDate
+                            ->where('start_date', '=', $term->start_date)
+                            ->where('term_number', '<', (int) ($term->term_number ?? 0));
+                    });
+            });
+        } else {
+            $query
+                ->where('session_id', $term->session_id)
+                ->where('term_number', '<', (int) ($term->term_number ?? 0));
+        }
+
+        return $query
+            ->orderBy('start_date')
+            ->orderBy('term_number')
+            ->first();
     }
 
     /**
@@ -734,6 +880,25 @@ class SchoolController extends Controller
         return Str::limit($acronym ?: 'SCH', 5, '');
     }
 
+    private function resolveFreeTrialEnabledForNewSchool(?bool $requestedValue): bool
+    {
+        $globalTrialEnabled = (bool) config('subscription.free_trial_enabled', false);
+        if (! $globalTrialEnabled) {
+            return false;
+        }
+
+        $optionalPerSchool = (bool) config('subscription.free_trial_optional_per_school', true);
+        if (! $optionalPerSchool) {
+            return true;
+        }
+
+        if ($requestedValue !== null) {
+            return $requestedValue;
+        }
+
+        return (bool) config('subscription.free_trial_default_for_new_school', false);
+    }
+
     private function verifyUserPassword(User $user, string $password): bool
     {
         try {
@@ -837,6 +1002,55 @@ class SchoolController extends Controller
         try {
             Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl, $expiresAt));
         } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Create a default session and term for a new school
+     */
+    private function createDefaultSessionAndTerm(School $school): void
+    {
+        try {
+            // Check if school already has sessions
+            if ($school->sessions()->count() > 0) {
+                return;
+            }
+
+            // Create default session for current academic year
+            $currentYear = date('Y');
+            $sessionName = $currentYear . '/' . ($currentYear + 1);
+
+            $session = Session::create([
+                'id' => Str::uuid(),
+                'school_id' => $school->id,
+                'name' => $sessionName,
+                'slug' => Str::slug($sessionName),
+                'start_date' => date('Y-09-01'),
+                'end_date' => date('Y-m-d', strtotime(($currentYear + 1) . '-08-31')),
+                'status' => 'active',
+            ]);
+
+            // Create first term for the session
+            $term = Term::create([
+                'id' => Str::uuid(),
+                'school_id' => $school->id,
+                'session_id' => $session->id,
+                'name' => '1st Term',
+                'term_number' => 1,
+                'slug' => Str::slug('1st-term-' . $sessionName),
+                'start_date' => date('Y-09-01'),
+                'end_date' => date('Y-m-d', strtotime('first Sunday of November ' . $currentYear)),
+                'status' => 'active',
+            ]);
+
+            // Update school with current session and term
+            $school->update([
+                'current_session_id' => $session->id,
+                'current_term_id' => $term->id,
+            ]);
+        } catch (Throwable $exception) {
+            // Log the error but don't fail the registration
             report($exception);
         }
     }

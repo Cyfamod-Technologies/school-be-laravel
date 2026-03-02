@@ -76,7 +76,7 @@
             {{ $status === 'success' ? 'Email verified' : 'Verification issue' }}
         </div>
         <p class="message">{{ $message }}</p>
-        <a class="cta" href="{{ config('app.frontend_login_url') }}">
+        <a class="cta" href="{{ $redirectUrl ?? config('app.frontend_login_url') }}">
             Go to Login
         </a>
     </div>
