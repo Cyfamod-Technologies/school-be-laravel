@@ -83,6 +83,30 @@ it('downloads a dynamic student bulk template', function () {
         ->toContain('Class (Name or ID)');
 });
 
+it('downloads template when session and class are selected without class arm', function () {
+    $response = get(route('students.bulk.template', [
+        'session_id' => $this->session->id,
+        'class_id' => $this->class->id,
+    ]));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'text/csv');
+
+    $content = $response->streamedContent();
+    $lines = array_values(array_filter(array_map('trim', explode("\n", $content))));
+    $headerLine = collect($lines)->first(fn ($line) => str_contains($line, 'First Name'));
+    $headerColumns = $headerLine ? str_getcsv($headerLine) : [];
+
+    expect($content)
+        ->toContain('Session: 2025/2026')
+        ->toContain('Class: Grade 6');
+    expect($headerColumns)
+        ->toContain('Class Arm')
+        ->not->toContain('Session')
+        ->not->toContain('Term')
+        ->not->toContain('Class');
+});
+
 it('validates and commits a bulk student upload', function () {
     $csv = implode("\n", [
         'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
