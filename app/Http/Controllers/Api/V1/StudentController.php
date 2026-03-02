@@ -7,6 +7,7 @@ use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -579,24 +580,17 @@ class StudentController extends Controller
             abort(403, 'You are not allowed to delete this student.');
         }
 
+        $dependencies = $this->studentDeletionDependencies($student->id);
+        if ($dependencies !== []) {
+            return response()->json([
+                'message' => 'Cannot delete student with dependent records. Remove related records first.',
+                'dependencies' => $dependencies,
+            ], 422);
+        }
+
         $photoUrl = $student->photo_url;
 
         DB::transaction(function () use ($student) {
-            $studentId = $student->id;
-
-            DB::table('results')->where('student_id', $studentId)->delete();
-            DB::table('attendances')->where('student_id', $studentId)->delete();
-            DB::table('fee_payments')->where('student_id', $studentId)->delete();
-            DB::table('performance_reports')->where('student_id', $studentId)->delete();
-            DB::table('result_pins')->where('student_id', $studentId)->delete();
-            DB::table('skill_ratings')->where('student_id', $studentId)->delete();
-            DB::table('student_enrollments')->where('student_id', $studentId)->delete();
-            DB::table('term_summaries')->where('student_id', $studentId)->delete();
-            DB::table('promotion_logs')->where('student_id', $studentId)->delete();
-            DB::table('quiz_results')->where('student_id', $studentId)->delete();
-            DB::table('quiz_attempts')->where('student_id', $studentId)->delete();
-            DB::table('cbt_score_imports')->where('student_id', $studentId)->delete();
-
             $student->delete();
         });
 
@@ -617,10 +611,10 @@ class StudentController extends Controller
     {
         $classIdentifier = $request->input('school_class_id', $request->input('class_id'));
 
-        if (in_array($classIdentifier, [null, '', '0', 0], true)) {
+        if ($this->isNullableRelationshipValue($classIdentifier)) {
             $request->request->remove('school_class_id');
         } else {
-            $request->merge(['school_class_id' => (string) $classIdentifier]);
+            $request->merge(['school_class_id' => trim((string) $classIdentifier)]);
         }
 
         foreach (['school_class_id', 'class_arm_id', 'parent_id', 'current_session_id', 'current_term_id', 'blood_group_id'] as $field) {
@@ -630,12 +624,57 @@ class StudentController extends Controller
 
             $value = $request->input($field);
 
-            if (in_array($value, [null, '', '0', 0], true)) {
+            if ($this->isNullableRelationshipValue($value)) {
                 $request->merge([$field => null]);
             } else {
-                $request->merge([$field => (string) $value]);
+                $request->merge([$field => trim((string) $value)]);
             }
         }
+    }
+
+    private function isNullableRelationshipValue(mixed $value): bool
+    {
+        if (in_array($value, [null, '', '0', 0], true)) {
+            return true;
+        }
+
+        if (! is_string($value)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim($value)), ['none', 'null', 'undefined'], true);
+    }
+
+    private function studentDeletionDependencies(string $studentId): array
+    {
+        $checks = [
+            'results' => 'result records',
+            'attendances' => 'attendance records',
+            'fee_payments' => 'fee payment records',
+            'performance_reports' => 'performance report records',
+            'result_pins' => 'result pin records',
+            'skill_ratings' => 'skill rating records',
+            'student_enrollments' => 'enrollment records',
+            'term_summaries' => 'term summary records',
+            'promotion_logs' => 'promotion log records',
+            'quiz_results' => 'quiz result records',
+            'quiz_attempts' => 'quiz attempt records',
+            'cbt_score_imports' => 'CBT score import records',
+        ];
+
+        $dependencies = [];
+
+        foreach ($checks as $table => $label) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            if (DB::table($table)->where('student_id', $studentId)->exists()) {
+                $dependencies[] = $label;
+            }
+        }
+
+        return $dependencies;
     }
 
     private function formatStoredFileUrl(string $path): string

@@ -55,14 +55,8 @@ class StudentBulkUploadService
         $preselectedSession = null;
         $preselectedClass = null;
         $preselectedArm = null;
-        $preselectedTerm = null;
-
         if (!empty($preselected['session_id'])) {
             $preselectedSession = $school->sessions()->find($preselected['session_id']);
-            // Get the first term of this session as default
-            if ($preselectedSession) {
-                $preselectedTerm = $school->terms()->where('session_id', $preselectedSession->id)->first();
-            }
         }
         if (!empty($preselected['class_id'])) {
             $preselectedClass = SchoolClass::where('school_id', $school->id)->find($preselected['class_id']);
@@ -74,13 +68,18 @@ class StudentBulkUploadService
         $handle = fopen('php://temp', 'w+');
 
         // Context header showing what class this template is for
-        if ($preselectedSession && $preselectedClass && $preselectedArm) {
-            fputcsv($handle, [
+        if ($preselectedSession && $preselectedClass) {
+            $contextRow = [
                 '# TEMPLATE FOR',
                 "Session: {$preselectedSession->name}",
                 "Class: {$preselectedClass->name}",
-                "Arm: {$preselectedArm->name}",
-            ]);
+            ];
+
+            if ($preselectedArm) {
+                $contextRow[] = "Arm: {$preselectedArm->name}";
+            }
+
+            fputcsv($handle, $contextRow);
         }
 
         // Simple instruction
@@ -114,7 +113,8 @@ class StudentBulkUploadService
      */
     public function validateAndPrepare(School $school, UploadedFile $file, User $user, array $preselected = []): array
     {
-        $hasPreselection = !empty($preselected['session_id']) && !empty($preselected['class_id']) && !empty($preselected['class_arm_id']);
+        $hasSessionClassPreselection = ! empty($preselected['session_id']) && ! empty($preselected['class_id']);
+        $hasArmPreselection = $hasSessionClassPreselection && ! empty($preselected['class_arm_id']);
         $columns = $this->buildColumnDefinitions($preselected);
         $columnMap = collect($columns)->keyBy('key');
 
@@ -134,18 +134,28 @@ class StudentBulkUploadService
         $preselectedClass = null;
         $preselectedArm = null;
 
-        if ($hasPreselection) {
+        if ($hasSessionClassPreselection) {
             $preselectedSession = $sessions->firstWhere('id', $preselected['session_id']);
             $preselectedClass = $classes->firstWhere('id', $preselected['class_id']);
-            $preselectedArm = $preselectedClass?->class_arms->firstWhere('id', $preselected['class_arm_id']);
-            
+
             // Get the first term of the session
             if ($preselectedSession) {
                 $preselectedTerm = $terms->firstWhere('session_id', $preselectedSession->id);
             }
 
-            if (!$preselectedSession || !$preselectedClass || !$preselectedArm) {
-                throw new BulkUploadValidationException([], null, 'Invalid session, class, or class arm selection.');
+            if (! $preselectedSession || ! $preselectedClass) {
+                throw new BulkUploadValidationException([], null, 'Invalid session or class selection.');
+            }
+
+            if (! $preselectedTerm) {
+                throw new BulkUploadValidationException([], null, 'No term found for the selected session.');
+            }
+
+            if ($hasArmPreselection) {
+                $preselectedArm = $preselectedClass->class_arms->firstWhere('id', $preselected['class_arm_id']);
+                if (! $preselectedArm) {
+                    throw new BulkUploadValidationException([], null, 'Invalid class arm selection for the selected class.');
+                }
             }
         }
 
@@ -244,10 +254,12 @@ class StudentBulkUploadService
             $rowData = $this->mapRowToData($row, $normalizedHeader, $columnMap);
             
             // Inject preselected values if they were provided
-            if ($hasPreselection) {
+            if ($hasSessionClassPreselection) {
                 $rowData['student.current_session_id'] = $preselectedSession->id;
                 $rowData['student.current_term_id'] = $preselectedTerm?->id;
                 $rowData['student.school_class_id'] = $preselectedClass->id;
+            }
+            if ($hasArmPreselection) {
                 $rowData['student.class_arm_id'] = $preselectedArm->id;
             }
 
@@ -455,16 +467,20 @@ class StudentBulkUploadService
 
         // Determine which columns to exclude based on preselected values
         $excludeKeys = [];
-        $hasPreselection = !empty($preselected['session_id']) && !empty($preselected['class_id']) && !empty($preselected['class_arm_id']);
-        
-        if ($hasPreselection) {
-            // If session/class/arm are preselected, don't include them in the template
+        $hasSessionClassPreselection = ! empty($preselected['session_id']) && ! empty($preselected['class_id']);
+        $hasArmPreselection = $hasSessionClassPreselection && ! empty($preselected['class_arm_id']);
+
+        if ($hasSessionClassPreselection) {
+            // If session/class are preselected, don't include them in the template
             $excludeKeys = [
                 'student.current_session_id',
                 'student.current_term_id',
-                'student.school_class_id', 
-                'student.class_arm_id',
+                'student.school_class_id',
             ];
+        }
+
+        if ($hasArmPreselection) {
+            $excludeKeys[] = 'student.class_arm_id';
         }
 
         $baseColumns = collect([
@@ -562,25 +578,25 @@ class StudentBulkUploadService
             [
                 'key' => 'student.current_session_id',
                 'header' => 'Session',
-                'required' => !$hasPreselection,
+                'required' => ! $hasSessionClassPreselection,
                 'example' => '2025/2026',
             ],
             [
                 'key' => 'student.current_term_id',
                 'header' => 'Term',
-                'required' => !$hasPreselection,
+                'required' => ! $hasSessionClassPreselection,
                 'example' => 'First Term',
             ],
             [
                 'key' => 'student.school_class_id',
                 'header' => 'Class',
-                'required' => !$hasPreselection,
+                'required' => ! $hasSessionClassPreselection,
                 'example' => 'JSS 1',
             ],
             [
                 'key' => 'student.class_arm_id',
                 'header' => 'Class Arm',
-                'required' => !$hasPreselection,
+                'required' => ! $hasArmPreselection,
                 'example' => 'A',
             ],
             // Parent columns
