@@ -646,16 +646,8 @@ class AgentController extends Controller
     private function resolveAgent(Request $request): ?Agent
     {
         $user = $request->user();
-        if ($user instanceof Agent) {
-            return $user;
-        }
 
-        $agentId = $request->input('agent_id');
-        if (is_string($agentId) && $agentId !== '') {
-            return Agent::find($agentId);
-        }
-
-        return null;
+        return $user instanceof Agent ? $user : null;
     }
 
     /**
