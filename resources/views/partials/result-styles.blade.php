@@ -306,7 +306,7 @@
             }
 
             .page-content {
-                gap: 8px;
+                gap: 4px;
             }
 
             .page-spacer {
@@ -316,15 +316,15 @@
             }
 
             .page--sparse .page-spacer {
-                max-height: 28mm;
+                max-height: 8mm;
             }
 
             .page--balanced .page-spacer {
-                max-height: 16mm;
+                max-height: 4mm;
             }
 
             .page--dense .page-spacer {
-                max-height: 6mm;
+                max-height: 0;
             }
 
             #print-button {
@@ -395,15 +395,28 @@
                 font-size: 18px;
             }
 
+            .page--sparse .school-heading h1 {
+                font-size: 20px;
+            }
+
             .school-heading p {
                 font-size: 10px;
                 margin-top: 1px;
+            }
+
+            .page--sparse .school-heading p,
+            .page--sparse .table-one td {
+                font-size: 10.5px;
             }
 
             .info-box {
                 margin-top: 3px;
                 margin-bottom: 3px;
                 padding: 5px 8px;
+            }
+
+            .page--sparse .info-box {
+                padding: 6px 9px;
             }
 
             .skill-grid {
@@ -418,6 +431,16 @@
             .skill-table td {
                 padding: 2px 4px;
                 font-size: 9px;
+            }
+
+            .page--sparse .table-two th {
+                font-size: 9.4px;
+            }
+
+            .page--sparse .table-two td,
+            .page--sparse .skill-table td,
+            .page--sparse .rating-key-table td {
+                font-size: 9.5px;
             }
 
             .skill-card-title {
@@ -446,6 +469,11 @@
 
             .grade-line {
                 font-size: 10px;
+            }
+
+            .page--sparse .grade-line,
+            .page--sparse .summary-box p {
+                font-size: 10.6px;
             }
 
             .summary-box {
