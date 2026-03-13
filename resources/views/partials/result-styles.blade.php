@@ -156,6 +156,10 @@
             font-weight: 600;
         }
 
+        .table-two-filler-row td {
+            color: transparent;
+        }
+
         .table-three td {
             font-size: 13px;
         }
@@ -308,11 +312,11 @@
                 overflow: visible;
                 page-break-after: avoid;
                 page-break-inside: avoid;
-                padding: 8px 12px;
+                padding: 12px 12px;
             }
 
             .page-content {
-                gap: 4px;
+                gap: 6px;
             }
 
             .page-spacer {
@@ -393,7 +397,7 @@
             }
 
             .school-heading {
-                margin-top: 1px;
+                margin-top: 8px;
                 margin-bottom: 3px;
             }
 
@@ -442,18 +446,18 @@
 
             .page--sparse .summary-box,
             .page--sparse .skills-box {
-                flex: 1 1 auto;
+                flex: 0 0 auto;
+                padding-bottom: 14px;
             }
 
             .page--sparse .summary-content {
-                flex: 1 1 auto;
-                justify-content: space-evenly;
+                justify-content: flex-start;
+                gap: 10px;
             }
 
             .page--sparse .skills-content {
-                flex: 1 1 auto;
-                justify-content: space-evenly;
-                gap: 10px;
+                justify-content: flex-start;
+                gap: 14px;
             }
 
             .page--sparse .skills-box .skill-grid {

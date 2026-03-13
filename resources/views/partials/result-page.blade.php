@@ -18,6 +18,12 @@
     $resultsTableColspan = 2 + count($resultsColumns) + count($optionalResultColumns);
     $hasSkillRatings = !empty($skillRatingsByCategory);
     $resultRowCount = count($resultsRows ?? []);
+    $resultFillerRowCount = match (true) {
+        $resultRowCount <= 8 => 4,
+        $resultRowCount <= 11 => 3,
+        $resultRowCount <= 14 => 2,
+        default => 0,
+    };
     $layoutDensityClass = match (true) {
         $resultRowCount <= 10 => 'page--sparse',
         $resultRowCount >= 17 => 'page--dense',
@@ -164,6 +170,33 @@
                     <td colspan="{{ $resultsTableColspan }}">No subject results available for the selected period.</td>
                 </tr>
             @endforelse
+            @for ($index = 0; $index < $resultFillerRowCount; $index++)
+                <tr class="table-two-filler-row" aria-hidden="true">
+                    <td class="subject-name">&nbsp;</td>
+                    @foreach($resultsColumns as $column)
+                        <td>&nbsp;</td>
+                    @endforeach
+                    <td>&nbsp;</td>
+                    @if($showGrade)
+                        <td>&nbsp;</td>
+                    @endif
+                    @if($showPosition)
+                        <td>&nbsp;</td>
+                    @endif
+                    @if($showClassAverage)
+                        <td>&nbsp;</td>
+                    @endif
+                    @if($showLowest)
+                        <td>&nbsp;</td>
+                    @endif
+                    @if($showHighest)
+                        <td>&nbsp;</td>
+                    @endif
+                    @if($showRemarks)
+                        <td>&nbsp;</td>
+                    @endif
+                </tr>
+            @endfor
         </table>
         </div>
 
