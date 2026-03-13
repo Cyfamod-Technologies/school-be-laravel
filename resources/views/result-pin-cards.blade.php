@@ -106,13 +106,28 @@
             opacity: 0.9;
             margin-bottom: 2px;
         }
+        .portal-access {
+            margin-top: 4px;
+            padding: 5px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .portal-access-label {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.78);
+            margin-bottom: 2px;
+        }
         .portal-link {
             font-size: 9px;
-            color: rgba(236, 15, 15, 0.9);
-            white-space: nowrap;
+            color: #ffffff;
             font-weight: 700;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.25;
         }
         .portal-link a {
             color: #fff;
@@ -186,16 +201,24 @@
                         <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
                     </div>
                     <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
-                    <div class="expiry">Valid until: {{ $card['expires_at'] }} || Student portal link:</div>
+                    <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
                     @php
                         $studentPortalLink = trim((string) ($studentPortalLink ?? ''));
+                        preg_match('/https?:\/\/\S+/i', $studentPortalLink, $portalMatches);
+                        $portalHref = $portalMatches[0] ?? null;
                     @endphp
                     @if($studentPortalLink !== '')
-                        <div class="portal-link">
-                            <!-- <strong>Student portal link:</strong> <br> -->
-                            <a href="{{ $studentPortalLink }}" target="_blank" rel="noreferrer">
-                                {{ $studentPortalLink }}
-                            </a>
+                        <div class="portal-access">
+                            <div class="portal-access-label">Student Portal</div>
+                            <div class="portal-link">
+                                @if($portalHref)
+                                    <a href="{{ $portalHref }}" target="_blank" rel="noreferrer">
+                                        {{ $studentPortalLink }}
+                                    </a>
+                                @else
+                                    {{ $studentPortalLink }}
+                                @endif
+                            </div>
                         </div>
                     @endif
                 </div>
