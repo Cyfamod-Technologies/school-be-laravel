@@ -23,6 +23,22 @@
             overflow-x: hidden;
         }
 
+        .page-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 12px;
+        }
+
+        .page-main,
+        .page-footer {
+            width: 100%;
+        }
+
+        .page-spacer {
+            display: none;
+        }
+
         .print-actions {
             display: flex;
             justify-content: flex-end;
@@ -277,13 +293,38 @@
 
             .page {
                 box-shadow: none;
+                width: 100%;
+                min-height: 287mm;
+                max-width: 100%;
                 max-height: none;
+                display: flex;
+                flex-direction: column;
                 overflow: visible;
                 page-break-after: avoid;
                 page-break-inside: avoid;
                 padding: 8px 12px;
-                transform: scale(0.90);
-                transform-origin: top center;
+            }
+
+            .page-content {
+                gap: 8px;
+            }
+
+            .page-spacer {
+                display: block;
+                flex: 1 1 auto;
+                min-height: 0;
+            }
+
+            .page--sparse .page-spacer {
+                max-height: 28mm;
+            }
+
+            .page--balanced .page-spacer {
+                max-height: 16mm;
+            }
+
+            .page--dense .page-spacer {
+                max-height: 6mm;
             }
 
             #print-button {

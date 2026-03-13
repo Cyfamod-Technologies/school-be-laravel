@@ -16,14 +16,23 @@
         $showRemarks,
     ]);
     $resultsTableColspan = 2 + count($resultsColumns) + count($optionalResultColumns);
+    $hasSkillRatings = !empty($skillRatingsByCategory);
+    $resultRowCount = count($resultsRows ?? []);
+    $layoutDensityClass = match (true) {
+        $resultRowCount <= 10 => 'page--sparse',
+        $resultRowCount >= 17 => 'page--dense',
+        default => 'page--balanced',
+    };
 @endphp
-<div class="page">
+<div class="page {{ $layoutDensityClass }} {{ $hasSkillRatings ? 'page--with-skills' : 'page--without-skills' }}">
         @if(($showPrintButton ?? true))
         <div class="print-actions">
             <button id="print-button" type="button" onclick="window.print()">Print</button>
         </div>
         @endif
 
+        <div class="page-content">
+        <div class="page-main">
         <div class="school-heading">
             @php
                 $schoolLines = preg_split('/<br\s*\/?>/i', (string) $schoolName) ?: [];
@@ -156,11 +165,11 @@
                 </tr>
             @endforelse
         </table>
+        </div>
 
-        @php
-            $hasSkillRatings = !empty($skillRatingsByCategory);
-        @endphp
+        <div class="page-spacer" aria-hidden="true"></div>
 
+        <div class="page-footer">
         <div class="flex-row">
             <div class="flex-col">
                 <div class="section-title">Grading System</div>
@@ -275,6 +284,7 @@
                 </div>
             @endif
         </div>
-
+        </div>
         </div>
     </div>
+</div>
