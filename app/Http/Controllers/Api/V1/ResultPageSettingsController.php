@@ -40,6 +40,8 @@ class ResultPageSettingsController extends Controller
             'show_lowest' => ['sometimes', 'boolean'],
             'show_highest' => ['sometimes', 'boolean'],
             'show_remarks' => ['sometimes', 'boolean'],
+            'hide_student_identity' => ['sometimes', 'boolean'],
+            'allow_shared_pin_access' => ['sometimes', 'boolean'],
             'comment_mode' => ['sometimes', 'string', 'in:manual,range'],
         ]);
 
@@ -53,6 +55,8 @@ class ResultPageSettingsController extends Controller
             'result_show_lowest' => $next['show_lowest'],
             'result_show_highest' => $next['show_highest'],
             'result_show_remarks' => $next['show_remarks'],
+            'result_hide_student_identity' => $next['hide_student_identity'],
+            'result_allow_shared_pin_access' => $next['allow_shared_pin_access'],
             'result_comment_mode' => $next['comment_mode'],
         ]);
 
@@ -75,6 +79,8 @@ class ResultPageSettingsController extends Controller
             'show_lowest' => $school->result_show_lowest ?? true,
             'show_highest' => $school->result_show_highest ?? true,
             'show_remarks' => $school->result_show_remarks ?? true,
+            'hide_student_identity' => $school->result_hide_student_identity ?? false,
+            'allow_shared_pin_access' => $school->result_allow_shared_pin_access ?? false,
             'comment_mode' => $school->result_comment_mode ?? 'manual',
         ];
     }

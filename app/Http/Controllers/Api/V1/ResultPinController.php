@@ -452,6 +452,7 @@ class ResultPinController extends Controller
             'autoPrint' => $request->boolean('autoprint'),
             'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),
             'studentPortalLink' => $school->student_portal_link,
+            'hideStudentIdentity' => (bool) ($school->result_hide_student_identity ?? false),
         ]);
     }
 

@@ -181,7 +181,7 @@ class StudentAuthController extends Controller
 
     public function previewResult(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentUser($request)->loadMissing('school');
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
@@ -189,26 +189,17 @@ class StudentAuthController extends Controller
             'pin_code' => ['required', 'string'],
         ]);
 
-        $normalizedPin = preg_replace('/\s+/', '', $validated['pin_code']);
-
-        $pin = ResultPin::query()
-            ->where('student_id', $student->id)
-            ->where('session_id', $validated['session_id'])
-            ->where('term_id', $validated['term_id'])
-            ->where('status', 'active')
-            ->first();
+        $normalizedPin = $this->normalizePinCode($validated['pin_code']);
+        $pin = $this->resolveAccessibleResultPin(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $normalizedPin,
+        );
 
         if (! $pin) {
             throw ValidationException::withMessages([
                 'pin_code' => ['Invalid or inactive PIN for the selected session/term.'],
-            ]);
-        }
-
-        $storedPin = preg_replace('/\s+/', '', (string) $pin->pin_code);
-
-        if (! hash_equals($storedPin, $normalizedPin)) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['Invalid PIN.'],
             ]);
         }
 
@@ -365,6 +356,45 @@ class StudentAuthController extends Controller
         }
 
         abort(401, 'Unauthenticated.');
+    }
+
+    private function resolveAccessibleResultPin(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        string $normalizedPin,
+    ): ?ResultPin {
+        $query = ResultPin::query()
+            ->where('session_id', $sessionId)
+            ->where('term_id', $termId)
+            ->where('status', 'active');
+
+        if ($student->school?->result_allow_shared_pin_access) {
+            return $query
+                ->whereHas('student', fn ($builder) => $builder->where('school_id', $student->school_id))
+                ->get()
+                ->first(fn (ResultPin $pin) => hash_equals(
+                    $this->normalizePinCode((string) $pin->pin_code),
+                    $normalizedPin,
+                ));
+        }
+
+        $pin = $query
+            ->where('student_id', $student->id)
+            ->first();
+
+        if (! $pin) {
+            return null;
+        }
+
+        return hash_equals($this->normalizePinCode((string) $pin->pin_code), $normalizedPin)
+            ? $pin
+            : null;
+    }
+
+    private function normalizePinCode(string $pinCode): string
+    {
+        return preg_replace('/\s+/', '', $pinCode) ?? '';
     }
 
     /**

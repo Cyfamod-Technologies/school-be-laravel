@@ -177,9 +177,11 @@
                         </strong>
                     </div>
                     <div class="card-details">
-                        <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
-                        <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
-                        <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
+                        @unless($hideStudentIdentity ?? false)
+                            <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
+                            <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
+                            <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
+                        @endunless
                         <div><strong>Session:</strong> {{ $sessionName ?? 'N/A' }} - <strong>Term:</strong> {{ $termName ?? 'N/A' }}</div>
                         <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
                     </div>

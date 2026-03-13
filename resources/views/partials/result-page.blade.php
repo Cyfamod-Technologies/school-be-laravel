@@ -76,6 +76,9 @@
                     @if($termStart && $termEnd)
                         Term Period: {{ $termStart }} - {{ $termEnd }}<br>
                     @endif
+                    @if(!empty($schoolOpenedDays))
+                        No. of Times School Opened: {{ $schoolOpenedDays }}<br>
+                    @endif
                     @if($nextTermStart)
                         Next term begins: {{ $nextTermStart }}
                     @endif
