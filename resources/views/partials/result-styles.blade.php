@@ -156,10 +156,6 @@
             font-weight: 600;
         }
 
-        .table-two-filler-row td {
-            color: transparent;
-        }
-
         .table-three td {
             font-size: 13px;
         }
@@ -371,7 +367,7 @@
             }
 
             .table-two th {
-                padding: 2px 3px;
+                padding: 3px 3px;
                 font-weight: 900 !important;
                 font-size: 9px;
                 -webkit-print-color-adjust: exact !important;
@@ -379,7 +375,7 @@
             }
 
             .table-two td {
-                padding: 2px 3px;
+                padding: 3px 3px;
                 font-size: 9px;
             }
 
