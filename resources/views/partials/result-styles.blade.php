@@ -367,7 +367,7 @@
             }
 
             .table-two th {
-                padding: 5px 3px;
+                padding: 7px 3px;
                 font-weight: 900 !important;
                 font-size: 9px;
                 -webkit-print-color-adjust: exact !important;
@@ -375,7 +375,7 @@
             }
 
             .table-two td {
-                padding: 5px 3px;
+                padding: 7px 3px;
                 font-size: 9px;
             }
 
