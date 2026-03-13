@@ -316,7 +316,7 @@
             }
 
             .page--sparse .page-spacer {
-                max-height: 8mm;
+                max-height: 3mm;
             }
 
             .page--balanced .page-spacer {
@@ -417,6 +417,26 @@
 
             .page--sparse .info-box {
                 padding: 6px 9px;
+            }
+
+            .page--sparse .page-footer {
+                flex: 1 1 auto;
+                display: flex;
+            }
+
+            .page--sparse .page-footer .flex-row {
+                flex: 1 1 auto;
+                align-items: stretch;
+            }
+
+            .page--sparse .page-footer .flex-col {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .page--sparse .summary-box,
+            .page--sparse .skills-box {
+                flex: 1 1 auto;
             }
 
             .skill-grid {

@@ -256,7 +256,7 @@
             @if($hasSkillRatings)
                 <div class="flex-col">
                     <div class="section-title">Skills &amp; Behaviour</div>
-                    <div class="info-box" style="padding:10px 14px;">
+                    <div class="info-box skills-box" style="padding:10px 14px;">
                         @php
                             $skillChunks = array_chunk($skillRatingsByCategory, 2);
                         @endphp
