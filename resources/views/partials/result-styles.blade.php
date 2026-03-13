@@ -367,7 +367,7 @@
             }
 
             .table-two th {
-                padding: 4px 3px;
+                padding: 5px 3px;
                 font-weight: 900 !important;
                 font-size: 9px;
                 -webkit-print-color-adjust: exact !important;
@@ -375,7 +375,7 @@
             }
 
             .table-two td {
-                padding: 4px 3px;
+                padding: 5px 3px;
                 font-size: 9px;
             }
 
@@ -443,12 +443,16 @@
             .page--sparse .summary-box,
             .page--sparse .skills-box {
                 flex: 0 0 auto;
-                padding-bottom: 14px;
+                padding-bottom: 8px;
+            }
+
+            .page--sparse .summary-box {
+                padding-bottom: 4px;
             }
 
             .page--sparse .summary-content {
                 justify-content: flex-start;
-                gap: 10px;
+                gap: 5px;
             }
 
             .page--sparse .skills-content {
@@ -515,6 +519,11 @@
             .page--sparse .grade-line,
             .page--sparse .summary-box p {
                 font-size: 10.6px;
+            }
+
+            .page--sparse .summary-box p {
+                margin: 1px 0;
+                line-height: 1.2;
             }
 
             .summary-box {
