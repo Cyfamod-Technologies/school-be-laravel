@@ -133,6 +133,30 @@
             color: #fff;
             text-decoration: none;
         }
+        .usage-note {
+            font-size: 9px;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.88);
+            line-height: 1.25;
+        }
+        .access-guide {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+        .access-guide-title {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.78);
+            margin-bottom: 2px;
+        }
+        .access-guide-text {
+            font-size: 8.5px;
+            line-height: 1.3;
+            color: rgba(255, 255, 255, 0.92);
+        }
         .footer {
             text-align: center;
             margin-top: 32px;
@@ -219,6 +243,29 @@
                                     {{ $studentPortalLink }}
                                 @endif
                             </div>
+                            <div class="usage-note">
+                                @if($card['max_usage'] !== null)
+                                    Usage limit: {{ $card['max_usage'] }} time{{ $card['max_usage'] === 1 ? '' : 's' }}
+                                    (remaining: {{ $card['remaining_usage'] }})
+                                @else
+                                    Usage limit: Unlimited
+                                @endif
+                            </div>
+                            <div class="access-guide">
+                                <div class="access-guide-title">How To Access</div>
+                                <div class="access-guide-text">
+                                    Open the portal link, log in with your ADM No and password, then enter this scratch PIN to check your result.
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="usage-note">
+                            @if($card['max_usage'] !== null)
+                                Usage limit: {{ $card['max_usage'] }} time{{ $card['max_usage'] === 1 ? '' : 's' }}
+                                (remaining: {{ $card['remaining_usage'] }})
+                            @else
+                                Usage limit: Unlimited
+                            @endif
                         </div>
                     @endif
                 </div>
