@@ -224,6 +224,7 @@
 
                     <div class="info-box summary-box" style="margin-top: 8px;">
                         <div class="section-title">Summary</div>
+                        <div class="summary-content">
                         <p>Marks Obtainable: {{ $aggregate['total_possible'] !== null ? number_format($aggregate['total_possible'], 0) : '-' }}</p>
                         <p>Marks Obtained: {{ $aggregate['total_obtained'] !== null ? number_format($aggregate['total_obtained'], 0) : '-' }}</p>
                         <p>Average: {{ $aggregate['average'] !== null ? number_format($aggregate['average'], 2) : '-' }}</p>
@@ -250,6 +251,7 @@
                                 <img src="{{ $principalSignatureUrl }}" alt="Principal signature" style="max-height:50px;width:auto;">
                             </div>
                         @endif
+                        </div>
                     </div>
 
             </div>
@@ -257,6 +259,7 @@
                 <div class="flex-col">
                     <div class="section-title">Skills &amp; Behaviour</div>
                     <div class="info-box skills-box" style="padding:10px 14px;">
+                        <div class="skills-content">
                         @php
                             $skillChunks = array_chunk($skillRatingsByCategory, 2);
                         @endphp
@@ -280,6 +283,7 @@
                                 @endif
                             </div>
                         @endforeach
+                        </div>
                     </div>
                 </div>
             @endif

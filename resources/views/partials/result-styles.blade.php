@@ -190,6 +190,12 @@
             max-width: 100%;
         }
 
+        .summary-content,
+        .skills-content {
+            display: flex;
+            flex-direction: column;
+        }
+
         .summary-box p {
             margin: 4px 0;
             font-size: 12px;
@@ -437,6 +443,21 @@
             .page--sparse .summary-box,
             .page--sparse .skills-box {
                 flex: 1 1 auto;
+            }
+
+            .page--sparse .summary-content {
+                flex: 1 1 auto;
+                justify-content: space-evenly;
+            }
+
+            .page--sparse .skills-content {
+                flex: 1 1 auto;
+                justify-content: space-evenly;
+                gap: 10px;
+            }
+
+            .page--sparse .skills-box .skill-grid {
+                margin-bottom: 0 !important;
             }
 
             .skill-grid {
