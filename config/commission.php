@@ -12,4 +12,7 @@ return [
 
     // Days to process payout
     'payout_processing_days' => env('PAYOUT_PROCESSING_DAYS', 3),
+
+    // Hours to wait before a pending commission can be auto-approved
+    'cooling_off_hours' => env('COMMISSION_COOLING_OFF_HOURS', 72),
 ];
