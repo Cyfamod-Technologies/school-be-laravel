@@ -131,7 +131,8 @@ class CommissionService
             // Calculate commission
             $commissionAmount = $this->subscriptionService->calculateCommission($commissionableAmount);
 
-            // Create commission record
+            // Create commission record with 72h cooling-off period
+            $coolingOffHours = (int) config('commission.cooling_off_hours', 72);
             $commission = AgentCommission::create([
                 'agent_id' => $freshReferral->agent_id,
                 'referral_id' => $freshReferral->id,
@@ -139,7 +140,8 @@ class CommissionService
                 'invoice_id' => $lockedInvoice->id,
                 'payment_number' => $currentPaymentCount + 1,
                 'commission_amount' => $commissionAmount,
-                'status' => 'approved',
+                'status' => 'pending',
+                'release_at' => now()->addHours($coolingOffHours),
             ]);
 
             if ($freshRegistration) {
@@ -257,6 +259,7 @@ class CommissionService
         return AgentCommission::query()
             ->where('agent_id', $agent->id)
             ->where('status', 'pending')
+            ->where('release_at', '<=', now())
             ->whereNull('payout_id')
             ->update(['status' => 'approved']);
     }

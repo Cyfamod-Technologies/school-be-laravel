@@ -44,6 +44,7 @@ class AgentCommission extends Model
     protected $casts = [
         'payment_number' => 'integer',
         'commission_amount' => 'decimal:2',
+        'release_at' => 'datetime',
     ];
 
     protected $fillable = [
@@ -56,6 +57,7 @@ class AgentCommission extends Model
         'commission_amount',
         'status',
         'payout_id',
+        'release_at',
     ];
 
     public function agent()
