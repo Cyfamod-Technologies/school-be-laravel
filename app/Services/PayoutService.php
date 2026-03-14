@@ -14,6 +14,10 @@ class PayoutService
      */
     public function requestPayout(Agent $agent): ?AgentPayout
     {
+        if (! $agent->isApproved()) {
+            throw new \Exception('Your account is under review. Payout requests are only available once your account has been approved by an administrator.');
+        }
+
         $minThreshold = (int) config('commission.min_payout_threshold', 5000);
 
         // Manual commission approval is disabled: convert legacy pending records.
