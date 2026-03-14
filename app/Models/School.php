@@ -73,6 +73,9 @@ class School extends Model
 		'result_show_lowest' => 'boolean',
 		'result_show_highest' => 'boolean',
 		'result_show_remarks' => 'boolean',
+		'term_school_opened_days' => 'integer',
+		'result_hide_student_identity' => 'boolean',
+		'result_allow_shared_pin_access' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -88,6 +91,7 @@ class School extends Model
 		'logo_url',
 		'signature_url',
 		'student_portal_link',
+		'term_school_opened_days',
 		'established_at',
 		'owner_name',
 		'status',
@@ -100,6 +104,8 @@ class School extends Model
 		'result_show_lowest',
 		'result_show_highest',
 		'result_show_remarks',
+		'result_hide_student_identity',
+		'result_allow_shared_pin_access',
 		'result_comment_mode',
 	];
 

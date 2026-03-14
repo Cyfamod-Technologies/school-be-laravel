@@ -399,6 +399,7 @@ class SchoolController extends Controller
             'logo_url' => 'string|max:512',
             'signature_url' => 'string|max:512',
             'student_portal_link' => 'nullable|string|max:512',
+            'term_school_opened_days' => 'nullable|integer|min:1|max:366',
             'logo' => 'nullable|image|max:4096',
             'signature' => 'nullable|image|max:4096',
             'established_at' => 'date',

@@ -23,6 +23,22 @@
             overflow-x: hidden;
         }
 
+        .page-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 12px;
+        }
+
+        .page-main,
+        .page-footer {
+            width: 100%;
+        }
+
+        .page-spacer {
+            display: none;
+        }
+
         .print-actions {
             display: flex;
             justify-content: flex-end;
@@ -174,6 +190,12 @@
             max-width: 100%;
         }
 
+        .summary-content,
+        .skills-content {
+            display: flex;
+            flex-direction: column;
+        }
+
         .summary-box p {
             margin: 4px 0;
             font-size: 12px;
@@ -277,13 +299,38 @@
 
             .page {
                 box-shadow: none;
+                width: 100%;
+                min-height: 287mm;
+                max-width: 100%;
                 max-height: none;
+                display: flex;
+                flex-direction: column;
                 overflow: visible;
                 page-break-after: avoid;
                 page-break-inside: avoid;
-                padding: 8px 12px;
-                transform: scale(0.90);
-                transform-origin: top center;
+                padding: 12px 12px;
+            }
+
+            .page-content {
+                gap: 6px;
+            }
+
+            .page-spacer {
+                display: block;
+                flex: 1 1 auto;
+                min-height: 0;
+            }
+
+            .page--sparse .page-spacer {
+                max-height: 3mm;
+            }
+
+            .page--balanced .page-spacer {
+                max-height: 4mm;
+            }
+
+            .page--dense .page-spacer {
+                max-height: 0;
             }
 
             #print-button {
@@ -320,7 +367,7 @@
             }
 
             .table-two th {
-                padding: 2px 3px;
+                padding: 7px 3px;
                 font-weight: 900 !important;
                 font-size: 9px;
                 -webkit-print-color-adjust: exact !important;
@@ -328,7 +375,7 @@
             }
 
             .table-two td {
-                padding: 2px 3px;
+                padding: 7px 3px;
                 font-size: 9px;
             }
 
@@ -346,7 +393,7 @@
             }
 
             .school-heading {
-                margin-top: 1px;
+                margin-top: 8px;
                 margin-bottom: 3px;
             }
 
@@ -354,15 +401,67 @@
                 font-size: 18px;
             }
 
+            .page--sparse .school-heading h1 {
+                font-size: 20px;
+            }
+
             .school-heading p {
                 font-size: 10px;
                 margin-top: 1px;
+            }
+
+            .page--sparse .school-heading p,
+            .page--sparse .table-one td {
+                font-size: 10.5px;
             }
 
             .info-box {
                 margin-top: 3px;
                 margin-bottom: 3px;
                 padding: 5px 8px;
+            }
+
+            .page--sparse .info-box {
+                padding: 6px 9px;
+            }
+
+            .page--sparse .page-footer {
+                flex: 1 1 auto;
+                display: flex;
+            }
+
+            .page--sparse .page-footer .flex-row {
+                flex: 1 1 auto;
+                align-items: stretch;
+            }
+
+            .page--sparse .page-footer .flex-col {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .page--sparse .summary-box,
+            .page--sparse .skills-box {
+                flex: 0 0 auto;
+                padding-bottom: 8px;
+            }
+
+            .page--sparse .summary-box {
+                padding-bottom: 4px;
+            }
+
+            .page--sparse .summary-content {
+                justify-content: flex-start;
+                gap: 5px;
+            }
+
+            .page--sparse .skills-content {
+                justify-content: flex-start;
+                gap: 14px;
+            }
+
+            .page--sparse .skills-box .skill-grid {
+                margin-bottom: 0 !important;
             }
 
             .skill-grid {
@@ -377,6 +476,16 @@
             .skill-table td {
                 padding: 2px 4px;
                 font-size: 9px;
+            }
+
+            .page--sparse .table-two th {
+                font-size: 9.4px;
+            }
+
+            .page--sparse .table-two td,
+            .page--sparse .skill-table td,
+            .page--sparse .rating-key-table td {
+                font-size: 9.5px;
             }
 
             .skill-card-title {
@@ -405,6 +514,16 @@
 
             .grade-line {
                 font-size: 10px;
+            }
+
+            .page--sparse .grade-line,
+            .page--sparse .summary-box p {
+                font-size: 10.6px;
+            }
+
+            .page--sparse .summary-box p {
+                margin: 1px 0;
+                line-height: 1.2;
             }
 
             .summary-box {

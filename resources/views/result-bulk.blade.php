@@ -92,13 +92,19 @@
 
             .page {
                 box-shadow: none !important;
+                width: 100% !important;
+                min-height: calc(297mm - 16mm) !important;
+                max-height: none !important;
                 page-break-after: always !important;
                 page-break-inside: avoid !important;
-                margin: 0 auto 24px auto !important;
+                break-after: page !important;
+                break-inside: avoid-page !important;
+                margin: 0 !important;
             }
 
             .page:last-child {
                 page-break-after: auto !important;
+                break-after: auto !important;
             }
 
             @page {
