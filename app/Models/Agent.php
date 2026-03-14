@@ -96,12 +96,12 @@ class Agent extends Authenticatable
 
     public function isApproved()
     {
-        return $this->status === 'approved';
+        return strtolower(trim((string) $this->status)) === 'approved';
     }
 
     public function isPending()
     {
-        return $this->status === 'pending';
+        return strtolower(trim((string) $this->status)) === 'pending';
     }
 
     public function approve($approvedBy)

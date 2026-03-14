@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\PayoutManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api/v1/admin')
-    ->middleware(['auth:sanctum', 'admin'])
+    ->middleware(['api', 'auth:sanctum', 'admin'])
     ->group(function () {
         Route::prefix('dashboard')->group(function () {
             Route::get('summary', [AdminDashboardController::class, 'summary'])
@@ -36,6 +36,9 @@ Route::prefix('api/v1/admin')
             Route::post('{agent}/suspend', [AgentManagementController::class, 'suspend'])
                 ->whereUuid('agent')
                 ->name('admin.agents.suspend');
+            Route::post('{agent}/reset-pending', [AgentManagementController::class, 'resetPending'])
+                ->whereUuid('agent')
+                ->name('admin.agents.reset-pending');
         });
 
         Route::prefix('payouts')->group(function () {
