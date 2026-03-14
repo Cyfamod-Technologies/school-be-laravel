@@ -42,6 +42,11 @@ class TermSummary extends Model
 
 	protected $keyType = 'string';
 
+	protected $attributes = [
+		'overall_comment' => 'This student is good.',
+		'principal_comment' => 'This student is hardworking.',
+	];
+
 	protected $casts = [
 		'total_marks_obtained' => 'int',
 		'total_marks_possible' => 'int',
