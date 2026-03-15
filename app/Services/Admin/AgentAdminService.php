@@ -125,8 +125,11 @@ class AgentAdminService
 
     public function approveAgent(Agent $agent, ?User $approvedBy = null): Agent
     {
-        if (! $agent->isPending()) {
-            throw new \InvalidArgumentException('Agent is not pending approval.');
+        $currentStatus = strtolower((string) $agent->status);
+        $validStatuses = ['pending', 'inactive', 'suspended', 'rejected'];
+
+        if (! in_array($currentStatus, $validStatuses, true)) {
+            throw new \InvalidArgumentException('Agent status is already approved or cannot be changed.');
         }
 
         $agent->approve($approvedBy?->id ?? 'admin');
@@ -150,6 +153,17 @@ class AgentAdminService
         $agent->forceFill([
             'status' => 'suspended',
             'rejection_reason' => $reason ?: $agent->rejection_reason,
+        ])->save();
+
+        return $agent->fresh() ?? $agent;
+    }
+
+    public function resetToPending(Agent $agent): Agent
+    {
+        $agent->forceFill([
+            'status' => 'pending',
+            'approved_at' => null,
+            'approved_by' => null,
         ])->save();
 
         return $agent->fresh() ?? $agent;

@@ -36,6 +36,9 @@ Route::prefix('api/v1/admin')
             Route::post('{agent}/suspend', [AgentManagementController::class, 'suspend'])
                 ->whereUuid('agent')
                 ->name('admin.agents.suspend');
+            Route::post('{agent}/reset-pending', [AgentManagementController::class, 'resetPending'])
+                ->whereUuid('agent')
+                ->name('admin.agents.reset-pending');
         });
 
         Route::prefix('payouts')->group(function () {

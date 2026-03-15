@@ -96,4 +96,14 @@ class AgentManagementController extends Controller
             'agent' => $agent,
         ]);
     }
+
+    public function resetPending(Agent $agent)
+    {
+        $agent = $this->agentAdminService->resetToPending($agent);
+
+        return response()->json([
+            'message' => 'Agent moved back to pending review.',
+            'agent' => $agent,
+        ]);
+    }
 }
