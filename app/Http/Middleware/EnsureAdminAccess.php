@@ -20,12 +20,14 @@ class EnsureAdminAccess
         }
 
         $role = strtolower((string) ($user->role ?? ''));
-        $isAdmin = in_array($role, ['admin', 'super_admin', 'owner'], true)
-            || $user->hasAnyRole(['admin', 'super_admin', 'owner']);
+        
+        // Strict Check: Only 'super_admin' or 'owner' roles are permitted for platform management
+        $isAdmin = in_array($role, ['super_admin', 'owner'], true)
+            || $user->hasAnyRole(['super_admin', 'owner']);
 
         if (! $isAdmin) {
             return response()->json([
-                'message' => 'You do not have permission to access this resource.',
+                'message' => 'This area is restricted to Platform Administrators only.',
             ], 403);
         }
 
