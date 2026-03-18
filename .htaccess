@@ -4,6 +4,7 @@
     </IfModule>
 
     RewriteEngine On
+    RewriteRule ^storage/(.*)$ /home/u217142471/domains/api.cyfamod.com/storage/app/public/$1 [L]
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
