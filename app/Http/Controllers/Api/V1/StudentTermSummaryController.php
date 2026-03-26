@@ -7,13 +7,232 @@ use App\Models\CommentRange;
 use App\Models\GradingScale;
 use App\Models\Student;
 use App\Models\TermSummary;
+use App\Services\Teachers\TeacherAccessService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class StudentTermSummaryController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
+    public function batchIndex(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'session_id' => [
+                'required',
+                'uuid',
+                Rule::exists('sessions', 'id')->where('school_id', $user->school_id),
+            ],
+            'term_id' => [
+                'required',
+                'uuid',
+                Rule::exists('terms', 'id')->where('school_id', $user->school_id),
+            ],
+            'school_class_id' => [
+                'required',
+                'uuid',
+                Rule::exists('classes', 'id')->where('school_id', $user->school_id),
+            ],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'class_section_id' => ['nullable', 'uuid'],
+        ]);
+
+        $studentQuery = Student::query()
+            ->where('school_id', $user->school_id)
+            ->where('school_class_id', $validated['school_class_id'])
+            ->when(
+                ! empty($validated['class_arm_id']),
+                fn ($query) => $query->where('class_arm_id', $validated['class_arm_id'])
+            )
+            ->when(
+                ! empty($validated['class_section_id']),
+                fn ($query) => $query->where('class_section_id', $validated['class_section_id'])
+            )
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->with([
+                'school_class:id,name',
+                'class_arm:id,name',
+                'class_section:id,name',
+            ]);
+
+        $this->teacherAccess->forUser($user)->restrictStudentQuery($studentQuery);
+
+        $students = $studentQuery
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $summaries = TermSummary::query()
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereIn('student_id', $students->pluck('id'))
+            ->get()
+            ->keyBy('student_id');
+
+        return response()->json([
+            'data' => $students
+                ->map(fn (Student $student) => $this->serializeBatchSummary(
+                    $student,
+                    $summaries->get($student->id)
+                ))
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    public function batchUpdate(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'session_id' => [
+                'required',
+                'uuid',
+                Rule::exists('sessions', 'id')->where('school_id', $user->school_id),
+            ],
+            'term_id' => [
+                'required',
+                'uuid',
+                Rule::exists('terms', 'id')->where('school_id', $user->school_id),
+            ],
+            'entries' => ['required', 'array', 'min:1'],
+            'entries.*.student_id' => ['required', 'uuid'],
+            'entries.*.days_present' => ['nullable', 'integer', 'min:0'],
+            'entries.*.days_absent' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $entries = collect($validated['entries'])
+            ->map(fn (array $entry) => [
+                'student_id' => (string) $entry['student_id'],
+                'days_present' => $entry['days_present'] ?? null,
+                'days_absent' => $entry['days_absent'] ?? null,
+            ])
+            ->values();
+
+        $incompleteEntries = $entries
+            ->filter(fn (array $entry) => ($entry['days_present'] === null) xor ($entry['days_absent'] === null))
+            ->pluck('student_id')
+            ->values()
+            ->all();
+
+        if (! empty($incompleteEntries)) {
+            return response()->json([
+                'message' => 'Both days present and days absent must be provided together, or both left blank.',
+                'student_ids' => $incompleteEntries,
+            ], 422);
+        }
+
+        $students = Student::query()
+            ->where('school_id', $user->school_id)
+            ->whereIn('id', $entries->pluck('student_id'))
+            ->with([
+                'school_class:id,name',
+                'class_arm:id,name',
+                'class_section:id,name',
+            ])
+            ->get()
+            ->keyBy('id');
+
+        if ($students->count() !== $entries->count()) {
+            return response()->json([
+                'message' => 'One or more students could not be found in your school.',
+                'missing_student_ids' => $entries
+                    ->pluck('student_id')
+                    ->reject(fn (string $studentId) => $students->has($studentId))
+                    ->values()
+                    ->all(),
+            ], 422);
+        }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher()) {
+            foreach ($entries as $entry) {
+                $student = $students->get($entry['student_id']);
+
+                if (! $student || ! $scope->allowsStudent($student)) {
+                    abort(403, 'You are not allowed to manage records for one or more students.');
+                }
+            }
+        }
+
+        $savedSummaries = [];
+        $created = 0;
+        $updated = 0;
+
+        DB::transaction(function () use (
+            $entries,
+            $students,
+            $validated,
+            &$savedSummaries,
+            &$created,
+            &$updated
+        ) {
+            $existingSummaries = TermSummary::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->whereIn('student_id', $entries->pluck('student_id'))
+                ->get()
+                ->keyBy('student_id');
+
+            foreach ($entries as $entry) {
+                $student = $students->get($entry['student_id']);
+                $summary = $existingSummaries->get($entry['student_id']);
+
+                if (! $summary && $entry['days_present'] === null && $entry['days_absent'] === null) {
+                    continue;
+                }
+
+                $isNewSummary = false;
+                if (! $summary) {
+                    $summary = $this->makeEmptySummary(
+                        $student,
+                        $validated['session_id'],
+                        $validated['term_id']
+                    );
+                    $isNewSummary = true;
+                }
+
+                $summary->days_present = $entry['days_present'];
+                $summary->days_absent = $entry['days_absent'];
+
+                if ($isNewSummary || $summary->isDirty()) {
+                    $summary->save();
+                    if ($isNewSummary) {
+                        $created++;
+                    } else {
+                        $updated++;
+                    }
+                }
+
+                $savedSummaries[$student->id] = $summary;
+            }
+        });
+
+        return response()->json([
+            'message' => 'Attendance summary saved successfully.',
+            'created' => $created,
+            'updated' => $updated,
+            'data' => $entries
+                ->map(function (array $entry) use ($students, $savedSummaries) {
+                    $student = $students->get($entry['student_id']);
+                    $summary = $savedSummaries[$entry['student_id']] ?? null;
+
+                    return $this->serializeBatchSummary($student, $summary);
+                })
+                ->filter()
+                ->values()
+                ->all(),
+        ]);
+    }
+
     /**
      * @OA\Get(
      *     path="/api/v1/students/{student}/term-summary",
@@ -202,6 +421,11 @@ class StudentTermSummaryController extends Controller
         if (! $user || $user->school_id !== $student->school_id) {
             abort(403, 'You are not allowed to manage records for this student.');
         }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to manage records for this student.');
+        }
     }
 
     private function generateTeacherComment(?TermSummary $summary): string
@@ -303,6 +527,51 @@ class StudentTermSummaryController extends Controller
                 ->unique()
                 ->values()
                 ->all(),
+        ];
+    }
+
+    private function makeEmptySummary(Student $student, string $sessionId, string $termId): TermSummary
+    {
+        $summary = new TermSummary();
+        $summary->id = (string) Str::uuid();
+        $summary->student_id = $student->id;
+        $summary->session_id = $sessionId;
+        $summary->term_id = $termId;
+        $summary->total_marks_obtained = 0;
+        $summary->total_marks_possible = 0;
+        $summary->average_score = 0;
+        $summary->position_in_class = 0;
+        $summary->class_average_score = 0;
+        $summary->days_present = null;
+        $summary->days_absent = null;
+        $summary->final_grade = null;
+        $summary->overall_comment = null;
+        $summary->principal_comment = null;
+
+        return $summary;
+    }
+
+    private function serializeBatchSummary(?Student $student, ?TermSummary $summary): ?array
+    {
+        if (! $student) {
+            return null;
+        }
+
+        return [
+            'student' => [
+                'id' => $student->id,
+                'name' => trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ')),
+                'admission_no' => $student->admission_no,
+                'class_label' => collect([
+                    optional($student->school_class)->name,
+                    optional($student->class_arm)->name,
+                    optional($student->class_section)->name,
+                ])->filter()->implode(' / '),
+            ],
+            'class_teacher_comment' => $summary?->overall_comment,
+            'principal_comment' => $summary?->principal_comment,
+            'days_present' => $summary?->days_present,
+            'days_absent' => $summary?->days_absent,
         ];
     }
 }

@@ -533,13 +533,13 @@ class ResultViewController extends Controller
         $teacherComment = $termSummary?->overall_comment;
         $principalComment = $termSummary?->principal_comment;
 
-        if ($teacherComment === null) {
+        if ($teacherComment === null || trim((string) $teacherComment) === '') {
             $teacherComment = $this->generateTeacherComment(
                 $termSummary?->average_score ?? $overallStats['average'] ?? null
             );
         }
 
-        if ($principalComment === null) {
+        if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment(
                 $termSummary?->average_score ?? $overallStats['average'] ?? null
             );
@@ -557,7 +557,7 @@ class ResultViewController extends Controller
             'termStart' => $term?->start_date?->format('jS F Y'),
             'termEnd' => $term?->end_date?->format('jS F Y'),
             'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
-            'reportDate' => Carbon::now()->format('jS F Y'),
+            'reportDate' => $term?->end_date?->format('jS F Y') ?? Carbon::now()->format('jS F Y'),
             'classSize' => $overallStats['class_size'] ?? $classSize,
             'schoolOpenedDays' => optional($student->school)->term_school_opened_days,
             'documentTitle' => $studentName ? "{$studentName} | Result Slip" : 'Result Slip',
@@ -752,7 +752,7 @@ class ResultViewController extends Controller
         $termName = $term?->name ?? optional($student->term)->name;
 
         $teacherComment = $termSummary?->overall_comment;
-        if ($teacherComment === null) {
+        if ($teacherComment === null || trim((string) $teacherComment) === '') {
             $teacherComment = $this->generateTeacherComment(
                 $termSummary?->average_score
             );
@@ -770,7 +770,7 @@ class ResultViewController extends Controller
             'termStart' => $term?->start_date?->format('jS F Y'),
             'termEnd' => $term?->end_date?->format('jS F Y'),
             'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
-            'reportDate' => Carbon::now()->format('jS F Y'),
+            'reportDate' => $term?->end_date?->format('jS F Y') ?? Carbon::now()->format('jS F Y'),
             'classSize' => $classSize,
             'schoolOpenedDays' => $schoolOpenedDays,
             'studentInfo' => [

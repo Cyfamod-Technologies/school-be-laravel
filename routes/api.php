@@ -183,6 +183,10 @@ Route::prefix('api/v1')->group(function () {
 
         // Student Routes
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
+        Route::get('student-term-summaries', [StudentTermSummaryController::class, 'batchIndex'])
+            ->name('student-term-summaries.index');
+        Route::put('student-term-summaries/batch', [StudentTermSummaryController::class, 'batchUpdate'])
+            ->name('student-term-summaries.batch-update');
         Route::prefix('students/bulk')->group(function () {
             Route::get('template', [StudentBulkUploadController::class, 'template'])->name('students.bulk.template');
             Route::post('preview', [StudentBulkUploadController::class, 'preview'])->name('students.bulk.preview');
