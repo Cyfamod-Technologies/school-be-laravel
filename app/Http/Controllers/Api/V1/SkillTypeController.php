@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\SkillCategory;
+use App\Models\SchoolClass;
 use App\Models\SkillType;
+use App\Support\SkillScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 /**
  * @OA\Tag(
@@ -45,23 +46,24 @@ class SkillTypeController extends Controller
             ], 422);
         }
 
-        $types = SkillType::query()
-            ->where('school_id', $school->id)
+        $classId = SkillScope::normalizeClassId($request->input('school_class_id'));
+
+        $types = SkillScope::applyTypeVisibility(
+                SkillType::query(),
+                $school,
+                $classId
+            )
             ->when($request->filled('skill_category_id'), function ($query) use ($request) {
                 $query->where('skill_category_id', $request->input('skill_category_id'));
             })
-            ->with('skill_category:id,name')
+            ->with([
+                'skill_category:id,name,school_class_id',
+                'school_class:id,name',
+            ])
             ->orderBy('name')
             ->get()
             ->map(function (SkillType $type) {
-                return [
-                    'id' => $type->id,
-                    'name' => $type->name,
-                    'description' => $type->description,
-                    'weight' => $type->weight,
-                    'skill_category_id' => $type->skill_category_id,
-                    'category' => optional($type->skill_category)->name,
-                ];
+                return $this->transformType($type);
             })
             ->values();
 
@@ -98,22 +100,29 @@ class SkillTypeController extends Controller
         }
 
         $validated = $request->validate([
-            'skill_category_id' => ['required', 'uuid', Rule::exists('skill_categories', 'id')->where('school_id', $school->id)],
-            'name' => ['required', 'string', 'max:500', 'regex:/.*\S.*/', Rule::unique('skill_types', 'name')->where('school_id', $school->id)],
+            'skill_category_id' => ['required', 'uuid'],
+            'name' => ['required', 'string', 'max:500', 'regex:/.*\S.*/'],
             'description' => ['nullable', 'string', 'max:1000'],
             'weight' => ['nullable', 'numeric', 'between:0,999.99'],
+            'school_class_id' => ['nullable', 'uuid'],
         ]);
 
+        $category = $this->resolveCategory($school->id, $validated['skill_category_id']);
         $name = trim($validated['name']);
+        $classId = $this->resolveTypeClassId($school, $validated['school_class_id'] ?? null);
+
+        $this->assertCategoryMatchesScope($school, $category, $classId);
+        $this->assertUniqueTypeName($school, $name, $classId);
 
         $type = SkillType::create([
             'id' => (string) Str::uuid(),
-            'skill_category_id' => $validated['skill_category_id'],
+            'skill_category_id' => $category->id,
             'school_id' => $school->id,
+            'school_class_id' => $classId,
             'name' => $name,
             'description' => $validated['description'] ?? null,
             'weight' => $validated['weight'] ?? null,
-        ])->load('skill_category:id,name');
+        ])->load(['skill_category:id,name,school_class_id', 'school_class:id,name']);
 
         return response()->json([
             'message' => 'Skill created successfully.',
@@ -155,13 +164,15 @@ class SkillTypeController extends Controller
         }
 
         $validated = $request->validate([
-            'skill_category_id' => ['required', 'uuid', Rule::exists('skill_categories', 'id')->where('school_id', $school->id)],
+            'skill_category_id' => ['required', 'uuid'],
             'names' => ['required', 'array', 'min:1'],
             'names.*' => ['required', 'string', 'max:500', 'regex:/.*\S.*/'],
             'description' => ['nullable', 'string', 'max:1000'],
             'weight' => ['nullable', 'numeric', 'between:0,999.99'],
+            'school_class_id' => ['nullable', 'uuid'],
         ]);
 
+        $category = $this->resolveCategory($school->id, $validated['skill_category_id']);
         $names = collect($validated['names'])
             ->map(fn (string $name) => trim($name))
             ->filter(fn (string $name) => $name !== '')
@@ -177,35 +188,36 @@ class SkillTypeController extends Controller
             ], 422);
         }
 
-        $existingNames = SkillType::query()
-            ->where('school_id', $school->id)
-            ->whereIn('name', $names)
-            ->pluck('name')
+        $description = $validated['description'] ?? null;
+        $weight = $validated['weight'] ?? null;
+        $classId = $this->resolveTypeClassId($school, $validated['school_class_id'] ?? null);
+
+        $this->assertCategoryMatchesScope($school, $category, $classId);
+
+        $existingNames = $names
+            ->filter(fn (string $name) => $this->typeNameExists($school, $name, $classId))
             ->values();
 
         if ($existingNames->isNotEmpty()) {
             return response()->json([
-                'message' => 'Some skill names already exist for this school.',
+                'message' => 'Some skill names already exist for the selected class scope.',
                 'errors' => [
                     'names' => ['These skill names already exist: '.$existingNames->implode(', ')],
                 ],
             ], 422);
         }
 
-        $description = $validated['description'] ?? null;
-        $weight = $validated['weight'] ?? null;
-        $categoryId = $validated['skill_category_id'];
-
-        $created = DB::transaction(function () use ($names, $description, $weight, $categoryId, $school) {
-            return $names->map(function (string $name) use ($description, $weight, $categoryId, $school) {
+        $created = DB::transaction(function () use ($names, $description, $weight, $category, $classId, $school) {
+            return $names->map(function (string $name) use ($description, $weight, $category, $classId, $school) {
                 return SkillType::create([
                     'id' => (string) Str::uuid(),
-                    'skill_category_id' => $categoryId,
+                    'skill_category_id' => $category->id,
                     'school_id' => $school->id,
+                    'school_class_id' => $classId,
                     'name' => $name,
                     'description' => $description,
                     'weight' => $weight,
-                ])->load('skill_category:id,name');
+                ])->load(['skill_category:id,name,school_class_id', 'school_class:id,name']);
             });
         });
 
@@ -217,6 +229,72 @@ class SkillTypeController extends Controller
             ),
             'data' => $created->map(fn (SkillType $type) => $this->transformType($type))->values(),
         ], 201);
+    }
+
+    public function bulkUpdateScope(Request $request)
+    {
+        $school = $request->user()->school;
+
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'skill_type_ids' => ['required', 'array', 'min:1'],
+            'skill_type_ids.*' => ['required', 'uuid'],
+            'school_class_id' => ['nullable', 'uuid'],
+        ]);
+
+        $classId = $this->resolveTypeClassId($school, $validated['school_class_id'] ?? null);
+        $skillTypeIds = collect($validated['skill_type_ids'])
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        $types = SkillType::query()
+            ->where('school_id', $school->id)
+            ->whereIn('id', $skillTypeIds)
+            ->with(['skill_category:id,name,school_class_id', 'school_class:id,name'])
+            ->get();
+
+        if ($types->count() !== $skillTypeIds->count()) {
+            return response()->json([
+                'message' => 'One or more selected skills were not found for this school.',
+            ], 404);
+        }
+
+        foreach ($types as $type) {
+            $this->assertCategoryMatchesScope($school, $type->skill_category, $classId);
+            $this->assertUniqueTypeName($school, $type->name, $classId, $type->id);
+        }
+
+        DB::transaction(function () use ($types, $classId) {
+            foreach ($types as $type) {
+                $type->school_class_id = $classId;
+                if ($type->isDirty()) {
+                    $type->save();
+                }
+            }
+        });
+
+        $updated = SkillType::query()
+            ->whereIn('id', $skillTypeIds)
+            ->with(['skill_category:id,name,school_class_id', 'school_class:id,name'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (SkillType $type) => $this->transformType($type))
+            ->values();
+
+        return response()->json([
+            'message' => sprintf(
+                '%d skill%s assigned successfully.',
+                $updated->count(),
+                $updated->count() === 1 ? '' : 's'
+            ),
+            'data' => $updated,
+        ]);
     }
 
     /**
@@ -250,14 +328,24 @@ class SkillTypeController extends Controller
         $this->authorizeType($request, $skillType);
 
         $validated = $request->validate([
-            'skill_category_id' => ['sometimes', 'required', 'uuid', Rule::exists('skill_categories', 'id')->where('school_id', $skillType->school_id)],
-            'name' => ['sometimes', 'required', 'string', 'max:500', 'regex:/.*\S.*/', Rule::unique('skill_types', 'name')->ignore($skillType->id)->where('school_id', $skillType->school_id)],
+            'skill_category_id' => ['sometimes', 'required', 'uuid'],
+            'name' => ['sometimes', 'required', 'string', 'max:500', 'regex:/.*\S.*/'],
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'weight' => ['sometimes', 'nullable', 'numeric', 'between:0,999.99'],
+            'school_class_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
 
+        $school = $request->user()->school;
+
+        $category = $skillType->skill_category;
+
         if (array_key_exists('skill_category_id', $validated)) {
-            $skillType->skill_category_id = $validated['skill_category_id'];
+            $category = $this->resolveCategory($skillType->school_id, $validated['skill_category_id']);
+            $skillType->skill_category_id = $category->id;
+        }
+
+        if (array_key_exists('school_class_id', $validated)) {
+            $skillType->school_class_id = $this->resolveTypeClassId($school, $validated['school_class_id']);
         }
 
         if (array_key_exists('name', $validated)) {
@@ -272,13 +360,16 @@ class SkillTypeController extends Controller
             $skillType->weight = $validated['weight'] ?? null;
         }
 
+        $this->assertCategoryMatchesScope($school, $category, $skillType->school_class_id);
+        $this->assertUniqueTypeName($school, $skillType->name, $skillType->school_class_id, $skillType->id);
+
         if ($skillType->isDirty()) {
             $skillType->save();
         }
 
         return response()->json([
             'message' => 'Skill updated successfully.',
-            'data' => $this->transformType($skillType->fresh('skill_category:id,name')),
+            'data' => $this->transformType($skillType->fresh(['skill_category:id,name,school_class_id', 'school_class:id,name'])),
         ]);
     }
 
@@ -327,6 +418,84 @@ class SkillTypeController extends Controller
             'weight' => $skillType->weight,
             'skill_category_id' => $skillType->skill_category_id,
             'category' => optional($skillType->skill_category)->name,
+            'category_school_class_id' => optional($skillType->skill_category)->school_class_id,
+            'school_class_id' => $skillType->school_class_id,
+            'school_class' => $skillType->school_class
+                ? [
+                    'id' => $skillType->school_class->id,
+                    'name' => $skillType->school_class->name,
+                ]
+                : null,
         ];
+    }
+
+    private function resolveCategory(string $schoolId, string $categoryId): SkillCategory
+    {
+        return SkillCategory::query()
+            ->where('school_id', $schoolId)
+            ->findOrFail($categoryId);
+    }
+
+    private function resolveTypeClassId($school, ?string $classId): ?string
+    {
+        $normalized = SkillScope::normalizeClassId($classId);
+
+        if (! SkillScope::typeSeparatedByClass($school)) {
+            return null;
+        }
+
+        if (! $normalized) {
+            return null;
+        }
+
+        $exists = SchoolClass::query()
+            ->where('school_id', $school->id)
+            ->whereKey($normalized)
+            ->exists();
+
+        if (! $exists) {
+            abort(422, 'Selected class was not found for this school.');
+        }
+
+        return $normalized;
+    }
+
+    private function assertCategoryMatchesScope($school, SkillCategory $category, ?string $typeClassId): void
+    {
+        if (! SkillScope::categorySeparatedByClass($school)) {
+            return;
+        }
+
+        if ($category->school_class_id !== null && $typeClassId !== null && $category->school_class_id !== $typeClassId) {
+            abort(422, 'The selected category belongs to a different class scope.');
+        }
+    }
+
+    private function assertUniqueTypeName($school, string $name, ?string $classId, ?string $ignoreId = null): void
+    {
+        if ($this->typeNameExists($school, $name, $classId, $ignoreId)) {
+            abort(422, 'A skill with this name already exists in the selected class scope.');
+        }
+    }
+
+    private function typeNameExists($school, string $name, ?string $classId, ?string $ignoreId = null): bool
+    {
+        $query = SkillType::query()
+            ->where('school_id', $school->id)
+            ->whereRaw('LOWER(name) = ?', [Str::lower($name)]);
+
+        if (SkillScope::typeSeparatedByClass($school)) {
+            if ($classId) {
+                $query->where('school_class_id', $classId);
+            } else {
+                $query->whereNull('school_class_id');
+            }
+        }
+
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        return $query->exists();
     }
 }

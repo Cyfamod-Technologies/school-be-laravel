@@ -9,6 +9,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\SchoolClass;
 
 /**
  * Class SkillType
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $id
  * @property string $skill_category_id
  * @property string $school_id
+ * @property string|null $school_class_id
  * @property string $name
  * @property string|null $description
  * @property float|null $weight
@@ -44,6 +46,7 @@ class SkillType extends Model
 		'id',
 		'skill_category_id',
 		'school_id',
+		'school_class_id',
 		'name',
 		'description',
 		'weight'
@@ -57,6 +60,11 @@ class SkillType extends Model
 	public function school()
 	{
 		return $this->belongsTo(School::class);
+	}
+
+	public function school_class()
+	{
+		return $this->belongsTo(SchoolClass::class, 'school_class_id');
 	}
 
 	public function schools()

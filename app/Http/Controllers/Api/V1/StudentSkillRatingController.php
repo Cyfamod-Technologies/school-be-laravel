@@ -8,6 +8,7 @@ use App\Models\SkillRating;
 use App\Models\SkillType;
 use App\Models\Student;
 use App\Models\Term;
+use App\Support\SkillScope;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -87,9 +88,13 @@ class StudentSkillRatingController extends Controller
     {
         $this->assertStudentAccess($request, $student);
 
-        $types = SkillType::query()
+        $types = SkillScope::applyTypeVisibility(
+                SkillType::query(),
+                $student->school,
+                SkillScope::normalizeClassId($student->school_class_id)
+            )
             ->where('school_id', $student->school_id)
-            ->with('skill_category:id,name')
+            ->with('skill_category:id,name,school_class_id')
             ->orderBy('name')
             ->get()
             ->map(function (SkillType $type) {
@@ -99,6 +104,7 @@ class StudentSkillRatingController extends Controller
                     'description' => $type->description,
                     'skill_category_id' => $type->skill_category_id,
                     'category' => optional($type->skill_category)->name,
+                    'school_class_id' => $type->school_class_id,
                 ];
             })
             ->values();
@@ -375,7 +381,13 @@ class StudentSkillRatingController extends Controller
 
     private function resolveSkillType(Student $student, string $skillTypeId): SkillType
     {
-        return SkillType::query()
+        $student->loadMissing('school');
+
+        return SkillScope::applyTypeVisibility(
+                SkillType::query(),
+                $student->school,
+                SkillScope::normalizeClassId($student->school_class_id)
+            )
             ->where('school_id', $student->school_id)
             ->findOrFail($skillTypeId);
     }

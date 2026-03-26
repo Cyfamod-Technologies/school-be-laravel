@@ -398,6 +398,8 @@ Route::prefix('api/v1')->group(function () {
                 ->except(['create', 'edit', 'show']);
             Route::post('skill-types/bulk', [SkillTypeController::class, 'bulkStore'])
                 ->name('skill-types.bulk-store');
+            Route::put('skill-types/scope', [SkillTypeController::class, 'bulkUpdateScope'])
+                ->name('skill-types.bulk-scope');
             Route::apiResource('skill-types', SkillTypeController::class)
                 ->except(['create', 'edit', 'show']);
         });

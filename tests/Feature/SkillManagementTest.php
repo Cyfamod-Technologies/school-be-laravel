@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\School;
+use App\Models\SchoolClass;
 use App\Models\SkillCategory;
 use App\Models\SkillType;
 use App\Models\User;
@@ -161,4 +162,91 @@ it('deletes a skill type', function () {
         ->assertOk();
 
     expect(SkillType::where('id', $this->skillType->id)->exists())->toBeFalse();
+});
+
+it('filters class-scoped categories and skills when separation is enabled', function () {
+    $class = SchoolClass::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Grade 1',
+        'slug' => 'grade-1',
+    ]);
+
+    $this->school->update([
+        'skill_categories_separate_by_class' => true,
+        'skill_types_separate_by_class' => true,
+    ]);
+
+    $classCategory = SkillCategory::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'school_class_id' => $class->id,
+        'name' => 'Nursery Skills',
+        'description' => 'Class-specific skills',
+    ]);
+
+    SkillType::create([
+        'id' => (string) Str::uuid(),
+        'skill_category_id' => $classCategory->id,
+        'school_id' => $this->school->id,
+        'school_class_id' => $class->id,
+        'name' => 'Color Matching',
+        'weight' => 1.00,
+    ]);
+
+    getJson(route('skill-categories.index', ['school_class_id' => $class->id]))
+        ->assertOk()
+        ->assertJsonFragment([
+            'name' => 'Behaviour',
+            'school_class_id' => null,
+        ])
+        ->assertJsonFragment([
+            'name' => 'Nursery Skills',
+            'school_class_id' => $class->id,
+        ]);
+
+    getJson(route('skill-types.index', ['school_class_id' => $class->id]))
+        ->assertOk()
+        ->assertJsonFragment([
+            'name' => 'Punctuality',
+            'school_class_id' => null,
+        ])
+        ->assertJsonFragment([
+            'name' => 'Color Matching',
+            'school_class_id' => $class->id,
+        ]);
+});
+
+it('moves selected skills to a class scope', function () {
+    $class = SchoolClass::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Grade 2',
+        'slug' => 'grade-2',
+    ]);
+
+    $this->school->update([
+        'skill_types_separate_by_class' => true,
+    ]);
+
+    $secondSkill = SkillType::create([
+        'id' => (string) Str::uuid(),
+        'skill_category_id' => $this->category->id,
+        'school_id' => $this->school->id,
+        'name' => 'Participation',
+    ]);
+
+    putJson(route('skill-types.bulk-scope'), [
+        'skill_type_ids' => [$this->skillType->id, $secondSkill->id],
+        'school_class_id' => $class->id,
+    ])
+        ->assertOk()
+        ->assertJsonFragment([
+            'name' => 'Punctuality',
+            'school_class_id' => $class->id,
+        ])
+        ->assertJsonFragment([
+            'name' => 'Participation',
+            'school_class_id' => $class->id,
+        ]);
 });

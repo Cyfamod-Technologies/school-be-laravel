@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolClass;
 use App\Models\SkillCategory;
 use App\Models\SkillType;
+use App\Support\SkillScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 /**
  * @OA\Tag(
@@ -36,12 +37,29 @@ class SkillCategoryController extends Controller
             ], 422);
         }
 
-        $categories = SkillCategory::query()
-            ->where('school_id', $school->id)
-            ->with(['skill_types' => function ($query) {
-                $query->orderBy('name')
-                    ->select(['id', 'skill_category_id', 'name', 'description', 'weight']);
-            }])
+        $classId = SkillScope::normalizeClassId($request->input('school_class_id'));
+
+        $categories = SkillScope::applyCategoryVisibility(
+                SkillCategory::query(),
+                $school,
+                $classId
+            )
+            ->with([
+                'school_class:id,name',
+                'skill_types' => function ($query) use ($school, $classId) {
+                    SkillScope::applyTypeVisibility($query, $school, $classId)
+                        ->orderBy('name')
+                        ->select([
+                            'id',
+                            'skill_category_id',
+                            'school_id',
+                            'school_class_id',
+                            'name',
+                            'description',
+                            'weight',
+                        ]);
+                },
+            ])
             ->orderBy('name')
             ->get()
             ->map(function (SkillCategory $category) {
@@ -49,6 +67,13 @@ class SkillCategoryController extends Controller
                     'id' => $category->id,
                     'name' => $category->name,
                     'description' => $category->description,
+                    'school_class_id' => $category->school_class_id,
+                    'school_class' => $category->school_class
+                        ? [
+                            'id' => $category->school_class->id,
+                            'name' => $category->school_class->name,
+                        ]
+                        : null,
                     'skill_types' => $category->skill_types->map(function (SkillType $type) {
                         return [
                             'id' => $type->id,
@@ -56,6 +81,7 @@ class SkillCategoryController extends Controller
                             'description' => $type->description,
                             'weight' => $type->weight,
                             'skill_category_id' => $type->skill_category_id,
+                            'school_class_id' => $type->school_class_id,
                         ];
                     })->values(),
                 ];
@@ -93,20 +119,27 @@ class SkillCategoryController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100', Rule::unique('skill_categories', 'name')->where('school_id', $school->id)],
+            'name' => ['required', 'string', 'max:100', 'regex:/.*\S.*/'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'school_class_id' => ['nullable', 'uuid'],
         ]);
+
+        $classId = $this->resolveCategoryClassId($school, $validated['school_class_id'] ?? null);
+        $name = trim($validated['name']);
+
+        $this->assertUniqueCategoryName($school->id, $name, $classId);
 
         $category = SkillCategory::create([
             'id' => (string) Str::uuid(),
             'school_id' => $school->id,
-            'name' => $validated['name'],
+            'school_class_id' => $classId,
+            'name' => $name,
             'description' => $validated['description'] ?? null,
-        ]);
+        ])->load('school_class:id,name');
 
         return response()->json([
             'message' => 'Skill category created successfully.',
-            'data' => $category,
+            'data' => $this->transformCategory($category),
         ], 201);
     }
 
@@ -133,11 +166,31 @@ class SkillCategoryController extends Controller
         $this->authorizeCategory($request, $skillCategory);
 
         $validated = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:100', Rule::unique('skill_categories', 'name')->ignore($skillCategory->id)->where('school_id', $skillCategory->school_id)],
+            'name' => ['sometimes', 'required', 'string', 'max:100', 'regex:/.*\S.*/'],
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'school_class_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
 
-        $skillCategory->fill($validated);
+        $school = $request->user()->school;
+
+        if (array_key_exists('name', $validated)) {
+            $skillCategory->name = trim($validated['name']);
+        }
+
+        if (array_key_exists('description', $validated)) {
+            $skillCategory->description = $validated['description'] ?? null;
+        }
+
+        if (array_key_exists('school_class_id', $validated)) {
+            $skillCategory->school_class_id = $this->resolveCategoryClassId($school, $validated['school_class_id']);
+        }
+
+        $this->assertUniqueCategoryName(
+            $skillCategory->school_id,
+            $skillCategory->name,
+            $skillCategory->school_class_id,
+            $skillCategory->id
+        );
 
         if ($skillCategory->isDirty()) {
             $skillCategory->save();
@@ -145,7 +198,7 @@ class SkillCategoryController extends Controller
 
         return response()->json([
             'message' => 'Skill category updated successfully.',
-            'data' => $skillCategory->fresh(),
+            'data' => $this->transformCategory($skillCategory->fresh('school_class:id,name')),
         ]);
     }
 
@@ -177,5 +230,70 @@ class SkillCategoryController extends Controller
         if (! $user || $user->school_id !== $skillCategory->school_id) {
             abort(403, 'You are not allowed to manage this skill category.');
         }
+    }
+
+    private function resolveCategoryClassId($school, ?string $classId): ?string
+    {
+        $normalized = SkillScope::normalizeClassId($classId);
+
+        if (! SkillScope::categorySeparatedByClass($school)) {
+            return null;
+        }
+
+        if (! $normalized) {
+            return null;
+        }
+
+        $exists = SchoolClass::query()
+            ->where('school_id', $school->id)
+            ->whereKey($normalized)
+            ->exists();
+
+        if (! $exists) {
+            abort(422, 'Selected class was not found for this school.');
+        }
+
+        return $normalized;
+    }
+
+    private function assertUniqueCategoryName(
+        string $schoolId,
+        string $name,
+        ?string $classId,
+        ?string $ignoreId = null
+    ): void {
+        $query = SkillCategory::query()
+            ->where('school_id', $schoolId)
+            ->whereRaw('LOWER(name) = ?', [Str::lower($name)]);
+
+        if ($classId) {
+            $query->where('school_class_id', $classId);
+        } else {
+            $query->whereNull('school_class_id');
+        }
+
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        if ($query->exists()) {
+            abort(422, 'A skill category with this name already exists in the selected class scope.');
+        }
+    }
+
+    private function transformCategory(SkillCategory $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'description' => $category->description,
+            'school_class_id' => $category->school_class_id,
+            'school_class' => $category->school_class
+                ? [
+                    'id' => $category->school_class->id,
+                    'name' => $category->school_class->name,
+                ]
+                : null,
+        ];
     }
 }

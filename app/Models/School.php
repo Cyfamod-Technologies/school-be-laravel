@@ -75,6 +75,8 @@ class School extends Model
 		'term_school_opened_days' => 'integer',
 		'result_hide_student_identity' => 'boolean',
 		'result_allow_shared_pin_access' => 'boolean',
+		'skill_categories_separate_by_class' => 'boolean',
+		'skill_types_separate_by_class' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -105,6 +107,8 @@ class School extends Model
 		'result_hide_student_identity',
 		'result_allow_shared_pin_access',
 		'result_comment_mode',
+		'skill_categories_separate_by_class',
+		'skill_types_separate_by_class',
 	];
 
 	public function analytics_data()

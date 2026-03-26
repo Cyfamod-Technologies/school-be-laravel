@@ -369,6 +369,8 @@ class SchoolController extends Controller
             'owner_name' => 'string|max:255',
             'current_session_id' => 'nullable|uuid',
             'current_term_id' => 'nullable|uuid',
+            'skill_categories_separate_by_class' => 'nullable|boolean',
+            'skill_types_separate_by_class' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {

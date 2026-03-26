@@ -165,6 +165,42 @@ it('lists available skill types for the student', function () {
         ->assertJsonPath('data.0.name', 'Neatness');
 });
 
+it('hides class-scoped skills from other classes', function () {
+    $otherClass = SchoolClass::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Grade 6',
+        'slug' => 'grade-6',
+    ]);
+
+    $otherCategory = SkillCategory::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'school_class_id' => $otherClass->id,
+        'name' => 'Senior Skills',
+    ]);
+
+    SkillType::create([
+        'id' => (string) Str::uuid(),
+        'skill_category_id' => $otherCategory->id,
+        'school_id' => $this->school->id,
+        'school_class_id' => $otherClass->id,
+        'name' => 'Debate',
+    ]);
+
+    $this->school->update([
+        'skill_categories_separate_by_class' => true,
+        'skill_types_separate_by_class' => true,
+    ]);
+
+    getJson(route('students.skill-ratings.types', [
+        'student' => $this->student->id,
+    ]))
+        ->assertOk()
+        ->assertJsonFragment(['name' => 'Neatness'])
+        ->assertJsonMissing(['name' => 'Debate']);
+});
+
 it('creates a new skill rating for a student', function () {
     postJson(route('students.skill-ratings.store', [
         'student' => $this->student->id,
