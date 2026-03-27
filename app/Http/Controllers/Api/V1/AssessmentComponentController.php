@@ -7,7 +7,6 @@ use App\Models\AssessmentComponent;
 use App\Models\Result;
 use App\Models\Subject;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -254,31 +253,18 @@ class AssessmentComponentController extends Controller
     {
         $this->authorizeComponent($request, $assessmentComponent);
 
-        DB::transaction(function () use ($assessmentComponent) {
-            Result::query()
-                ->where('assessment_component_id', $assessmentComponent->id)
-                ->lockForUpdate()
-                ->get()
-                ->each(function (Result $result) {
-                    $existingSummary = Result::query()
-                        ->where('student_id', $result->student_id)
-                        ->where('subject_id', $result->subject_id)
-                        ->where('session_id', $result->session_id)
-                        ->where('term_id', $result->term_id)
-                        ->whereNull('assessment_component_id')
-                        ->first();
+        $linkedResultsCount = Result::query()
+            ->where('assessment_component_id', $assessmentComponent->id)
+            ->count();
 
-                    if ($existingSummary) {
-                        $result->delete();
-                        return;
-                    }
+        if ($linkedResultsCount > 0) {
+            return response()->json([
+                'message' => 'This assessment component cannot be deleted because results are already linked to it.',
+                'linked_results_count' => $linkedResultsCount,
+            ], 422);
+        }
 
-                    $result->assessment_component_id = null;
-                    $result->save();
-                });
-
-            $assessmentComponent->delete();
-        });
+        $assessmentComponent->delete();
 
         return response()->json([
             'message' => 'Assessment component deleted successfully.',
