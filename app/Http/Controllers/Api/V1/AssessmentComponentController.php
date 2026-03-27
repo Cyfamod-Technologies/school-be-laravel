@@ -257,10 +257,25 @@ class AssessmentComponentController extends Controller
         DB::transaction(function () use ($assessmentComponent) {
             Result::query()
                 ->where('assessment_component_id', $assessmentComponent->id)
-                ->update([
-                    'assessment_component_id' => null,
-                    'component_slot' => Result::NULL_COMPONENT_UUID,
-                ]);
+                ->lockForUpdate()
+                ->get()
+                ->each(function (Result $result) {
+                    $existingSummary = Result::query()
+                        ->where('student_id', $result->student_id)
+                        ->where('subject_id', $result->subject_id)
+                        ->where('session_id', $result->session_id)
+                        ->where('term_id', $result->term_id)
+                        ->whereNull('assessment_component_id')
+                        ->first();
+
+                    if ($existingSummary) {
+                        $result->delete();
+                        return;
+                    }
+
+                    $result->assessment_component_id = null;
+                    $result->save();
+                });
 
             $assessmentComponent->delete();
         });
