@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\AssessmentComponentStructure;
 use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\ClassSection;
@@ -430,7 +431,7 @@ class ResultViewController extends Controller
         $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
         $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
-        $componentColumns = $this->buildComponentColumns($results);
+        $componentColumns = $this->buildComponentColumns($results, $student, $term);
         $classSize = Student::query()
             ->where('school_id', $student->school_id)
             ->where('school_class_id', $student->school_class_id)
@@ -904,23 +905,66 @@ class ResultViewController extends Controller
         return 'Q' . $number;
     }
 
-    private function buildComponentColumns(Collection $results): Collection
+    private function buildComponentColumns(Collection $results, Student $student, ?Term $term): Collection
     {
         return $results
             ->filter(fn (Result $result) => $result->assessment_component !== null)
             ->groupBy(fn (Result $result) => $result->assessment_component_id)
-            ->map(function (Collection $items) {
+            ->map(function (Collection $items) use ($student, $term) {
                 $component = $items->first()->assessment_component;
+                $label = $this->injectComponentScoreIntoLabel(
+                    (string) ($component->label ?? $component->name ?? 'Component'),
+                    $component?->id ? (string) $component->id : null,
+                    $student->school_class_id ? (string) $student->school_class_id : null,
+                    $term?->id ? (string) $term->id : null
+                );
 
                 return [
                     'id' => $component->id,
-                    'label' => strtoupper($component->label ?? $component->name ?? 'Component'),
+                    'label' => strtoupper($label),
                     'order' => $component->order ?? PHP_INT_MAX,
                 ];
             })
             ->values()
             ->sortBy('order')
             ->values();
+    }
+
+    private function injectComponentScoreIntoLabel(
+        string $label,
+        ?string $assessmentComponentId,
+        ?string $classId,
+        ?string $termId
+    ): string {
+        $trimmedLabel = trim($label);
+
+        if (
+            $trimmedLabel === '' ||
+            ! str_contains($trimmedLabel, '%') ||
+            preg_match('/\d+(?:\.\d+)?\s*%/', $trimmedLabel)
+        ) {
+            return $trimmedLabel;
+        }
+
+        if (! $assessmentComponentId) {
+            return $trimmedLabel;
+        }
+
+        $maxScore = AssessmentComponentStructure::getMaxScore(
+            $assessmentComponentId,
+            $classId,
+            $termId
+        );
+
+        if ($maxScore === null || $maxScore <= 0) {
+            return $trimmedLabel;
+        }
+
+        $scoreLabel = fmod($maxScore, 1.0) === 0.0
+            ? (string) (int) $maxScore
+            : rtrim(rtrim(number_format($maxScore, 2, '.', ''), '0'), '.');
+
+        return preg_replace('/(?<!\d)%/', $scoreLabel . '%', $trimmedLabel) ?? $trimmedLabel;
     }
 
     private function buildSubjectRows(Collection $results, Collection $componentColumns, Collection $gradeRanges, Collection $subjectStats): Collection
