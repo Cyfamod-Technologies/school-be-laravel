@@ -1347,6 +1347,7 @@ class ResultViewController extends Controller
             'hide_student_identity' => $school?->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school?->result_allow_shared_pin_access ?? false,
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
+            'signatory_title' => $school?->result_signatory_title ?? 'principal',
         ];
     }
 

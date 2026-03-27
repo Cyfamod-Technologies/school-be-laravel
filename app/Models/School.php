@@ -107,6 +107,7 @@ class School extends Model
 		'result_hide_student_identity',
 		'result_allow_shared_pin_access',
 		'result_comment_mode',
+		'result_signatory_title',
 		'skill_categories_separate_by_class',
 		'skill_types_separate_by_class',
 	];

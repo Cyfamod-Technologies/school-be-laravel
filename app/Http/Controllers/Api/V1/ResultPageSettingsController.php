@@ -43,6 +43,7 @@ class ResultPageSettingsController extends Controller
             'hide_student_identity' => ['sometimes', 'boolean'],
             'allow_shared_pin_access' => ['sometimes', 'boolean'],
             'comment_mode' => ['sometimes', 'string', 'in:manual,range'],
+            'signatory_title' => ['sometimes', 'string', 'in:principal,director'],
         ]);
 
         $current = $this->resolveSettings($school);
@@ -58,6 +59,7 @@ class ResultPageSettingsController extends Controller
             'result_hide_student_identity' => $next['hide_student_identity'],
             'result_allow_shared_pin_access' => $next['allow_shared_pin_access'],
             'result_comment_mode' => $next['comment_mode'],
+            'result_signatory_title' => $next['signatory_title'],
         ]);
 
         if ($school->isDirty()) {
@@ -82,6 +84,7 @@ class ResultPageSettingsController extends Controller
             'hide_student_identity' => $school->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school->result_allow_shared_pin_access ?? false,
             'comment_mode' => $school->result_comment_mode ?? 'manual',
+            'signatory_title' => $school->result_signatory_title ?? 'principal',
         ];
     }
 }
