@@ -20,6 +20,7 @@ use App\Models\Student;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
+use App\Support\SkillScope;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -480,9 +481,16 @@ class ResultViewController extends Controller
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
             ->when($term, fn ($query) => $query->where('term_id', $term->id))
+            ->whereHas('skill_type', function ($query) use ($student) {
+                SkillScope::applyTypeVisibility(
+                    $query,
+                    $student->school,
+                    SkillScope::normalizeClassId($student->school_class_id)
+                );
+            })
             ->with([
-                'skill_type:id,name,skill_category_id',
-                'skill_type.skill_category:id,name',
+                'skill_type:id,name,skill_category_id,school_class_id',
+                'skill_type.skill_category:id,name,school_class_id',
             ])
             ->get()
             ->filter(fn (SkillRating $rating) => $rating->skill_type !== null && (int) $rating->rating_value > 0)
@@ -702,9 +710,16 @@ class ResultViewController extends Controller
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
             ->when($term, fn ($query) => $query->where('term_id', $term->id))
+            ->whereHas('skill_type', function ($query) use ($student) {
+                SkillScope::applyTypeVisibility(
+                    $query,
+                    $student->school,
+                    SkillScope::normalizeClassId($student->school_class_id)
+                );
+            })
             ->with([
-                'skill_type:id,name,description,skill_category_id',
-                'skill_type.skill_category:id,name',
+                'skill_type:id,name,description,skill_category_id,school_class_id',
+                'skill_type.skill_category:id,name,school_class_id',
             ])
             ->get()
             ->filter(fn (SkillRating $rating) => $rating->skill_type !== null && (int) $rating->rating_value > 0)
