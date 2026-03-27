@@ -297,6 +297,102 @@ class SkillTypeController extends Controller
         ]);
     }
 
+    public function bulkCopyToScope(Request $request)
+    {
+        $school = $request->user()->school;
+
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'skill_type_ids' => ['required', 'array', 'min:1'],
+            'skill_type_ids.*' => ['required', 'uuid'],
+            'school_class_id' => ['nullable', 'uuid'],
+        ]);
+
+        $targetClassId = $this->resolveTypeClassId($school, $validated['school_class_id'] ?? null);
+        $skillTypeIds = collect($validated['skill_type_ids'])
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        $types = SkillType::query()
+            ->where('school_id', $school->id)
+            ->whereIn('id', $skillTypeIds)
+            ->with([
+                'skill_category:id,name,description,school_class_id',
+                'school_class:id,name',
+            ])
+            ->get();
+
+        if ($types->count() !== $skillTypeIds->count()) {
+            return response()->json([
+                'message' => 'One or more selected skills were not found for this school.',
+            ], 404);
+        }
+
+        $copied = collect();
+        $skipped = collect();
+
+        DB::transaction(function () use ($types, $targetClassId, $school, $copied, $skipped) {
+            foreach ($types as $type) {
+                $targetCategory = $this->resolveTargetCategoryForCopy(
+                    $school,
+                    $type->skill_category,
+                    $targetClassId
+                );
+
+                if ($this->typeNameExists($school, $type->name, $targetClassId)) {
+                    $skipped->push([
+                        'id' => $type->id,
+                        'name' => $type->name,
+                        'reason' => 'A skill with this name already exists in the target class scope.',
+                    ]);
+                    continue;
+                }
+
+                $created = SkillType::create([
+                    'id' => (string) Str::uuid(),
+                    'skill_category_id' => $targetCategory->id,
+                    'school_id' => $school->id,
+                    'school_class_id' => $targetClassId,
+                    'name' => $type->name,
+                    'description' => $type->description,
+                    'weight' => $type->weight,
+                ])->load(['skill_category:id,name,school_class_id', 'school_class:id,name']);
+
+                $copied->push($created);
+            }
+        });
+
+        $copiedData = $copied
+            ->map(fn (SkillType $type) => $this->transformType($type))
+            ->values();
+
+        $message = sprintf(
+            '%d skill%s copied successfully.',
+            $copiedData->count(),
+            $copiedData->count() === 1 ? '' : 's'
+        );
+
+        if ($skipped->isNotEmpty()) {
+            $message .= sprintf(
+                ' %d existing skill%s skipped.',
+                $skipped->count(),
+                $skipped->count() === 1 ? '' : 's'
+            );
+        }
+
+        return response()->json([
+            'message' => $message,
+            'data' => $copiedData,
+            'skipped' => $skipped->values(),
+        ]);
+    }
+
     /**
      * @OA\Put(
      *     path="/api/v1/settings/skill-types/{skillType}",
@@ -458,6 +554,39 @@ class SkillTypeController extends Controller
         }
 
         return $normalized;
+    }
+
+    private function resolveTargetCategoryForCopy($school, SkillCategory $category, ?string $targetClassId): SkillCategory
+    {
+        if (
+            ! SkillScope::categorySeparatedByClass($school)
+            || $category->school_class_id === null
+            || $category->school_class_id === $targetClassId
+        ) {
+            return $category;
+        }
+
+        $existing = SkillCategory::query()
+            ->where('school_id', $school->id)
+            ->whereRaw('LOWER(name) = ?', [Str::lower($category->name)])
+            ->when(
+                $targetClassId,
+                fn ($query) => $query->where('school_class_id', $targetClassId),
+                fn ($query) => $query->whereNull('school_class_id')
+            )
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return SkillCategory::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'school_class_id' => $targetClassId,
+            'name' => $category->name,
+            'description' => $category->description,
+        ]);
     }
 
     private function assertCategoryMatchesScope($school, SkillCategory $category, ?string $typeClassId): void
