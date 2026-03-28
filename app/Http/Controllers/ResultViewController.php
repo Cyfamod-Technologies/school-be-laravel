@@ -766,10 +766,18 @@ class ResultViewController extends Controller
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
+        $resultPageSettings = $this->resolveResultPageSettings($student->school);
 
         $teacherComment = $termSummary?->overall_comment;
         if ($teacherComment === null || trim((string) $teacherComment) === '') {
             $teacherComment = $this->generateTeacherComment(
+                $termSummary?->average_score
+            );
+        }
+
+        $principalComment = $termSummary?->principal_comment;
+        if ($principalComment === null || trim((string) $principalComment) === '') {
+            $principalComment = $this->generatePrincipalComment(
                 $termSummary?->average_score
             );
         }
@@ -804,8 +812,11 @@ class ResultViewController extends Controller
             ],
             'skillRatingsByCategory' => $skillRatingsByCategory,
             'teacherComment' => $teacherComment,
+            'principalComment' => $principalComment,
             'classTeacherName' => $classTeacher?->staff?->full_name,
-            'directorSignatureUrl' => $this->resolveMediaUrl(optional($student->school)->signature_url),
+            'signatoryTitle' => $resultPageSettings['signatory_title'] ?? 'principal',
+            'principalName' => optional($student->school)->owner_name,
+            'principalSignatureUrl' => $this->resolveMediaUrl(optional($student->school)->signature_url),
             'reportTitle' => 'Early Years Report',
         ];
     }
