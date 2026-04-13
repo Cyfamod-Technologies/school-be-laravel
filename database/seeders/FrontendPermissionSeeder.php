@@ -84,6 +84,7 @@ class FrontendPermissionSeeder extends Seeder
         'results.bulk.generate' => 'Generate bulk results',
         'results.bulk.download' => 'Download bulk results',
         'results.bulk.print' => 'Print bulk results',
+        'results.session.view' => 'View session results page',
         'results.check' => 'Check individual results',
         
         // Skills & Ratings

@@ -75,6 +75,7 @@ class School extends Model
 		'term_school_opened_days' => 'integer',
 		'result_hide_student_identity' => 'boolean',
 		'result_allow_shared_pin_access' => 'boolean',
+		'result_enable_session_print' => 'boolean',
 		'skill_categories_separate_by_class' => 'boolean',
 		'skill_types_separate_by_class' => 'boolean',
 	];
@@ -106,6 +107,7 @@ class School extends Model
 		'result_show_remarks',
 		'result_hide_student_identity',
 		'result_allow_shared_pin_access',
+		'result_enable_session_print',
 		'result_comment_mode',
 		'result_signatory_title',
 		'skill_categories_separate_by_class',

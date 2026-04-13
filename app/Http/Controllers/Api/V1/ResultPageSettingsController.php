@@ -42,6 +42,7 @@ class ResultPageSettingsController extends Controller
             'show_remarks' => ['sometimes', 'boolean'],
             'hide_student_identity' => ['sometimes', 'boolean'],
             'allow_shared_pin_access' => ['sometimes', 'boolean'],
+            'enable_session_result_print' => ['sometimes', 'boolean'],
             'comment_mode' => ['sometimes', 'string', 'in:manual,range'],
             'signatory_title' => ['sometimes', 'string', 'in:principal,director'],
         ]);
@@ -58,6 +59,7 @@ class ResultPageSettingsController extends Controller
             'result_show_remarks' => $next['show_remarks'],
             'result_hide_student_identity' => $next['hide_student_identity'],
             'result_allow_shared_pin_access' => $next['allow_shared_pin_access'],
+            'result_enable_session_print' => $next['enable_session_result_print'],
             'result_comment_mode' => $next['comment_mode'],
             'result_signatory_title' => $next['signatory_title'],
         ]);
@@ -83,6 +85,7 @@ class ResultPageSettingsController extends Controller
             'show_remarks' => $school->result_show_remarks ?? true,
             'hide_student_identity' => $school->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school->result_allow_shared_pin_access ?? false,
+            'enable_session_result_print' => $school->result_enable_session_print ?? false,
             'comment_mode' => $school->result_comment_mode ?? 'manual',
             'signatory_title' => $school->result_signatory_title ?? 'principal',
         ];

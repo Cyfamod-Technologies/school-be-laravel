@@ -200,6 +200,8 @@ Route::prefix('api/v1')->group(function () {
             ->whereUuid('student');
         Route::get('results/bulk/print', [ResultViewController::class, 'bulkPrint'])
             ->name('results.bulk.print');
+        Route::get('results/session/print', [ResultViewController::class, 'sessionBulkPrint'])
+            ->name('results.session.print');
         Route::prefix('students/{student}')
             ->whereUuid('student')
             ->group(function () {

@@ -322,6 +322,144 @@ class ResultViewController extends Controller
         }
     }
 
+    public function sessionBulkPrint(Request $request)
+    {
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'school_class_id' => ['required', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'class_section_id' => ['nullable', 'uuid'],
+        ]);
+
+        $schoolId = null;
+
+        try {
+            $schoolId = optional($request->user()->school)->id;
+            if (! $schoolId && ! empty($validated['school_class_id'])) {
+                $schoolId = SchoolClass::query()
+                    ->whereKey($validated['school_class_id'])
+                    ->value('school_id');
+            }
+
+            if (! $schoolId) {
+                abort(403, 'You are not linked to any school.');
+            }
+
+            $school = School::query()->find($schoolId);
+            if (! $school?->result_enable_session_print) {
+                abort(403, 'Session result printing is not enabled for this school.');
+            }
+
+            $students = Student::query()
+                ->with([
+                    'school',
+                    'school_class',
+                    'class_arm',
+                    'class_section',
+                    'parent',
+                ])
+                ->where('school_id', $schoolId)
+                ->where('school_class_id', $validated['school_class_id'])
+                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->whereNotIn('status', ['inactive', 'Inactive'])
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->orderBy('middle_name')
+                ->get();
+
+            $pages = $students
+                ->map(function (Student $record) use ($validated, $schoolId) {
+                    try {
+                        return $this->buildSessionResultPageData(
+                            $record,
+                            $validated['session_id'],
+                            $schoolId
+                        );
+                    } catch (\Exception $e) {
+                        \Log::info("Skipped student {$record->id} in session result print: " . $e->getMessage());
+                        return null;
+                    }
+                })
+                ->filter()
+                ->values();
+
+            $session = Session::query()
+                ->where('school_id', $schoolId)
+                ->find($validated['session_id']);
+
+            $class = SchoolClass::query()
+                ->where('school_id', $schoolId)
+                ->find($validated['school_class_id']);
+
+            if ($pages->isEmpty()) {
+                $sessionName = $session?->name ?? 'Unknown Session';
+                $className = $class?->name ?? 'Unknown Class';
+
+                throw new HttpResponseException(
+                    response()->json([
+                        'message' => "No session results found for any students in {$className} for {$sessionName}. Please ensure term results have been added before attempting to print.",
+                        'session_id' => $validated['session_id'],
+                        'class_id' => $validated['school_class_id'],
+                        'students_checked' => $students->count(),
+                    ], 422)
+                );
+            }
+
+            $classArm = null;
+            if (! empty($validated['class_arm_id'])) {
+                $classArm = ClassArm::query()
+                    ->whereKey($validated['class_arm_id'])
+                    ->whereHas('school_class', fn ($query) => $query->where('school_id', $schoolId))
+                    ->first();
+            }
+
+            $classSection = null;
+            if (! empty($validated['class_section_id'])) {
+                $classSection = ClassSection::query()
+                    ->whereKey($validated['class_section_id'])
+                    ->whereHas('class_arm.school_class', fn ($query) => $query->where('school_id', $schoolId))
+                    ->first();
+            }
+
+            return view('session-result-bulk', [
+                'pages' => $pages,
+                'filters' => [
+                    'session' => $session?->name,
+                    'class' => $class?->name,
+                    'class_arm' => $classArm?->name,
+                    'class_section' => $classSection?->name,
+                    'student_count' => $pages->count(),
+                    'total_students' => $students->count(),
+                ],
+                'generatedAt' => Carbon::now()->format('jS F Y, h:i A'),
+                'documentTitle' => sprintf(
+                    '%s - %s Session Results',
+                    $class?->name ?? 'Class',
+                    $session?->name ?? 'Session'
+                ),
+            ]);
+        } catch (HttpResponseException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            $errorRef = (string) Str::uuid();
+            \Log::error('Session result printing failed', [
+                'error_ref' => $errorRef,
+                'message' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+                'user_id' => optional($request->user())->id,
+                'school_id' => $schoolId,
+                'filters' => $validated ?? [],
+            ]);
+
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => 'Session result printing failed. Please contact support with code: ' . $errorRef,
+                ], 500)
+            );
+        }
+    }
+
     public function buildResultPageData(
         Student $student,
         ?string $requestedSessionId = null,
@@ -621,6 +759,179 @@ class ResultViewController extends Controller
         ];
 
         return $data;
+    }
+
+    public function buildSessionResultPageData(
+        Student $student,
+        ?string $requestedSessionId = null,
+        ?string $requestingSchoolId = null
+    ): array {
+        $user = auth()->user();
+        $role = strtolower((string) ($user->role ?? ''));
+        $isAdmin = $user instanceof User
+            && (in_array($role, ['admin', 'super_admin'], true) || $user->hasAnyRole(['admin', 'super_admin']));
+
+        $student->loadMissing([
+            'school',
+            'school_class',
+            'class_arm',
+            'class_section',
+            'parent',
+        ]);
+
+        if (! $isAdmin && $requestingSchoolId !== null && $requestingSchoolId !== $student->school_id) {
+            abort(403, 'You are not allowed to view this student session result.');
+        }
+
+        $sessionId = $this->normalizeContextId($requestedSessionId);
+        $school = $student->school;
+
+        if (! $sessionId && $school && $school->current_session_id) {
+            $sessionId = $this->normalizeContextId($school->current_session_id);
+        }
+
+        if (! $sessionId) {
+            $sessionId = $this->normalizeContextId($student->current_session_id);
+        }
+
+        $session = $sessionId
+            ? Session::query()
+                ->where('school_id', $student->school_id)
+                ->find($sessionId)
+            : null;
+
+        if (! $session) {
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => 'Unable to resolve the session for this print request.',
+                    'student_id' => $student->id,
+                    'session_id' => $sessionId,
+                ], 422)
+            );
+        }
+
+        $terms = Term::query()
+            ->where('school_id', $student->school_id)
+            ->where('session_id', $session->id)
+            ->whereIn('term_number', [1, 2, 3])
+            ->orderBy('term_number')
+            ->get();
+
+        if ($terms->isEmpty()) {
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => 'No terms were found for the selected session.',
+                    'student_id' => $student->id,
+                    'session_id' => $session->id,
+                ], 422)
+            );
+        }
+
+        $results = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $session->id)
+            ->whereIn('term_id', $terms->pluck('id'))
+            ->with([
+                'subject:id,name,code',
+                'assessment_component:id,name,label,order',
+                'grade_range:id,grade_label,description,min_score,max_score',
+            ])
+            ->get();
+
+        if ($results->isEmpty()) {
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => 'No session results were found for this student.',
+                    'student_id' => $student->id,
+                    'session_id' => $session->id,
+                ], 422)
+            );
+        }
+
+        $gradeScale = $this->resolveGradeScale($student->school_id, $session->id);
+        $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
+        $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
+        $classSize = Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
+            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
+
+        $resultPageSettings = $this->resolveResultPageSettings($student->school);
+        if ($student->school_class && $student->school_class->result_show_position !== null) {
+            $resultPageSettings['show_position'] = (bool) $student->school_class->result_show_position;
+        }
+
+        $termSections = $this->buildSessionTermSections(
+            $results,
+            $terms,
+            $student,
+            $gradeRanges,
+            $positionRanges,
+            $classSize
+        );
+        $termRows = $this->buildSessionSubjectRows($termSections, $gradeRanges);
+
+        $overallStats = $this->computeSessionOverallStatistics(
+            $student,
+            $session->id,
+            $terms,
+            $classSize,
+            $positionRanges
+        );
+
+        $teacherComment = $this->generateTeacherComment($overallStats['average']);
+        $principalComment = $this->generatePrincipalComment($overallStats['average']);
+        $signatoryTitle = $resultPageSettings['signatory_title'] ?? 'principal';
+
+        $sessionName = $session->name;
+        $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
+
+        return [
+            'student' => $student,
+            'schoolName' => optional($student->school)->name ?? 'School',
+            'schoolAddress' => optional($student->school)->address,
+            'schoolPhone' => optional($student->school)->phone,
+            'schoolEmail' => optional($student->school)->email,
+            'schoolLogoUrl' => $this->resolveMediaUrl(optional($student->school)->logo_url),
+            'studentPhotoUrl' => $this->resolveMediaUrl($student->photo_url),
+            'documentTitle' => $studentName ? "{$studentName} | Session Result" : 'Session Result',
+            'sessionName' => $sessionName,
+            'termLabels' => $terms->map(function (Term $term) {
+                return [
+                    'id' => $term->id,
+                    'number' => $term->term_number,
+                    'label' => trim((string) $term->name) !== '' ? $term->name : "{$term->term_number} Term",
+                ];
+            })->values()->all(),
+            'termSections' => $termSections->all(),
+            'studentInfo' => [
+                'name' => $studentName,
+                'admission_no' => $student->admission_no,
+                'gender' => $student->gender,
+                'class' => optional($student->school_class)->name,
+                'class_arm' => optional($student->class_arm)->name,
+                'class_section' => optional($student->class_section)->name,
+            ],
+            'resultsRows' => $termRows->all(),
+            'aggregate' => [
+                'total_obtained' => $overallStats['total_obtained'],
+                'total_possible' => $overallStats['total_possible'],
+                'average' => $overallStats['average'],
+                'class_average' => $overallStats['class_average'],
+                'position' => $overallStats['position'],
+                'subject_count' => $termRows->count(),
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
+            ],
+            'classSize' => $classSize,
+            'principalName' => optional($student->school)->owner_name,
+            'principalSignatureUrl' => optional($student->school)->signature_url,
+            'resultPageSettings' => $resultPageSettings,
+            'signatoryLabel' => $signatoryTitle === 'director' ? 'Director' : 'Principal',
+        ];
     }
 
     public function buildEarlyYearsReportData(
@@ -1049,6 +1360,7 @@ class ResultViewController extends Controller
                 }
 
                 return [
+                    'subject_id' => $subjectId,
                     'subject_name' => $subjectName,
                     'component_values' => $componentValues,
                     'total' => $summary['total'],
@@ -1063,6 +1375,213 @@ class ResultViewController extends Controller
             ->values()
             ->sortBy(fn ($row) => Str::lower($row['subject_name'] ?? ''), SORT_NATURAL)
             ->values();
+    }
+
+    private function buildSessionTermSections(
+        Collection $results,
+        Collection $terms,
+        Student $student,
+        Collection $gradeRanges,
+        Collection $positionRanges,
+        int $classSize
+    ): Collection
+    {
+        return $terms
+            ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize) {
+                $termResults = $results
+                    ->filter(fn (Result $result) => (string) $result->term_id === (string) $term->id)
+                    ->values();
+
+                $componentColumns = $this->buildComponentColumns($termResults, $student, $term);
+                $subjectStatisticsData = $this->computeSubjectStatistics(
+                    $student,
+                    (string) $term->session_id,
+                    (string) $term->id,
+                    $termResults,
+                    $positionRanges,
+                    $classSize
+                );
+                $subjectRows = $this->buildSubjectRows(
+                    $termResults,
+                    $componentColumns,
+                    $gradeRanges,
+                    $subjectStatisticsData['subjects']
+                );
+
+                return [
+                    'id' => (string) $term->id,
+                    'number' => (int) $term->term_number,
+                    'label' => trim((string) $term->name) !== '' ? (string) $term->name : "{$term->term_number} Term",
+                    'columns' => $componentColumns
+                        ->map(fn (array $column) => [
+                            'id' => $column['id'],
+                            'label' => $column['label'],
+                        ])
+                        ->values()
+                        ->all(),
+                    'rows' => $subjectRows
+                        ->keyBy(fn (array $row) => (string) ($row['subject_id'] ?? ''))
+                        ->all(),
+                ];
+            })
+            ->values()
+            ->values();
+    }
+
+    private function buildSessionSubjectRows(Collection $termSections, Collection $gradeRanges): Collection
+    {
+        $subjectRows = $termSections
+            ->flatMap(function (array $section) {
+                return collect($section['rows'] ?? [])->map(function (array $row) {
+                    return [
+                        'subject_id' => (string) ($row['subject_id'] ?? ''),
+                        'subject_name' => $row['subject_name'] ?? 'Subject',
+                    ];
+                });
+            })
+            ->filter(fn (array $row) => $row['subject_id'] !== '')
+            ->groupBy('subject_id')
+            ->map(fn (Collection $items) => $items->first());
+
+        return $subjectRows
+            ->map(function (array $subjectRow, string $subjectId) use ($termSections, $gradeRanges) {
+                $perTerm = [];
+                $termScores = [];
+
+                foreach ($termSections as $section) {
+                    $termNumber = (int) ($section['number'] ?? 0);
+                    $row = $section['rows'][$subjectId] ?? null;
+
+                    $perTerm[$termNumber] = $row;
+                    $termScores[$termNumber] = $row['total'] ?? null;
+                }
+
+                $availableScores = collect($termScores)
+                    ->filter(fn ($score) => $score !== null)
+                    ->values();
+
+                $sessionTotal = $availableScores->isEmpty()
+                    ? null
+                    : round((float) $availableScores->sum(), 2);
+                $average = $availableScores->isEmpty()
+                    ? null
+                    : round((float) $availableScores->average(), 2);
+
+                $matchedRange = $this->resolveGradeRange($average, null, $gradeRanges);
+
+                return [
+                    'subject_id' => $subjectId,
+                    'subject_name' => $subjectRow['subject_name'] ?? 'Subject',
+                    'per_term' => $perTerm,
+                    'annual' => [
+                        'first' => $termScores[1] ?? null,
+                        'second' => $termScores[2] ?? null,
+                        'third' => $termScores[3] ?? null,
+                        'total' => $sessionTotal,
+                        'average' => $average,
+                        'grade' => $matchedRange?->grade_label,
+                        'remarks' => $matchedRange?->description,
+                    ],
+                ];
+            })
+            ->values()
+            ->sortBy(fn ($row) => Str::lower($row['subject_name'] ?? ''), SORT_NATURAL)
+            ->values();
+    }
+
+    private function resolveResultTotalForEntries(Collection $entries): ?float
+    {
+        if ($entries->isEmpty()) {
+            return null;
+        }
+
+        $overall = $entries->first(function (Result $result) {
+            return $result->assessment_component_id === null && $result->total_score !== null;
+        });
+
+        if ($overall && $overall->total_score !== null) {
+            return round((float) $overall->total_score, 2);
+        }
+
+        $componentTotal = $entries
+            ->filter(fn (Result $result) => $result->assessment_component_id !== null)
+            ->pluck('total_score')
+            ->filter(fn ($value) => $value !== null)
+            ->sum();
+
+        $hasComponentScores = $entries->contains(fn (Result $result) => $result->assessment_component_id !== null);
+
+        return $hasComponentScores ? round((float) $componentTotal, 2) : null;
+    }
+
+    private function computeSessionOverallStatistics(
+        Student $student,
+        string $sessionId,
+        Collection $terms,
+        int $classSize,
+        Collection $positionRanges
+    ): array {
+        $termIds = $terms->pluck('id')->filter()->values();
+
+        $studentRows = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->whereIn('term_id', $termIds)
+            ->get()
+            ->groupBy(fn (Result $result) => $result->subject_id . ':' . $result->term_id)
+            ->map(fn (Collection $entries) => $this->resolveResultTotalForEntries($entries))
+            ->filter(fn ($score) => $score !== null)
+            ->values();
+
+        $totalObtained = $studentRows->isEmpty() ? null : round($studentRows->sum(), 2);
+        $average = $studentRows->isEmpty() ? null : round($studentRows->average(), 2);
+        $totalPossible = $studentRows->isEmpty() ? null : ($studentRows->count() * 100);
+
+        $classRows = Result::query()
+            ->where('session_id', $sessionId)
+            ->whereIn('term_id', $termIds)
+            ->whereHas('student', function ($query) use ($student) {
+                $query->where('school_class_id', $student->school_class_id)
+                    ->when($student->class_arm_id, fn ($builder) => $builder->where('class_arm_id', $student->class_arm_id))
+                    ->when($student->class_section_id, fn ($builder) => $builder->where('class_section_id', $student->class_section_id));
+            })
+            ->get()
+            ->groupBy(fn (Result $result) => $result->student_id . ':' . $result->subject_id . ':' . $result->term_id)
+            ->map(fn (Collection $entries) => [
+                'student_id' => (string) optional($entries->first())->student_id,
+                'score' => $this->resolveResultTotalForEntries($entries),
+            ])
+            ->filter(fn (array $row) => $row['student_id'] !== '' && $row['score'] !== null)
+            ->groupBy('student_id')
+            ->map(function (Collection $entries) {
+                $scores = $entries->pluck('score')->filter(fn ($score) => $score !== null)->values();
+
+                return $scores->isEmpty()
+                    ? null
+                    : round($scores->average(), 2);
+            })
+            ->filter(fn ($score) => $score !== null);
+
+        $classAverage = $classRows->isEmpty()
+            ? null
+            : round((float) $classRows->average(), 2);
+
+        $position = $average === null
+            ? null
+            : $this->resolvePositionForScore(
+                $average,
+                $classRows->map(fn ($score) => (float) $score),
+                $positionRanges,
+                $classSize
+            );
+
+        return [
+            'total_obtained' => $totalObtained,
+            'total_possible' => $totalPossible,
+            'average' => $average,
+            'class_average' => $classAverage,
+            'position' => $position,
+        ];
     }
 
     private function computeSubjectStatistics(
@@ -1401,6 +1920,7 @@ class ResultViewController extends Controller
             'show_remarks' => $school?->result_show_remarks ?? true,
             'hide_student_identity' => $school?->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school?->result_allow_shared_pin_access ?? false,
+            'enable_session_result_print' => $school?->result_enable_session_print ?? false,
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
             'signatory_title' => $school?->result_signatory_title ?? 'principal',
         ];
