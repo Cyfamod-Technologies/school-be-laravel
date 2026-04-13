@@ -57,7 +57,7 @@
                         {{ (!empty($schoolAddress) || !empty($schoolPhone)) ? ' | ' : '' }}{{ $schoolEmail }}
                     @endif
                 </p>
-                <div class="session-title">Session Result Sheet</div>
+                <div class="session-title">Session Result Sheet (3rd Term)</div>
             </div>
         </div>
         <div class="session-student-photo">

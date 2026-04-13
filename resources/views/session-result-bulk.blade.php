@@ -70,6 +70,7 @@
             padding: 18px 22px;
             box-shadow: 0 6px 24px rgba(15, 23, 42, 0.05);
             margin-bottom: 24px;
+            text-align: center;
         }
 
         .session-print-actions {
@@ -80,16 +81,18 @@
 
         .session-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             gap: 20px;
-            align-items: flex-start;
+            align-items: center;
             margin-bottom: 16px;
         }
 
         .session-brand {
             display: flex;
-            gap: 16px;
-            align-items: flex-start;
+            flex-direction: row;
+            gap: 12px;
+            align-items: center;
+            text-align: center;
         }
 
         .session-brand img {
@@ -101,12 +104,14 @@
         .session-brand h1 {
             margin: 0;
             font-size: 22px;
+            text-align: center;
         }
 
         .session-brand p {
             margin: 4px 0 6px;
             font-size: 12px;
             color: #475569;
+            text-align: center;
         }
 
         .session-title {
@@ -130,6 +135,8 @@
             gap: 8px 18px;
             margin-bottom: 18px;
             font-size: 13px;
+            text-align: center;
+            align-items: center;
         }
 
         .session-table {
@@ -148,16 +155,16 @@
         }
 
         .session-table th {
-            background: #0f172a;
-            color: #ffffff;
+            background: #e2e8f0;
+            color: #111827;
             text-transform: uppercase;
-            font-size: 10px;
-            letter-spacing: 0.04em;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
             line-height: 1.25;
         }
 
         .session-table .subject-name {
-            text-align: left;
             font-weight: 600;
             white-space: normal;
             min-width: 160px;
@@ -174,6 +181,7 @@
             border-radius: 8px;
             padding: 14px 16px;
             background: #f8fafc;
+            text-align: center;
         }
 
         .session-summary-card h2 {
@@ -217,6 +225,13 @@
             .session-page:last-child {
                 page-break-after: auto !important;
                 break-after: auto !important;
+            }
+
+            .session-table th {
+                background: #e2e8f0 !important;
+                color: #111827 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
 
             @page {
