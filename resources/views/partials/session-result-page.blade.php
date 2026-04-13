@@ -166,6 +166,38 @@
         </tbody>
     </table>
 
+    @php
+        $skillRatingsByCategory = $skillRatingsByCategory ?? [];
+        $hasSkillRatings = !empty($skillRatingsByCategory);
+    @endphp
+
+    @if($hasSkillRatings)
+        <div class="session-summary-grid">
+            <div class="session-summary-card" style="width: 100%; max-width: none;">
+                <h2 style="margin-bottom: 12px;">Skills &amp; Behaviour (3rd Term)</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    @foreach($skillRatingsByCategory as $category)
+                        <div style="flex: 1; min-width: 250px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
+                            <div style="font-weight: 700; color: #1e293b; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                                {{ strtoupper($category['category']) }}
+                            </div>
+                            <table class="skill-table" style="width: 100%; border-collapse: collapse;">
+                                @foreach($category['skills'] as $skill)
+                                    <tr>
+                                        <td style="padding: 4px 0; font-size: 13px; color: #334155;">{{ $skill['skill'] }}</td>
+                                        <td style="padding: 4px 0; font-size: 13px; font-weight: 700; text-align: right; color: #0f172a;">
+                                            {{ $skill['rating'] !== null ? number_format($skill['rating'], 0) : '-' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="session-summary-grid">
         <div class="session-summary-card">
             <h2>Summary</h2>

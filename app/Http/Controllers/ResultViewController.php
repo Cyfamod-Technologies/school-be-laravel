@@ -886,6 +886,43 @@ class ResultViewController extends Controller
         $principalComment = $this->generatePrincipalComment($overallStats['average']);
         $signatoryTitle = $resultPageSettings['signatory_title'] ?? 'principal';
 
+        $thirdTerm = $terms->firstWhere('term_number', 3);
+        $skillRatingsByCategory = collect();
+
+        if ($thirdTerm) {
+            $skillRatingsByCategory = SkillRating::query()
+                ->where('student_id', $student->id)
+                ->where('session_id', $session->id)
+                ->where('term_id', $thirdTerm->id)
+                ->whereHas('skill_type', function ($query) use ($student) {
+                    SkillScope::applyTypeVisibility(
+                        $query,
+                        $student->school,
+                        SkillScope::normalizeClassId($student->school_class_id)
+                    );
+                })
+                ->with([
+                    'skill_type:id,name,skill_category_id,school_class_id',
+                    'skill_type.skill_category:id,name,school_class_id',
+                ])
+                ->get()
+                ->filter(fn (SkillRating $rating) => $rating->skill_type !== null && (int) $rating->rating_value > 0)
+                ->sortBy(fn (SkillRating $rating) => Str::lower(optional($rating->skill_type->skill_category)->name ?? ''), SORT_NATURAL, false)
+                ->groupBy(fn (SkillRating $rating) => optional($rating->skill_type->skill_category)->name ?? 'Other Skills')
+                ->map(function ($items, $category) {
+                    return [
+                        'category' => $category,
+                        'skills' => $items
+                            ->sortBy(fn (SkillRating $rating) => Str::lower($rating->skill_type->name ?? ''), SORT_NATURAL, false)
+                            ->map(fn (SkillRating $rating) => [
+                                'skill' => $rating->skill_type->name,
+                                'rating' => $rating->rating_value,
+                            ])->values()->all(),
+                    ];
+                })
+                ->values();
+        }
+
         $sessionName = $session->name;
         $studentName = trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '));
 
@@ -916,6 +953,7 @@ class ResultViewController extends Controller
                 'class_section' => optional($student->class_section)->name,
             ],
             'resultsRows' => $termRows->all(),
+            'skillRatingsByCategory' => $skillRatingsByCategory->all(),
             'aggregate' => [
                 'total_obtained' => $overallStats['total_obtained'],
                 'total_possible' => $overallStats['total_possible'],
