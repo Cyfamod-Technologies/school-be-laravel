@@ -6,19 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::table('schools', function (Blueprint $table) {
-            $table->string('result_comment_mode', 20)
-                ->default('manual')
-                ->after('result_show_remarks');
+            if (! Schema::hasColumn('schools', 'result_comment_mode')) {
+                $table->string('result_comment_mode', 20)
+                    ->default('manual');
+            }
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::table('schools', function (Blueprint $table) {
-            $table->dropColumn('result_comment_mode');
+            if (Schema::hasColumn('schools', 'result_comment_mode')) {
+                $table->dropColumn('result_comment_mode');
+            }
         });
     }
 };
