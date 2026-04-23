@@ -536,6 +536,86 @@ class StudentController extends Controller
      * @param  \App\Models\Student  $student
      * @return \Illuminate\Http\Response
      */
+
+    /**
+     * @OA\Delete(
+     *      path="/api/v1/students/{id}/dependent-records",
+     *      operationId="deleteStudentDependentRecords",
+     *      tags={"school-v1.4","school-v1.9","school-v2.0"},
+     *      summary="Delete all dependent records for a student",
+     *      description="Deletes all dependent records before deleting the student",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Student id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successfully deleted dependent records",
+     *       ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
+     */
+    public function deleteDependentRecords(Request $request, Student $student)
+    {
+        $this->ensurePermission($request, 'students.delete');
+
+        if ($student->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to delete records for this student.');
+        }
+
+        $deletedCounts = [];
+
+        DB::transaction(function () use ($student, &$deletedCounts) {
+            $tables = [
+                'results',
+                'attendances',
+                'fee_payments',
+                'performance_reports',
+                'result_pins',
+                'skill_ratings',
+                'student_enrollments',
+                'term_summaries',
+                'promotion_logs',
+                'quiz_results',
+                'quiz_attempts',
+                'cbt_score_imports',
+            ];
+
+            foreach ($tables as $table) {
+                if (! Schema::hasTable($table)) {
+                    continue;
+                }
+
+                $deletedCounts[$table] = DB::table($table)
+                    ->where('student_id', $student->id)
+                    ->delete();
+            }
+        });
+
+        return response()->json([
+            'message' => 'Successfully deleted all dependent records.',
+            'deleted_counts' => $deletedCounts,
+        ]);
+    }
+
     /**
      * @OA\Delete(
      *      path="/api/v1/students/{id}",

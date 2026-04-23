@@ -205,6 +205,8 @@ Route::prefix('api/v1')->group(function () {
         Route::prefix('students/{student}')
             ->whereUuid('student')
             ->group(function () {
+                Route::delete('dependent-records', [\App\Http\Controllers\Api\V1\StudentController::class, 'deleteDependentRecords'])
+                    ->name('students.dependent-records.destroy');
                 Route::get('skill-ratings', [StudentSkillRatingController::class, 'index'])
                     ->name('students.skill-ratings.index');
                 Route::get('skill-types', [StudentSkillRatingController::class, 'types'])
