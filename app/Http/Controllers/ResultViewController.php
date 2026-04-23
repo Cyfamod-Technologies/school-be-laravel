@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\ClassSection;
 use App\Models\ClassTeacher;
+use App\Models\CommentRange;
 use App\Models\GradeRange;
 use App\Models\GradingScale;
 use App\Models\PositionRange;
@@ -682,13 +683,17 @@ class ResultViewController extends Controller
 
         if ($teacherComment === null || trim((string) $teacherComment) === '') {
             $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $student,
+                $session?->id
             );
         }
 
         if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null
+                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $student,
+                $session?->id
             );
         }
 
@@ -882,8 +887,8 @@ class ResultViewController extends Controller
             $positionRanges
         );
 
-        $teacherComment = $this->generateTeacherComment($overallStats['average']);
-        $principalComment = $this->generatePrincipalComment($overallStats['average']);
+        $teacherComment = $this->generateTeacherComment($overallStats['average'], $student, $session->id);
+        $principalComment = $this->generatePrincipalComment($overallStats['average'], $student, $session->id);
         $signatoryTitle = $resultPageSettings['signatory_title'] ?? 'principal';
 
         $thirdTerm = $terms->firstWhere('term_number', 3);
@@ -1120,14 +1125,18 @@ class ResultViewController extends Controller
         $teacherComment = $termSummary?->overall_comment;
         if ($teacherComment === null || trim((string) $teacherComment) === '') {
             $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score
+                $termSummary?->average_score,
+                $student,
+                $session?->id
             );
         }
 
         $principalComment = $termSummary?->principal_comment;
         if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score
+                $termSummary?->average_score,
+                $student,
+                $session?->id
             );
         }
 
@@ -1170,12 +1179,21 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function generateTeacherComment(?float $average): string
+    private function generateTeacherComment(?float $average, ?Student $student = null, ?string $sessionId = null): string
     {
         if ($average === null) {
             return 'This student is good.';
         }
 
+        // Get comment ranges from database if student and sessionId are provided
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->teacher_comment))) {
+                return trim((string) $commentRange->teacher_comment);
+            }
+        }
+
+        // Fallback to default hardcoded comments
         if ($average >= 85) {
             return 'Excellent performance. Keep it up.';
         }
@@ -1195,12 +1213,21 @@ class ResultViewController extends Controller
         return 'Below expectation. Close monitoring and extra support are recommended.';
     }
 
-    private function generatePrincipalComment(?float $average): string
+    private function generatePrincipalComment(?float $average, ?Student $student = null, ?string $sessionId = null): string
     {
         if ($average === null) {
             return 'This student is hardworking.';
         }
 
+        // Get comment ranges from database if student and sessionId are provided
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->principal_comment))) {
+                return trim((string) $commentRange->principal_comment);
+            }
+        }
+
+        // Fallback to default hardcoded comments
         if ($average >= 85) {
             return 'An outstanding result. The school is proud of this performance.';
         }
@@ -1218,6 +1245,43 @@ class ResultViewController extends Controller
         }
 
         return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
+    }
+
+    private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
+    {
+        $defaultQuery = GradingScale::query()
+            ->where('school_id', $student->school_id)
+            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+
+        $gradeScale = null;
+
+        if ($sessionId) {
+            $gradeScale = (clone $defaultQuery)
+                ->where('session_id', $sessionId)
+                ->first();
+        }
+
+        if (! $gradeScale) {
+            $gradeScale = (clone $defaultQuery)
+                ->whereNull('session_id')
+                ->first();
+        }
+
+        if (! $gradeScale || $gradeScale->comment_ranges->isEmpty()) {
+            return null;
+        }
+
+        /** @var Collection<int, CommentRange> $ranges */
+        $ranges = $gradeScale->comment_ranges->sortBy('min_score')->values();
+
+        // Find the matching comment range for the score
+        foreach ($ranges as $range) {
+            if ($score >= (float) $range->min_score && $score <= (float) $range->max_score) {
+                return $range;
+            }
+        }
+
+        return null;
     }
 
     private function normalizeContextId(mixed $value): ?string

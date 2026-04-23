@@ -290,11 +290,11 @@ class StudentTermSummaryController extends Controller
         $principalComment = $termSummary?->principal_comment;
 
         if ($teacherComment === null || trim((string) $teacherComment) === '') {
-            $teacherComment = $this->generateTeacherComment($termSummary);
+            $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
         }
 
         if ($principalComment === null || trim((string) $principalComment) === '') {
-            $principalComment = $this->generatePrincipalComment($termSummary);
+            $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
         }
 
         return response()->json([
@@ -428,7 +428,7 @@ class StudentTermSummaryController extends Controller
         }
     }
 
-    private function generateTeacherComment(?TermSummary $summary): string
+    private function generateTeacherComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
     {
         if (! $summary || $summary->average_score === null) {
             return 'This student is good.';
@@ -436,6 +436,15 @@ class StudentTermSummaryController extends Controller
 
         $average = (float) $summary->average_score;
 
+        // Get comment ranges from database
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->teacher_comment))) {
+                return trim((string) $commentRange->teacher_comment);
+            }
+        }
+
+        // Fallback to default hardcoded comments
         if ($average >= 85) {
             return 'Excellent performance. Keep it up.';
         }
@@ -455,7 +464,7 @@ class StudentTermSummaryController extends Controller
         return 'Below expectation. Close monitoring and extra support are recommended.';
     }
 
-    private function generatePrincipalComment(?TermSummary $summary): string
+    private function generatePrincipalComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
     {
         if (! $summary || $summary->average_score === null) {
             return 'This student is hardworking.';
@@ -463,6 +472,15 @@ class StudentTermSummaryController extends Controller
 
         $average = (float) $summary->average_score;
 
+        // Get comment ranges from database
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->principal_comment))) {
+                return trim((string) $commentRange->principal_comment);
+            }
+        }
+
+        // Fallback to default hardcoded comments
         if ($average >= 85) {
             return 'An outstanding result. The school is proud of this performance.';
         }
@@ -480,6 +498,43 @@ class StudentTermSummaryController extends Controller
         }
 
         return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
+    }
+
+    private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
+    {
+        $defaultQuery = GradingScale::query()
+            ->where('school_id', $student->school_id)
+            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+
+        $gradeScale = null;
+
+        if ($sessionId) {
+            $gradeScale = (clone $defaultQuery)
+                ->where('session_id', $sessionId)
+                ->first();
+        }
+
+        if (! $gradeScale) {
+            $gradeScale = (clone $defaultQuery)
+                ->whereNull('session_id')
+                ->first();
+        }
+
+        if (! $gradeScale || $gradeScale->comment_ranges->isEmpty()) {
+            return null;
+        }
+
+        /** @var Collection<int, CommentRange> $ranges */
+        $ranges = $gradeScale->comment_ranges->sortBy('min_score')->values();
+
+        // Find the matching comment range for the score
+        foreach ($ranges as $range) {
+            if ($score >= (float) $range->min_score && $score <= (float) $range->max_score) {
+                return $range;
+            }
+        }
+
+        return null;
     }
 
     private function resolveCommentTemplates(Student $student, ?string $sessionId): array
