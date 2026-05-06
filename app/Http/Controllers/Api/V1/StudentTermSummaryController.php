@@ -445,23 +445,27 @@ class StudentTermSummaryController extends Controller
         }
 
         // Fallback to default hardcoded comments
-        if ($average >= 85) {
-            return 'Excellent performance. Keep it up.';
-        }
-
         if ($average >= 70) {
-            return 'Very good performance. Keep working hard.';
+            return 'An excellent performance. The student demonstrates strong understanding, active participation, and consistent effort in class. Keep striving for excellence.';
         }
 
-        if ($average >= 55) {
-            return 'Good effort. There is room for improvement.';
+        if ($average >= 60) {
+            return 'A very good performance. The student shows good understanding and participates well but can improve with more consistency.';
+        }
+
+        if ($average >= 50) {
+            return 'A good effort. The student has a fair grasp of concepts but needs to work harder to improve understanding and performance.';
         }
 
         if ($average >= 45) {
-            return 'Fair performance. Encourage more focus and hard work.';
+            return 'A fair performance. The student needs to pay more attention, participate actively, and put in extra effort to improve.';
         }
 
-        return 'Below expectation. Close monitoring and extra support are recommended.';
+        if ($average >= 40) {
+            return 'A weak pass. The student shows minimal understanding and must improve study habits and commitment.';
+        }
+
+        return 'A poor performance. The student needs serious improvement, more practice, and closer academic guidance.';
     }
 
     private function generatePrincipalComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
@@ -481,23 +485,27 @@ class StudentTermSummaryController extends Controller
         }
 
         // Fallback to default hardcoded comments
-        if ($average >= 85) {
-            return 'An outstanding result. The school is proud of this performance.';
-        }
-
         if ($average >= 70) {
-            return 'A very good result. Maintain this level of commitment.';
+            return 'An outstanding result. Keep up the excellent work and continue to be a good example to others.';
         }
 
-        if ($average >= 55) {
-            return 'A good result. Greater consistency will yield even better outcomes.';
+        if ($average >= 60) {
+            return 'A commendable performance. With a little more effort, you can achieve even greater success.';
+        }
+
+        if ($average >= 50) {
+            return 'A satisfactory performance. There is room for improvement. Work harder next term.';
         }
 
         if ($average >= 45) {
-            return 'A fair result. Increased effort and diligence are advised.';
+            return 'A fair result. You need to be more focused and committed to your studies.';
         }
 
-        return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
+        if ($average >= 40) {
+            return 'A marginal pass. Greater effort and seriousness are required for improvement.';
+        }
+
+        return 'An unsatisfactory performance. Immediate improvement is required through hard work and discipline.';
     }
 
     private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
