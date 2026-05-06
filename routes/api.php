@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\QuizAnswerController;
 use App\Http\Controllers\Api\V1\QuizResultController;
 use App\Http\Controllers\Api\V1\PermissionSeedController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
+use App\Http\Controllers\Api\V1\BroadsheetController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -202,6 +203,8 @@ Route::prefix('api/v1')->group(function () {
             ->name('results.bulk.print');
         Route::get('results/session/print', [ResultViewController::class, 'sessionBulkPrint'])
             ->name('results.session.print');
+        Route::get('broadsheet/print', [BroadsheetController::class, 'print'])
+            ->name('broadsheet.print');
         Route::prefix('students/{student}')
             ->whereUuid('student')
             ->group(function () {

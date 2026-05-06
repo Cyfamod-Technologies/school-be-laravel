@@ -678,23 +678,37 @@ class ResultViewController extends Controller
         if ($student->school_class && $student->school_class->result_show_position !== null) {
             $resultPageSettings['show_position'] = (bool) $student->school_class->result_show_position;
         }
-        $teacherComment = $termSummary?->overall_comment;
-        $principalComment = $termSummary?->principal_comment;
-
-        if ($teacherComment === null || trim((string) $teacherComment) === '') {
+        $useAutomaticComments = ($resultPageSettings['comment_mode'] ?? 'manual') === 'range';
+        if ($useAutomaticComments) {
             $teacherComment = $this->generateTeacherComment(
                 $termSummary?->average_score ?? $overallStats['average'] ?? null,
                 $student,
                 $session?->id
             );
-        }
-
-        if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment(
                 $termSummary?->average_score ?? $overallStats['average'] ?? null,
                 $student,
                 $session?->id
             );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            $principalComment = $termSummary?->principal_comment;
+
+            if ($teacherComment === null || trim((string) $teacherComment) === '') {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $student,
+                    $session?->id
+                );
+            }
+
+            if ($principalComment === null || trim((string) $principalComment) === '') {
+                $principalComment = $this->generatePrincipalComment(
+                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $student,
+                    $session?->id
+                );
+            }
         }
 
         $data = [
@@ -1121,23 +1135,37 @@ class ResultViewController extends Controller
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
         $resultPageSettings = $this->resolveResultPageSettings($student->school);
+        $useAutomaticComments = ($resultPageSettings['comment_mode'] ?? 'manual') === 'range';
 
-        $teacherComment = $termSummary?->overall_comment;
-        if ($teacherComment === null || trim((string) $teacherComment) === '') {
+        if ($useAutomaticComments) {
             $teacherComment = $this->generateTeacherComment(
                 $termSummary?->average_score,
                 $student,
                 $session?->id
             );
-        }
-
-        $principalComment = $termSummary?->principal_comment;
-        if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment(
                 $termSummary?->average_score,
                 $student,
                 $session?->id
             );
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            if ($teacherComment === null || trim((string) $teacherComment) === '') {
+                $teacherComment = $this->generateTeacherComment(
+                    $termSummary?->average_score,
+                    $student,
+                    $session?->id
+                );
+            }
+
+            $principalComment = $termSummary?->principal_comment;
+            if ($principalComment === null || trim((string) $principalComment) === '') {
+                $principalComment = $this->generatePrincipalComment(
+                    $termSummary?->average_score,
+                    $student,
+                    $session?->id
+                );
+            }
         }
 
         return [
@@ -1182,7 +1210,7 @@ class ResultViewController extends Controller
     private function generateTeacherComment(?float $average, ?Student $student = null, ?string $sessionId = null): string
     {
         if ($average === null) {
-            return 'This student is good.';
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
 
         // Get comment ranges from database if student and sessionId are provided
@@ -1220,7 +1248,7 @@ class ResultViewController extends Controller
     private function generatePrincipalComment(?float $average, ?Student $student = null, ?string $sessionId = null): string
     {
         if ($average === null) {
-            return 'This student is hardworking.';
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
 
         // Get comment ranges from database if student and sessionId are provided

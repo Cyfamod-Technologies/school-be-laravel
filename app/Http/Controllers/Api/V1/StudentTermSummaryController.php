@@ -284,17 +284,25 @@ class StudentTermSummaryController extends Controller
             ->where('term_id', $termId)
             ->first();
 
-        $commentTemplates = $this->resolveCommentTemplates($student, $sessionId);
+        $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+        $commentTemplates = $useAutomaticComments
+            ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
+            : $this->resolveCommentTemplates($student, $sessionId);
 
-        $teacherComment = $termSummary?->overall_comment;
-        $principalComment = $termSummary?->principal_comment;
-
-        if ($teacherComment === null || trim((string) $teacherComment) === '') {
+        if ($useAutomaticComments) {
             $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
-        }
-
-        if ($principalComment === null || trim((string) $principalComment) === '') {
             $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            $principalComment = $termSummary?->principal_comment;
+
+            if ($teacherComment === null || trim((string) $teacherComment) === '') {
+                $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
+            }
+
+            if ($principalComment === null || trim((string) $principalComment) === '') {
+                $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+            }
         }
 
         return response()->json([
@@ -382,10 +390,12 @@ class StudentTermSummaryController extends Controller
             $termSummary->principal_comment = null;
         }
 
-        if (array_key_exists('class_teacher_comment', $validated)) {
+        $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+
+        if (! $useAutomaticComments && array_key_exists('class_teacher_comment', $validated)) {
             $termSummary->overall_comment = $validated['class_teacher_comment'] ?? null;
         }
-        if (array_key_exists('principal_comment', $validated)) {
+        if (! $useAutomaticComments && array_key_exists('principal_comment', $validated)) {
             $termSummary->principal_comment = $validated['principal_comment'] ?? null;
         }
         if (array_key_exists('days_present', $validated)) {
@@ -396,16 +406,25 @@ class StudentTermSummaryController extends Controller
         }
         $termSummary->save();
 
-        $commentTemplates = $this->resolveCommentTemplates(
-            $student,
-            $validated['session_id'] ?? null
-        );
+        $commentTemplates = $useAutomaticComments
+            ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
+            : $this->resolveCommentTemplates(
+                $student,
+                $validated['session_id'] ?? null
+            );
+
+        $teacherComment = $useAutomaticComments
+            ? $this->generateTeacherComment($termSummary, $student, $validated['session_id'])
+            : $termSummary->overall_comment;
+        $principalComment = $useAutomaticComments
+            ? $this->generatePrincipalComment($termSummary, $student, $validated['session_id'])
+            : $termSummary->principal_comment;
 
         return response()->json([
             'message' => 'Comments updated successfully.',
             'data' => [
-                'class_teacher_comment' => $termSummary->overall_comment,
-                'principal_comment' => $termSummary->principal_comment,
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
                 'class_teacher_comment_options' => $commentTemplates['class_teacher_comment_options'],
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary->days_present,
@@ -428,10 +447,15 @@ class StudentTermSummaryController extends Controller
         }
     }
 
+    private function usesAutomaticCommentMode(Student $student): bool
+    {
+        return ($student->school?->result_comment_mode ?? 'manual') === 'range';
+    }
+
     private function generateTeacherComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
     {
         if (! $summary || $summary->average_score === null) {
-            return 'This student is good.';
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
 
         $average = (float) $summary->average_score;
@@ -471,7 +495,7 @@ class StudentTermSummaryController extends Controller
     private function generatePrincipalComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
     {
         if (! $summary || $summary->average_score === null) {
-            return 'This student is hardworking.';
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
 
         $average = (float) $summary->average_score;
