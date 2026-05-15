@@ -126,7 +126,12 @@ class StudentController extends Controller
                 $query->where('parent_id', $request->parent_id);
             })
             ->when($request->filled('status'), function ($query) use ($request) {
-                $query->where('status', strtolower($request->status));
+                $statuses = array_filter(array_map('strtolower', explode(',', $request->input('status'))));
+                if (count($statuses) === 1) {
+                    $query->where('status', reset($statuses));
+                } elseif (count($statuses) > 1) {
+                    $query->whereIn('status', array_values($statuses));
+                }
             })
             ->when($request->filled('sortBy'), function ($query) use ($request) {
                 $allowed = ['first_name', 'last_name', 'admission_no', 'created_at'];
