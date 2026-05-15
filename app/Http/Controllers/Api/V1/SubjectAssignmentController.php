@@ -9,6 +9,7 @@ use App\Models\Subject;
 use App\Models\SubjectAssignment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -97,8 +98,13 @@ class SubjectAssignmentController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"subject_id","school_class_id"},
+     *             required={"school_class_id"},
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
+     *             @OA\Property(
+     *                 property="subject_ids",
+     *                 type="array",
+     *                 @OA\Items(type="string", format="uuid")
+     *             ),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true)
@@ -120,39 +126,89 @@ class SubjectAssignmentController extends Controller
         }
 
         $validated = $request->validate([
-            'subject_id' => ['required', 'uuid'],
+            'subject_id' => ['nullable', 'uuid', 'required_without:subject_ids'],
+            'subject_ids' => ['nullable', 'array', 'min:1', 'required_without:subject_id'],
+            'subject_ids.*' => ['uuid', 'distinct'],
             'school_class_id' => ['required', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
         ]);
 
-        [$subject, $class, $classArm] = $this->resolveAssignmentEntities(
+        $subjectIds = collect($validated['subject_ids'] ?? [$validated['subject_id'] ?? null])
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        [$class, $classArm] = $this->resolveClassContext(
             $school->id,
-            $validated['subject_id'],
             $validated['school_class_id'],
             $validated['class_arm_id'] ?? null
         );
 
-        if ($this->assignmentExists($subject->id, $class->id, $classArm?->id)) {
+        $subjectsById = $subjectIds->mapWithKeys(
+            fn (string $subjectId) => [$subjectId => $this->resolveSubject($school->id, $subjectId)]
+        );
+
+        $createdAssignmentIds = [];
+        $skippedSubjectIds = [];
+
+        DB::transaction(function () use ($subjectIds, $subjectsById, $class, $classArm, &$createdAssignmentIds, &$skippedSubjectIds): void {
+            foreach ($subjectIds as $subjectId) {
+                /** @var \App\Models\Subject $subject */
+                $subject = $subjectsById->get($subjectId);
+
+                if ($this->assignmentExists($subject->id, $class->id, $classArm?->id)) {
+                    $skippedSubjectIds[] = $subject->id;
+                    continue;
+                }
+
+                $assignment = SubjectAssignment::create([
+                    'id' => (string) Str::uuid(),
+                    'subject_id' => $subject->id,
+                    'school_class_id' => $class->id,
+                    'class_arm_id' => $classArm?->id,
+                    'class_section_id' => null,
+                ]);
+
+                $createdAssignmentIds[] = $assignment->id;
+            }
+        });
+
+        if (count($createdAssignmentIds) === 0) {
             return response()->json([
-                'message' => 'Subject is already assigned to the selected class context.',
+                'message' => 'All selected subjects are already assigned to the selected class context.',
+                'created_count' => 0,
+                'skipped_count' => count($skippedSubjectIds),
+                'skipped_subject_ids' => $skippedSubjectIds,
             ], 422);
         }
 
-        $assignment = SubjectAssignment::create([
-            'id' => (string) Str::uuid(),
-            'subject_id' => $subject->id,
-            'school_class_id' => $class->id,
-            'class_arm_id' => $classArm?->id,
-            'class_section_id' => null,
-        ]);
-
-        return response()->json([
-            'message' => 'Subject assigned successfully.',
-            'data' => $assignment->load([
+        $createdAssignments = SubjectAssignment::query()
+            ->with([
                 'subject:id,name,code',
                 'school_class:id,name',
                 'class_arm:id,name',
-            ]),
+            ])
+            ->whereIn('id', $createdAssignmentIds)
+            ->get()
+            ->sortBy(fn (SubjectAssignment $assignment) => array_search($assignment->id, $createdAssignmentIds, true))
+            ->values();
+
+        if ($subjectIds->count() === 1 && count($skippedSubjectIds) === 0) {
+            return response()->json([
+                'message' => 'Subject assigned successfully.',
+                'data' => $createdAssignments->first(),
+            ], 201);
+        }
+
+        return response()->json([
+            'message' => count($createdAssignmentIds) === 1
+                ? 'Assigned 1 subject successfully.'
+                : 'Assigned '.count($createdAssignmentIds).' subjects successfully.',
+            'data' => $createdAssignments,
+            'created_count' => count($createdAssignmentIds),
+            'skipped_count' => count($skippedSubjectIds),
+            'skipped_subject_ids' => $skippedSubjectIds,
         ], 201);
     }
     public function show(Request $request, SubjectAssignment $assignment)
@@ -284,20 +340,8 @@ class SubjectAssignmentController extends Controller
         ]);
     }
 
-    private function resolveAssignmentEntities(
-        string $schoolId,
-        string $subjectId,
-        string $classId,
-        ?string $classArmId
-    ): array {
-        $subject = Subject::where('id', $subjectId)
-            ->where('school_id', $schoolId)
-            ->first();
-
-        if (! $subject) {
-            abort(404, 'Subject not found for the authenticated school.');
-        }
-
+    private function resolveClassContext(string $schoolId, string $classId, ?string $classArmId): array
+    {
         $class = SchoolClass::where('id', $classId)
             ->where('school_id', $schoolId)
             ->first();
@@ -317,7 +361,20 @@ class SubjectAssignmentController extends Controller
             }
         }
 
-        return [$subject, $class, $classArm];
+        return [$class, $classArm];
+    }
+
+    private function resolveSubject(string $schoolId, string $subjectId): Subject
+    {
+        $subject = Subject::where('id', $subjectId)
+            ->where('school_id', $schoolId)
+            ->first();
+
+        if (! $subject) {
+            abort(404, 'Subject not found for the authenticated school.');
+        }
+
+        return $subject;
     }
 
     private function assignmentExists(string $subjectId, string $classId, ?string $classArmId, ?string $ignoreId = null): bool
