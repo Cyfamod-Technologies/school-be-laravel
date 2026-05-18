@@ -790,13 +790,13 @@ class StudentBulkUploadService
         );
 
         $studentData['admission_date'] = $this->validateDate(
-            $getValue('student.admission_date', true),
+            $getValue('student.admission_date', false),
             $rowNumber,
             $columns['student.admission_date']['header'],
             $errors
         );
 
-        $status = strtolower((string) $getValue('student.status', true));
+        $status = strtolower((string) $getValue('student.status', false));
         if ($status && ! in_array($status, self::STATUS_OPTIONS, true)) {
             $errors[] = [
                 'row' => $rowNumber,
