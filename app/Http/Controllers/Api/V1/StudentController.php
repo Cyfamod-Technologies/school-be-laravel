@@ -800,6 +800,7 @@ class StudentController extends Controller
 
         return Student::query()
             ->where('school_id', $schoolId)
+            ->where('status', 'active')
             ->when($excludeStudentId, function ($query) use ($excludeStudentId) {
                 $query->where('id', '!=', $excludeStudentId);
             })
