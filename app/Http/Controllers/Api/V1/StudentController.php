@@ -290,10 +290,7 @@ class StudentController extends Controller
             $studentData['admission_no'] = $value === '' ? null : $value;
         }
 
-        $duplicateStudent = $this->findDuplicateStudent($school->id, $studentData);
-        if ($duplicateStudent) {
-            return $this->duplicateStudentResponse($duplicateStudent);
-        }
+        // Duplicate-name blocking is temporarily disabled.
 
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
@@ -504,10 +501,7 @@ class StudentController extends Controller
             }
         }
 
-        $duplicateStudent = $this->findDuplicateStudent($student->school_id, $validated, $student->id);
-        if ($duplicateStudent) {
-            return $this->duplicateStudentResponse($duplicateStudent);
-        }
+        // Duplicate-name blocking is temporarily disabled.
 
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
