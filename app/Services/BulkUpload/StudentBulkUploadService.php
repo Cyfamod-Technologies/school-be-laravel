@@ -419,7 +419,9 @@ class StudentBulkUploadService
                 $studentData['parent_id'] = $parent?->id;
                 $studentData['portal_password'] = '123456';
                 $session = Session::findOrFail($studentData['current_session_id']);
-                $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
+                if (empty($studentData['admission_no'])) {
+                    $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
+                }
 
                 $student = Student::create($studentData);
                 $createdStudents++;
@@ -763,7 +765,7 @@ class StudentBulkUploadService
         };
 
         $rawAdmissionNo = trim((string) ($getValue('student.admission_no') ?? ''));
-        $studentData['admission_no'] = null;
+        $studentData['admission_no'] = $rawAdmissionNo !== '' ? $rawAdmissionNo : null;
         $studentData['first_name'] = $getValue('student.first_name', true);
         $studentData['middle_name'] = $getValue('student.middle_name');
         $studentData['last_name'] = $getValue('student.last_name', true);
