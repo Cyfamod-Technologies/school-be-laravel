@@ -207,7 +207,7 @@ it('returns a friendly duplicate admission number message during commit', functi
         'current_session_id' => $this->session->id,
         'current_term_id' => $this->term->id,
         'school_class_id' => $this->class->id,
-        'class_arm_id' => $this->arm->id,
+        'class_arm_id' => null,
         'class_section_id' => $this->section->id,
         'parent_id' => null,
         'portal_password' => '123456',
@@ -236,7 +236,8 @@ it('returns a friendly duplicate admission number message during commit', functi
         ->assertJsonPath('errors.0.column', 'Admission Number');
 
     expect($commitResponse->json('message'))
-        ->toContain('admission number 22622 already exists')
+        ->toContain('Admission number 22622 is already used')
+        ->toContain('Grade 6 / None')
         ->toContain('Grade 6 / Arm B');
 });
 

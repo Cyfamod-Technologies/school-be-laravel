@@ -1293,27 +1293,17 @@ class StudentBulkUploadService
             return;
         }
 
-        $className = '';
-        if (! empty($studentData['school_class_id'])) {
-            $class = SchoolClass::find($studentData['school_class_id']);
-            $className = $class?->name ?? '';
-            if ($class && ! empty($studentData['class_arm_id'])) {
-                $arm = $class->class_arms()->find($studentData['class_arm_id']);
-                if ($arm) {
-                    $className = trim($className . ' / ' . $arm->name, ' /');
-                }
-            }
-        }
-
         $existingName = trim("{$existingStudent->first_name} {$existingStudent->last_name}");
-        $message = "A student with admission number {$admissionNo} already exists";
+        $existingClassContext = $this->formatStudentClassContext($existingStudent);
+        $incomingClassContext = $this->formatIncomingClassContext($studentData);
+
+        $message = "Admission number {$admissionNo} is already used by an existing student record";
         if ($existingName !== '') {
             $message .= " as {$existingName}";
         }
-        if ($className !== '') {
-            $message .= " in {$className}";
-        }
-        $message .= '. Change the admission number in the CSV or choose Overwrite for that row.';
+        $message .= " in {$existingClassContext}.";
+        $message .= " The CSV row you are uploading is for {$incomingClassContext}.";
+        $message .= ' Change the admission number in the CSV or choose Overwrite for that row if you want to update the existing student.';
 
         throw new BulkUploadValidationException(
             [[
@@ -1324,6 +1314,40 @@ class StudentBulkUploadService
             null,
             $message
         );
+    }
+
+    private function formatStudentClassContext(Student $student): string
+    {
+        $student->loadMissing(['school_class', 'class_arm']);
+
+        $className = $student->school_class?->name ?: 'No class';
+        $armName = $student->class_arm?->name ?: 'None';
+
+        return "{$className} / {$armName}";
+    }
+
+    /**
+     * @param array<string, mixed> $studentData
+     */
+    private function formatIncomingClassContext(array $studentData): string
+    {
+        $className = 'No class';
+        $armName = 'None';
+
+        if (! empty($studentData['school_class_id'])) {
+            $class = SchoolClass::find($studentData['school_class_id']);
+            if ($class) {
+                $className = $class->name;
+                if (! empty($studentData['class_arm_id'])) {
+                    $arm = $class->class_arms()->find($studentData['class_arm_id']);
+                    if ($arm) {
+                        $armName = $arm->name;
+                    }
+                }
+            }
+        }
+
+        return "{$className} / {$armName}";
     }
 
     private function normalizeHeaderValue(string $value): string
