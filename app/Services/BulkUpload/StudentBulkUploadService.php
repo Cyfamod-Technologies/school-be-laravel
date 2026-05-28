@@ -351,7 +351,7 @@ class StudentBulkUploadService
     /**
      * @return array<string, mixed>
      */
-    public function commit(BulkUploadBatch $batch, array $decisions = []): array
+    public function commit(BulkUploadBatch $batch, array $decisions = [], array $rowUpdates = []): array
     {
         if ($batch->type !== self::BULK_TYPE) {
             throw new \InvalidArgumentException('Invalid batch type supplied.');
@@ -380,9 +380,11 @@ class StudentBulkUploadService
         $createdParents = 0;
 
         $decisionMap = $this->normalizeDuplicateDecisions($decisions);
+        $rowUpdateMap = $this->normalizeRowUpdates($rowUpdates);
 
-        DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $user, $batch, $decisionMap) {
+        DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $user, $batch, $decisionMap, $rowUpdateMap) {
             foreach ($rows as $row) {
+                $row = $this->applyRowUpdates($row, $rowUpdateMap);
                 $action = $this->resolveDuplicateAction($row, $decisionMap);
 
                 if ($action === 'skip') {
@@ -1226,6 +1228,61 @@ class StudentBulkUploadService
         return $normalized;
     }
 
+    /**
+     * @param array<string, mixed> $rowUpdates
+     * @return array<string, array<string, string>>
+     */
+    private function normalizeRowUpdates(array $rowUpdates): array
+    {
+        $normalized = [];
+
+        foreach ($rowUpdates as $rowKey => $update) {
+            if (! is_array($update)) {
+                continue;
+            }
+
+            $admissionNo = isset($update['admission_no'])
+                ? trim((string) $update['admission_no'])
+                : '';
+
+            if ($admissionNo === '') {
+                continue;
+            }
+
+            $normalized[(string) $rowKey] = [
+                'admission_no' => $admissionNo,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, array<string, string>> $rowUpdateMap
+     * @return array<string, mixed>
+     */
+    private function applyRowUpdates(array $row, array $rowUpdateMap): array
+    {
+        $rowKey = (string) ($row['source_row'] ?? '');
+        if ($rowKey === '' || ! array_key_exists($rowKey, $rowUpdateMap)) {
+            return $row;
+        }
+
+        $update = $rowUpdateMap[$rowKey];
+        if (! empty($update['admission_no'])) {
+            $row['student']['admission_no'] = $update['admission_no'];
+            $row['admission_no_input'] = $update['admission_no'];
+
+            if (($row['duplicate']['admission_no'] ?? null) !== $update['admission_no']) {
+                $row['duplicate'] = null;
+                $row['duplicate_action'] = 'create';
+            }
+        }
+
+        return $row;
+    }
+
     private function resolveDuplicateAction(array $row, array $decisionMap): string
     {
         $rowKey = (string) ($row['source_row'] ?? '');
@@ -1296,8 +1353,9 @@ class StudentBulkUploadService
         $existingName = trim("{$existingStudent->first_name} {$existingStudent->last_name}");
         $existingClassContext = $this->formatStudentClassContext($existingStudent);
         $incomingClassContext = $this->formatIncomingClassContext($studentData);
+        $rowNumber = $row['source_row'] ?? '-';
 
-        $message = "Admission number {$admissionNo} is already used by an existing student record";
+        $message = "CSV row {$rowNumber}: admission number {$admissionNo} is already used by an existing student record";
         if ($existingName !== '') {
             $message .= " as {$existingName}";
         }

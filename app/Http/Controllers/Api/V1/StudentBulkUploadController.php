@@ -140,9 +140,13 @@ class StudentBulkUploadController extends Controller
         if (! is_array($decisions)) {
             $decisions = [];
         }
+        $rowUpdates = $request->input('row_updates', []);
+        if (! is_array($rowUpdates)) {
+            $rowUpdates = [];
+        }
 
         try {
-            $result = $this->service->commit($batch, $decisions);
+            $result = $this->service->commit($batch, $decisions, $rowUpdates);
         } catch (BulkUploadValidationException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
