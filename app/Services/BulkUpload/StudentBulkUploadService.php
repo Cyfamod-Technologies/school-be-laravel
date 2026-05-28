@@ -1193,7 +1193,7 @@ class StudentBulkUploadService
             }
 
             $row['duplicate'] = $duplicate;
-            $row['duplicate_action'] = $duplicate ? 'skip' : 'create';
+            $row['duplicate_action'] = $duplicate ? 'allow' : 'create';
         }
         unset($row);
     }
