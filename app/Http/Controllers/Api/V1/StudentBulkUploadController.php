@@ -141,7 +141,15 @@ class StudentBulkUploadController extends Controller
             $decisions = [];
         }
 
-        $result = $this->service->commit($batch, $decisions);
+        try {
+            $result = $this->service->commit($batch, $decisions);
+        } catch (BulkUploadValidationException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+                'error_csv' => null,
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Students uploaded successfully.',

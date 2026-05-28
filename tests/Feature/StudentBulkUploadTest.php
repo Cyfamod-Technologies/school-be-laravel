@@ -185,6 +185,61 @@ it('returns all validated rows in the bulk upload preview', function () {
         ->assertJsonCount(12, 'preview_rows');
 });
 
+it('returns a friendly duplicate admission number message during commit', function () {
+    Student::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'admission_no' => '22622',
+        'first_name' => 'Existing',
+        'middle_name' => '',
+        'last_name' => 'Student',
+        'gender' => 'M',
+        'date_of_birth' => '2011-08-26',
+        'admission_date' => '2026-04-14',
+        'status' => 'active',
+        'nationality' => 'Nigerian',
+        'state_of_origin' => 'Niger',
+        'lga_of_origin' => 'Bida',
+        'house' => null,
+        'club' => null,
+        'address' => '',
+        'medical_information' => '',
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->arm->id,
+        'class_section_id' => $this->section->id,
+        'parent_id' => null,
+        'portal_password' => '123456',
+    ]);
+
+    $csv = implode("\n", [
+        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
+        '22622,ABDULKADIR,,MUHAMMAD,M,2011-08-26,2026-04-14,active,Nigerian,Niger,Bida,,, ,,2025/2026,First Term,Grade 6,Arm B,Section Blue,Grace,Okafor,grace.okafor@example.test,08020000000,Market Road,Trader,Nigerian,Niger,Bida',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('students.csv', $csv);
+
+    $previewResponse = post(route('students.bulk.preview'), [
+        'file' => $file,
+    ]);
+
+    $batchId = $previewResponse->json('batch_id');
+
+    $commitResponse = postJson(route('students.bulk.commit', $batchId), [
+        'decisions' => [
+            4 => 'allow',
+        ],
+    ]);
+
+    $commitResponse->assertStatus(422)
+        ->assertJsonPath('errors.0.column', 'Admission Number');
+
+    expect($commitResponse->json('message'))
+        ->toContain('admission number 22622 already exists')
+        ->toContain('Grade 6 / Arm B');
+});
+
 it('returns validation errors with downloadable csv when data is invalid', function () {
     $csv = implode("\n", [
         'Admission Number,First Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Parent First Name,Parent Last Name,Parent Email',

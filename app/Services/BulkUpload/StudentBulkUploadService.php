@@ -422,6 +422,8 @@ class StudentBulkUploadService
                     $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
                 }
 
+                $this->assertAdmissionNumberIsAvailable($school, $row, $studentData);
+
                 $student = Student::create($studentData);
                 $createdStudents++;
 
@@ -1268,6 +1270,60 @@ class StudentBulkUploadService
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $studentData
+     *
+     * @throws BulkUploadValidationException
+     */
+    private function assertAdmissionNumberIsAvailable(School $school, array $row, array $studentData): void
+    {
+        $admissionNo = trim((string) ($studentData['admission_no'] ?? ''));
+        if ($admissionNo === '') {
+            return;
+        }
+
+        $existingStudent = Student::query()
+            ->where('admission_no', $admissionNo)
+            ->first();
+
+        if (! $existingStudent) {
+            return;
+        }
+
+        $className = '';
+        if (! empty($studentData['school_class_id'])) {
+            $class = SchoolClass::find($studentData['school_class_id']);
+            $className = $class?->name ?? '';
+            if ($class && ! empty($studentData['class_arm_id'])) {
+                $arm = $class->class_arms()->find($studentData['class_arm_id']);
+                if ($arm) {
+                    $className = trim($className . ' / ' . $arm->name, ' /');
+                }
+            }
+        }
+
+        $existingName = trim("{$existingStudent->first_name} {$existingStudent->last_name}");
+        $message = "A student with admission number {$admissionNo} already exists";
+        if ($existingName !== '') {
+            $message .= " as {$existingName}";
+        }
+        if ($className !== '') {
+            $message .= " in {$className}";
+        }
+        $message .= '. Change the admission number in the CSV or choose Overwrite for that row.';
+
+        throw new BulkUploadValidationException(
+            [[
+                'row' => $row['source_row'] ?? '-',
+                'column' => 'Admission Number',
+                'message' => $message,
+            ]],
+            null,
+            $message
+        );
     }
 
     private function normalizeHeaderValue(string $value): string
