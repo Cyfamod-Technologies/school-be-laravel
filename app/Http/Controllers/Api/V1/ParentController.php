@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\SchoolParent;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -141,23 +143,21 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,NULL,id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:users,email',
+            'email' => 'nullable|email',
         ]);
 
-        $user = \App\Models\User::create([
-            'id' => (string) Str::uuid(),
-            'name' => $request->first_name . ' ' . $request->last_name,
-            'email' => $request->email,
-            'password' => bcrypt($request->first_name),
-            'school_id' => $request->user()->school_id,
-            'role' => 'parent',
-            'phone' => $request->phone,
-            'address' => $request->address,
-            'occupation' => $request->occupation,
-            'nationality' => $request->nationality,
-            'state_of_origin' => $request->state_of_origin,
-            'local_government_area' => $request->local_government_area,
-        ]);
+        $user = $this->resolveParentUser($request);
+
+        $existingParent = SchoolParent::query()
+            ->where('school_id', $request->user()->school_id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existingParent) {
+            throw ValidationException::withMessages([
+                'email' => ['A parent record already exists for this email in the current school.'],
+            ]);
+        }
 
         $parentRole = Role::query()->updateOrCreate(
             [
@@ -300,21 +300,45 @@ class ParentController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'phone' => 'required|string|unique:parents,phone,' . $parent->id . ',id,school_id,' . $request->user()->school_id,
-            'email' => 'nullable|email|unique:users,email,' . $parent->user_id,
+            'email' => 'nullable|email',
         ]);
 
-        $parent->user->update([
-            'name' => $request->first_name . ' ' . $request->last_name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'address' => $request->address,
-            'occupation' => $request->occupation,
-            'nationality' => $request->nationality,
-            'state_of_origin' => $request->state_of_origin,
-            'local_government_area' => $request->local_government_area,
-        ]);
+        $user = $this->resolveParentUser($request, $parent);
 
-        $parent->update($request->all());
+        if ($user->id !== $parent->user_id) {
+            $conflictingParent = SchoolParent::query()
+                ->where('school_id', $request->user()->school_id)
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $parent->id)
+                ->first();
+
+            if ($conflictingParent) {
+                throw ValidationException::withMessages([
+                    'email' => ['A parent record already exists for this email in the current school.'],
+                ]);
+            }
+        }
+
+        $parentRole = Role::query()->updateOrCreate(
+            [
+                'name' => 'parent',
+                'school_id' => $request->user()->school_id,
+            ],
+            [
+                'guard_name' => config('permission.default_guard', 'sanctum'),
+                'description' => 'Parent or guardian',
+            ]
+        );
+
+        $this->withTeamContext($request->user()->school_id, function () use ($user, $parentRole) {
+            if (! $user->hasRole($parentRole)) {
+                $user->assignRole($parentRole);
+            }
+        });
+
+        $parent->update(array_merge($request->all(), [
+            'user_id' => $user->id,
+        ]));
 
         return response()->json(
             $parent->fresh()->loadMissing('user')->loadCount('students')
@@ -368,10 +392,60 @@ class ParentController extends Controller
             return response()->json(['message' => 'Cannot delete parent with linked students.'], 409);
         }
 
+        $user = $parent->user;
         $parent->delete();
-        $parent->user()->delete();
+
+        if (
+            $user &&
+            $user->role === 'parent' &&
+            ! SchoolParent::query()->where('user_id', $user->id)->exists()
+        ) {
+            $user->delete();
+        }
 
         return response()->json(null, 204);
+    }
+
+    private function resolveParentUser(Request $request, ?SchoolParent $existingParent = null): User
+    {
+        $email = $request->input('email');
+        $user = null;
+
+        if ($email) {
+            $user = User::query()->where('email', $email)->first();
+
+            if ($user && $user->school_id !== $request->user()->school_id) {
+                throw ValidationException::withMessages([
+                    'email' => ['This email belongs to a user in another school.'],
+                ]);
+            }
+        }
+
+        if (! $user) {
+            $user = $existingParent?->user;
+        }
+
+        if (! $user) {
+            $user = new User([
+                'id' => (string) Str::uuid(),
+                'password' => bcrypt($request->first_name),
+            ]);
+        }
+
+        $user->name = $request->first_name . ' ' . $request->last_name;
+        $user->email = $email;
+        $user->school_id = $request->user()->school_id;
+        $user->status = $user->status ?: 'active';
+        $user->role = $user->exists ? ($user->role ?: 'parent') : 'parent';
+        $user->phone = $request->phone;
+        $user->address = $request->address;
+        $user->occupation = $request->occupation;
+        $user->nationality = $request->nationality;
+        $user->state_of_origin = $request->state_of_origin;
+        $user->local_government_area = $request->local_government_area;
+        $user->save();
+
+        return $user;
     }
 
     /**

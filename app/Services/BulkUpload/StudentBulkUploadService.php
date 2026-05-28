@@ -946,12 +946,6 @@ class StudentBulkUploadService
                                     'column' => $columns['parent.email']['header'],
                                     'message' => 'Email already exists in another school.',
                                 ];
-                            } elseif (! $existingUser->hasRole('parent') && $existingUser->role !== 'parent') {
-                                $errors[] = [
-                                    'row' => $rowNumber,
-                                    'column' => $columns['parent.email']['header'],
-                                    'message' => 'Email already in use by a non-parent account.',
-                                ];
                             }
                         }
                     }
@@ -1136,7 +1130,7 @@ class StudentBulkUploadService
         }
 
         $user->name = trim("{$parentData['first_name']} {$parentData['last_name']}");
-        $user->role = 'parent';
+        $user->role = $user->exists ? ($user->role ?: 'parent') : 'parent';
         $user->status = 'active';
         $user->school_id = $school->id;
         $user->phone = $parentData['phone'];
