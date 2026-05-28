@@ -273,6 +273,9 @@ class StudentBulkUploadService
                 $rowData['student.class_arm_id'] = $preselectedArm->id;
             }
             $rowData = $this->applyPreviewRowUpdates($rowData, $rowNumber, $normalizedRowUpdates);
+            if ($this->isRowMarkedDeleted((string) $rowNumber, $normalizedRowUpdates)) {
+                continue;
+            }
 
             [$rowPrepared, $rowErrors] = $this->validateRow(
                 $rowNumber,
@@ -384,6 +387,12 @@ class StudentBulkUploadService
 
         DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $user, $batch, $decisionMap, $rowUpdateMap) {
             foreach ($rows as $row) {
+                $rowKey = (string) ($row['source_row'] ?? '');
+                if ($rowKey !== '' && $this->isRowMarkedDeleted($rowKey, $rowUpdateMap)) {
+                    $skippedRows++;
+                    continue;
+                }
+
                 $row = $this->applyRowUpdates($row, $rowUpdateMap);
                 $action = $this->resolveDuplicateAction($row, $decisionMap);
 
@@ -1296,7 +1305,7 @@ class StudentBulkUploadService
 
     /**
      * @param array<string, mixed> $rowUpdates
-     * @return array<string, array<string, string>>
+     * @return array<string, array<string, mixed>>
      */
     private function normalizeRowUpdates(array $rowUpdates): array
     {
@@ -1310,14 +1319,19 @@ class StudentBulkUploadService
             $admissionNo = isset($update['admission_no'])
                 ? trim((string) $update['admission_no'])
                 : '';
+            $deleted = filter_var($update['deleted'] ?? false, FILTER_VALIDATE_BOOL);
 
-            if ($admissionNo === '') {
+            if ($admissionNo === '' && ! $deleted) {
                 continue;
             }
 
-            $normalized[(string) $rowKey] = [
-                'admission_no' => $admissionNo,
-            ];
+            $normalized[(string) $rowKey] = [];
+            if ($admissionNo !== '') {
+                $normalized[(string) $rowKey]['admission_no'] = $admissionNo;
+            }
+            if ($deleted) {
+                $normalized[(string) $rowKey]['deleted'] = true;
+            }
         }
 
         return $normalized;
@@ -1325,7 +1339,7 @@ class StudentBulkUploadService
 
     /**
      * @param array<string, mixed> $rowData
-     * @param array<string, array<string, string>> $rowUpdateMap
+     * @param array<string, array<string, mixed>> $rowUpdateMap
      * @return array<string, mixed>
      */
     private function applyPreviewRowUpdates(array $rowData, int $rowNumber, array $rowUpdateMap): array
@@ -1345,7 +1359,7 @@ class StudentBulkUploadService
 
     /**
      * @param array<string, mixed> $row
-     * @param array<string, array<string, string>> $rowUpdateMap
+     * @param array<string, array<string, mixed>> $rowUpdateMap
      * @return array<string, mixed>
      */
     private function applyRowUpdates(array $row, array $rowUpdateMap): array
@@ -1367,6 +1381,14 @@ class StudentBulkUploadService
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowUpdateMap
+     */
+    private function isRowMarkedDeleted(string $rowKey, array $rowUpdateMap): bool
+    {
+        return (bool) ($rowUpdateMap[$rowKey]['deleted'] ?? false);
     }
 
     private function resolveDuplicateAction(array $row, array $decisionMap): string
