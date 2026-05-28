@@ -15,6 +15,15 @@ class BulkUploadValidationException extends Exception
         private readonly array $previewRows = [],
         string $message = 'Bulk upload validation failed.'
     ) {
+        if (
+            $message === 'Bulk upload validation failed.'
+            && isset($errors[0]['message'])
+            && is_string($errors[0]['message'])
+            && trim($errors[0]['message']) !== ''
+        ) {
+            $message = $errors[0]['message'];
+        }
+
         parent::__construct($message, 422);
     }
 
