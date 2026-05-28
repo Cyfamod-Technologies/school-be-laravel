@@ -120,7 +120,8 @@ it('validates and commits a bulk student upload', function () {
     ]);
 
     $previewResponse->assertOk()
-        ->assertJsonPath('summary.total_rows', 1);
+        ->assertJsonPath('summary.total_rows', 1)
+        ->assertJsonCount(1, 'preview_rows');
 
     $batchId = $previewResponse->json('batch_id');
 
@@ -132,6 +133,56 @@ it('validates and commits a bulk student upload', function () {
 
     expect(Student::where('school_id', $this->school->id)->count())->toBe(1);
     expect(StudentEnrollment::count())->toBe(1);
+});
+
+it('returns all validated rows in the bulk upload preview', function () {
+    $rows = [
+        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
+    ];
+
+    for ($index = 1; $index <= 12; $index++) {
+        $rows[] = implode(',', [
+            sprintf('2025/%03d', $index),
+            "Student{$index}",
+            '',
+            "Lastname{$index}",
+            'M',
+            '2012-01-02',
+            '2024-09-01',
+            'active',
+            'Nigerian',
+            'Anambra',
+            'Onitsha',
+            'Red',
+            'Music',
+            "{$index} Unity Close",
+            '',
+            '2025/2026',
+            'First Term',
+            'Grade 6',
+            'Arm B',
+            'Section Blue',
+            "Parent{$index}",
+            "Guardian{$index}",
+            "parent{$index}@example.test",
+            '08020000000',
+            'Market Road',
+            'Trader',
+            'Nigerian',
+            'Anambra',
+            'Onitsha',
+        ]);
+    }
+
+    $file = UploadedFile::fake()->createWithContent('students.csv', implode("\n", $rows));
+
+    $previewResponse = post(route('students.bulk.preview'), [
+        'file' => $file,
+    ]);
+
+    $previewResponse->assertOk()
+        ->assertJsonPath('summary.total_rows', 12)
+        ->assertJsonCount(12, 'preview_rows');
 });
 
 it('returns validation errors with downloadable csv when data is invalid', function () {

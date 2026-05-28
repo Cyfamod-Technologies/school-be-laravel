@@ -317,7 +317,6 @@ class StudentBulkUploadService
         ]);
 
         $previewRows = collect($preparedRows)
-            ->take(10)
             ->map(function (array $row) use ($sessions, $terms, $classes) {
                 $class = $classes->firstWhere('id', $row['student']['school_class_id']);
                 $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id']);
