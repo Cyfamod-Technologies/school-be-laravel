@@ -301,6 +301,27 @@ it('commits successfully when admission number is corrected during confirm', fun
     expect(Student::where('school_id', $this->school->id)->where('admission_no', '22623')->exists())->toBeTrue();
 });
 
+it('returns both csv rows when the file contains duplicate admission numbers', function () {
+    $csv = implode("\n", [
+        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
+        '22622,ABDULKADIR,,MUHAMMAD,M,2011-08-26,2026-04-14,active,Nigerian,Niger,Bida,,, ,,2025/2026,First Term,Grade 6,Arm B,Section Blue,Grace,Okafor,grace1.okafor@example.test,08020000000,Market Road,Trader,Nigerian,Niger,Bida',
+        '22622,ABDULKADIR,,SHEHU,M,2011-02-14,2026-04-14,active,Nigerian,Niger,Bida,,, ,,2025/2026,First Term,Grade 6,Arm B,Section Blue,Grace,Okafor,grace2.okafor@example.test,08020000001,Market Road,Trader,Nigerian,Niger,Bida',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('students.csv', $csv);
+
+    $response = post(route('students.bulk.preview'), ['file' => $file]);
+
+    $response->assertStatus(422)
+        ->assertJsonPath('errors.0.column', 'Admission Number')
+        ->assertJsonCount(2, 'preview_rows');
+
+    expect($response->json('message'))
+        ->toContain('This CSV contains two students with admission number 22622')
+        ->toContain('ABDULKADIR MUHAMMAD')
+        ->toContain('ABDULKADIR SHEHU');
+});
+
 it('returns validation errors with downloadable csv when data is invalid', function () {
     $csv = implode("\n", [
         'Admission Number,First Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Parent First Name,Parent Last Name,Parent Email',

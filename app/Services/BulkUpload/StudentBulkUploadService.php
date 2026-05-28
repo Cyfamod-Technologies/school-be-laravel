@@ -144,24 +144,24 @@ class StudentBulkUploadService
             }
 
             if (! $preselectedSession || ! $preselectedClass) {
-                throw new BulkUploadValidationException([], null, 'Invalid session or class selection.');
+                throw new BulkUploadValidationException([], null, [], 'Invalid session or class selection.');
             }
 
             if (! $preselectedTerm) {
-                throw new BulkUploadValidationException([], null, 'No term found for the selected session.');
+                throw new BulkUploadValidationException([], null, [], 'No term found for the selected session.');
             }
 
             if ($hasArmPreselection) {
                 $preselectedArm = $preselectedClass->class_arms->firstWhere('id', $preselected['class_arm_id']);
                 if (! $preselectedArm) {
-                    throw new BulkUploadValidationException([], null, 'Invalid class arm selection for the selected class.');
+                    throw new BulkUploadValidationException([], null, [], 'Invalid class arm selection for the selected class.');
                 }
             }
         }
 
         $handle = fopen($file->getRealPath(), 'r');
         if ($handle === false) {
-            throw new BulkUploadValidationException([], null, 'Unable to read the uploaded file.');
+            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded file.');
         }
 
         $delimiter = $this->detectDelimiter($handle);
@@ -198,7 +198,7 @@ class StudentBulkUploadService
 
         if (! $header) {
             fclose($handle);
-            throw new BulkUploadValidationException([], null, 'The uploaded file is empty or unreadable.');
+            throw new BulkUploadValidationException([], null, [], 'The uploaded file is empty or unreadable.');
         }
 
         $normalizedHeader = $this->normalizeHeaderRow($header);
@@ -232,6 +232,7 @@ class StudentBulkUploadService
             throw new BulkUploadValidationException(
                 [],
                 null,
+                [],
                 'The uploaded file is missing required columns: '
                 . implode(', ', $missingColumns)
                 . ". Detected headers: {$detectedSummary}. Delimiter: \"{$delimiter}\"."
@@ -240,9 +241,11 @@ class StudentBulkUploadService
 
         $rowNumber = $headerLineNumber;
         $preparedRows = [];
+        $previewCandidates = [];
         $errors = [];
 
         $inFileComposite = [];
+        $inFileAdmissionNumbers = [];
 
         while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $rowNumber++;
@@ -271,8 +274,11 @@ class StudentBulkUploadService
                 $terms,
                 $classes,
                 $school,
-                $inFileComposite
+                $inFileComposite,
+                $inFileAdmissionNumbers
             );
+
+            $previewCandidates[] = $rowPrepared;
 
             if (! empty($rowErrors)) {
                 array_push($errors, ...$rowErrors);
@@ -288,13 +294,18 @@ class StudentBulkUploadService
             $errorCsv = $this->buildErrorCsv([], $columns);
             throw new BulkUploadValidationException(
                 $errors ?: [['row' => '-', 'column' => '-', 'message' => 'No valid rows found in the file.']],
-                $errorCsv
+                $errorCsv,
+                $this->buildPreviewRows($previewCandidates, $sessions, $terms, $classes)
             );
         }
 
         if (! empty($errors)) {
             $errorCsv = $this->buildErrorCsv($errors, $columns, $preparedRows);
-            throw new BulkUploadValidationException($errors, $errorCsv);
+            throw new BulkUploadValidationException(
+                $errors,
+                $errorCsv,
+                $this->buildPreviewRows($previewCandidates, $sessions, $terms, $classes)
+            );
         }
 
         $this->attachDuplicates($school, $preparedRows);
@@ -316,26 +327,7 @@ class StudentBulkUploadService
             'expires_at' => now()->addHours(6),
         ]);
 
-        $previewRows = collect($preparedRows)
-            ->map(function (array $row) use ($sessions, $terms, $classes) {
-                $class = $classes->firstWhere('id', $row['student']['school_class_id']);
-                $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id']);
-                $parent = is_array($row['parent'] ?? null) ? $row['parent'] : [];
-                return [
-                    'name' => trim("{$row['student']['first_name']} {$row['student']['last_name']}"),
-                    'gender' => $row['student']['gender'],
-                    'admission_no' => $row['student']['admission_no'] ?: 'Auto-generated',
-                    'session' => optional($sessions->firstWhere('id', $row['student']['current_session_id']))->name,
-                    'term' => optional($terms->firstWhere('id', $row['student']['current_term_id']))->name,
-                    'class' => $class?->name,
-                    'class_arm' => $arm?->name,
-                    'parent_email' => $parent['email'] ?? '—',
-                    'duplicate' => $row['duplicate'] ?? null,
-                    'duplicate_action' => $row['duplicate_action'] ?? null,
-                    'source_row' => $row['source_row'] ?? null,
-                ];
-            })
-            ->values();
+        $previewRows = $this->buildPreviewRows($preparedRows, $sessions, $terms, $classes);
 
         return [
             'batch' => $batch,
@@ -737,6 +729,7 @@ class StudentBulkUploadService
      * @param  EloquentCollection<int, \App\Models\Term>  $terms
      * @param  Collection<int, SchoolClass>  $classes
      * @param  array<int, string>  $inFileComposite
+     * @param  array<string, array{row: int, name: string}>  $inFileAdmissionNumbers
      *
      * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}
      */
@@ -748,7 +741,8 @@ class StudentBulkUploadService
         EloquentCollection $terms,
         Collection $classes,
         School $school,
-        array &$inFileComposite
+        array &$inFileComposite,
+        array &$inFileAdmissionNumbers
     ): array {
         $errors = [];
 
@@ -963,6 +957,36 @@ class StudentBulkUploadService
             $inFileComposite[] = $compositeKey;
         }
 
+        if ($rawAdmissionNo !== '') {
+            $normalizedAdmissionNo = strtolower($rawAdmissionNo);
+            $currentStudentName = trim("{$studentData['first_name']} {$studentData['last_name']}");
+
+            if (array_key_exists($normalizedAdmissionNo, $inFileAdmissionNumbers)) {
+                $existingEntry = $inFileAdmissionNumbers[$normalizedAdmissionNo];
+                $existingName = $existingEntry['name'] !== '' ? $existingEntry['name'] : 'Unknown student';
+                $currentName = $currentStudentName !== '' ? $currentStudentName : 'Unknown student';
+                $duplicateMessage = "This CSV contains two students with admission number {$rawAdmissionNo}: "
+                    . "{$existingName} on row {$existingEntry['row']} and {$currentName} on row {$rowNumber}. "
+                    . 'Each student in the CSV must have a unique admission number.';
+
+                $errors[] = [
+                    'row' => $existingEntry['row'],
+                    'column' => $columns['student.admission_no']['header'],
+                    'message' => $duplicateMessage,
+                ];
+                $errors[] = [
+                    'row' => $rowNumber,
+                    'column' => $columns['student.admission_no']['header'],
+                    'message' => $duplicateMessage,
+                ];
+            } else {
+                $inFileAdmissionNumbers[$normalizedAdmissionNo] = [
+                    'row' => $rowNumber,
+                    'name' => $currentStudentName,
+                ];
+            }
+        }
+
         return [
             [
                 'student' => $studentData,
@@ -972,6 +996,40 @@ class StudentBulkUploadService
             ],
             $errors,
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildPreviewRows(
+        array $rows,
+        EloquentCollection $sessions,
+        EloquentCollection $terms,
+        Collection $classes
+    ): array {
+        return collect($rows)
+            ->map(function (array $row) use ($sessions, $terms, $classes) {
+                $class = $classes->firstWhere('id', $row['student']['school_class_id'] ?? null);
+                $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id'] ?? null);
+                $parent = is_array($row['parent'] ?? null) ? $row['parent'] : [];
+
+                return [
+                    'name' => trim((string) (($row['student']['first_name'] ?? '') . ' ' . ($row['student']['last_name'] ?? ''))),
+                    'gender' => $row['student']['gender'] ?? null,
+                    'admission_no' => ($row['student']['admission_no'] ?? null) ?: 'Auto-generated',
+                    'session' => optional($sessions->firstWhere('id', $row['student']['current_session_id'] ?? null))->name,
+                    'term' => optional($terms->firstWhere('id', $row['student']['current_term_id'] ?? null))->name,
+                    'class' => $class?->name,
+                    'class_arm' => $arm?->name,
+                    'parent_email' => $parent['email'] ?? '—',
+                    'duplicate' => $row['duplicate'] ?? null,
+                    'duplicate_action' => $row['duplicate_action'] ?? null,
+                    'source_row' => $row['source_row'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function validateDate(?string $value, int $rowNumber, string $columnLabel, array &$errors): ?string
@@ -1370,6 +1428,7 @@ class StudentBulkUploadService
                 'message' => $message,
             ]],
             null,
+            [],
             $message
         );
     }

@@ -103,6 +103,7 @@ class StudentBulkUploadController extends Controller
                 'message' => $exception->getMessage(),
                 'errors' => $exception->errors(),
                 'error_csv' => $exception->errorCsv() ? base64_encode($exception->errorCsv()) : null,
+                'preview_rows' => $exception->previewRows(),
             ], 422);
         }
 
