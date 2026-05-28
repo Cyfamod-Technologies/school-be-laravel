@@ -111,7 +111,13 @@ class StudentBulkUploadService
      *
      * @throws BulkUploadValidationException
      */
-    public function validateAndPrepare(School $school, UploadedFile $file, User $user, array $preselected = []): array
+    public function validateAndPrepare(
+        School $school,
+        UploadedFile $file,
+        User $user,
+        array $preselected = [],
+        array $rowUpdates = []
+    ): array
     {
         $hasSessionClassPreselection = ! empty($preselected['session_id']) && ! empty($preselected['class_id']);
         $hasArmPreselection = $hasSessionClassPreselection && ! empty($preselected['class_arm_id']);
@@ -243,6 +249,7 @@ class StudentBulkUploadService
         $preparedRows = [];
         $previewCandidates = [];
         $errors = [];
+        $normalizedRowUpdates = $this->normalizeRowUpdates($rowUpdates);
 
         $inFileComposite = [];
         $inFileAdmissionNumbers = [];
@@ -265,6 +272,7 @@ class StudentBulkUploadService
             if ($hasArmPreselection) {
                 $rowData['student.class_arm_id'] = $preselectedArm->id;
             }
+            $rowData = $this->applyPreviewRowUpdates($rowData, $rowNumber, $normalizedRowUpdates);
 
             [$rowPrepared, $rowErrors] = $this->validateRow(
                 $rowNumber,
@@ -1313,6 +1321,26 @@ class StudentBulkUploadService
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $rowData
+     * @param array<string, array<string, string>> $rowUpdateMap
+     * @return array<string, mixed>
+     */
+    private function applyPreviewRowUpdates(array $rowData, int $rowNumber, array $rowUpdateMap): array
+    {
+        $rowKey = (string) $rowNumber;
+        if (! array_key_exists($rowKey, $rowUpdateMap)) {
+            return $rowData;
+        }
+
+        $update = $rowUpdateMap[$rowKey];
+        if (! empty($update['admission_no'])) {
+            $rowData['student.admission_no'] = $update['admission_no'];
+        }
+
+        return $rowData;
     }
 
     /**

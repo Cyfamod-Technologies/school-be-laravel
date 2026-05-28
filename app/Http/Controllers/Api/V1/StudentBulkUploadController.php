@@ -82,6 +82,7 @@ class StudentBulkUploadController extends Controller
             'session_id' => ['nullable', 'string'],
             'class_id' => ['nullable', 'string'],
             'class_arm_id' => ['nullable', 'string'],
+            'row_updates' => ['nullable'],
         ]);
 
         // Get preselected context from form data
@@ -90,13 +91,22 @@ class StudentBulkUploadController extends Controller
             'class_id' => $request->input('class_id'),
             'class_arm_id' => $request->input('class_arm_id'),
         ];
+        $rowUpdates = $request->input('row_updates', []);
+        if (is_string($rowUpdates)) {
+            $decoded = json_decode($rowUpdates, true);
+            $rowUpdates = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($rowUpdates)) {
+            $rowUpdates = [];
+        }
 
         try {
             $result = $this->service->validateAndPrepare(
                 $request->user()->school,
                 $request->file('file'),
                 $request->user(),
-                $preselected
+                $preselected,
+                $rowUpdates
             );
         } catch (BulkUploadValidationException $exception) {
             return response()->json([
