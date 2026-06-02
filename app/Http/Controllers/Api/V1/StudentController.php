@@ -250,12 +250,6 @@ class StudentController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
-        $scope = $this->teacherAccess->forUser($request->user());
-
-        if ($scope->isTeacher()) {
-            abort(403, 'Teachers cannot create student records.');
-        }
-
         $session = \App\Models\Session::findOrFail($validated['current_session_id']);
 
         $studentData = $validated;

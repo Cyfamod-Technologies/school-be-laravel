@@ -4,6 +4,7 @@ use App\Models\ClassArm;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
+use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\postJson;
 use function Pest\Laravel\putJson;
 
 beforeEach(function () {
@@ -117,4 +119,43 @@ it('prevents deleting a student with dependent records', function () {
         ->assertJsonFragment(['attendance records']);
 
     expect(Student::where('id', $this->student->id)->exists())->toBeTrue();
+});
+
+it('allows teachers to create students', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'teacher',
+        'status' => 'active',
+    ]);
+
+    Staff::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'user_id' => $teacherUser->id,
+        'full_name' => 'Mrs Teacher',
+        'email' => 'teacher@example.com',
+        'phone' => '08000000000',
+        'role' => 'Class Teacher',
+        'gender' => 'female',
+        'employment_start_date' => Carbon::parse('2024-01-01'),
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    postJson(route('students.store'), [
+        'admission_no' => 'ADM-TEACHER-001',
+        'first_name' => 'Teacher',
+        'last_name' => 'Created',
+        'gender' => 'female',
+        'date_of_birth' => '2013-01-01',
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->arm->id,
+        'admission_date' => '2025-09-01',
+        'status' => 'active',
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.first_name', 'Teacher')
+        ->assertJsonPath('data.school_id', $this->school->id);
 });
