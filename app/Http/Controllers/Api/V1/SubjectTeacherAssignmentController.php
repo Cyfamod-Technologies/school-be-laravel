@@ -13,6 +13,7 @@ use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -116,8 +117,13 @@ class SubjectTeacherAssignmentController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"subject_id","staff_id","session_id","term_id"},
+     *             required={"staff_id","session_id","term_id"},
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
+     *             @OA\Property(
+     *                 property="subject_ids",
+     *                 type="array",
+     *                 @OA\Items(type="string", format="uuid")
+     *             ),
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid", nullable=true),
@@ -142,7 +148,9 @@ class SubjectTeacherAssignmentController extends Controller
         }
 
         $validated = $request->validate([
-            'subject_id' => ['required', 'uuid'],
+            'subject_id' => ['nullable', 'uuid', 'required_without:subject_ids'],
+            'subject_ids' => ['nullable', 'array', 'min:1', 'required_without:subject_id'],
+            'subject_ids.*' => ['uuid', 'distinct'],
             'staff_id' => ['required', 'uuid'],
             'school_class_id' => ['nullable', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
@@ -152,37 +160,101 @@ class SubjectTeacherAssignmentController extends Controller
             'term_id' => ['required', 'uuid'],
         ]);
 
-        $entities = $this->resolveEntities($school->id, $validated);
-        $studentIds = $this->resolveStudentIds($school->id, $validated['student_ids'] ?? null, $entities);
+        $subjectIds = collect($validated['subject_ids'] ?? [$validated['subject_id'] ?? null])
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
 
-        if ($this->teacherAssignmentExists($entities, null)) {
+        $basePayload = $validated;
+        $basePayload['subject_id'] = $subjectIds->first();
+
+        $baseEntities = $this->resolveEntities($school->id, $basePayload);
+        $studentIds = $this->resolveStudentIds($school->id, $validated['student_ids'] ?? null, $baseEntities);
+
+        $subjectsById = $subjectIds->mapWithKeys(function (string $subjectId) use ($school, $validated) {
+            $payload = $validated;
+            $payload['subject_id'] = $subjectId;
+
+            return [$subjectId => $this->resolveEntities($school->id, $payload)['subject']];
+        });
+
+        $createdAssignmentIds = [];
+        $skippedSubjectIds = [];
+
+        DB::transaction(function () use (
+            $subjectIds,
+            $subjectsById,
+            $baseEntities,
+            $studentIds,
+            &$createdAssignmentIds,
+            &$skippedSubjectIds
+        ): void {
+            foreach ($subjectIds as $subjectId) {
+                $entities = [
+                    ...$baseEntities,
+                    'subject' => $subjectsById->get($subjectId),
+                ];
+
+                if ($this->teacherAssignmentExists($entities, null)) {
+                    $skippedSubjectIds[] = $subjectId;
+                    continue;
+                }
+
+                $assignment = SubjectTeacherAssignment::create([
+                    'id' => (string) Str::uuid(),
+                    'subject_id' => $subjectId,
+                    'staff_id' => $baseEntities['staff']->id,
+                    'school_class_id' => $baseEntities['class']?->id,
+                    'class_arm_id' => $baseEntities['class_arm']?->id,
+                    'class_section_id' => null,
+                    'student_ids' => $studentIds,
+                    'session_id' => $baseEntities['session']->id,
+                    'term_id' => $baseEntities['term']->id,
+                ]);
+
+                $createdAssignmentIds[] = $assignment->id;
+            }
+        });
+
+        if (count($createdAssignmentIds) === 0) {
             return response()->json([
-                'message' => 'Teacher is already assigned to this subject for the selected context.',
+                'message' => 'All selected subjects are already assigned to this teacher for the selected context.',
+                'created_count' => 0,
+                'skipped_count' => count($skippedSubjectIds),
+                'skipped_subject_ids' => $skippedSubjectIds,
             ], 422);
         }
 
-        $assignment = SubjectTeacherAssignment::create([
-            'id' => (string) Str::uuid(),
-            'subject_id' => $entities['subject']->id,
-            'staff_id' => $entities['staff']->id,
-            'school_class_id' => $entities['class']?->id,
-            'class_arm_id' => $entities['class_arm']?->id,
-            'class_section_id' => null,
-            'student_ids' => $studentIds,
-            'session_id' => $entities['session']->id,
-            'term_id' => $entities['term']->id,
-        ]);
-
-        return response()->json([
-            'message' => 'Teacher assigned successfully.',
-            'data' => $assignment->load([
+        $createdAssignments = SubjectTeacherAssignment::query()
+            ->with([
                 'subject:id,name,code',
                 'staff:id,full_name,email,phone,role',
                 'school_class:id,name',
                 'class_arm:id,name',
                 'session:id,name',
                 'term:id,name',
-            ]),
+            ])
+            ->whereIn('id', $createdAssignmentIds)
+            ->get()
+            ->sortBy(fn (SubjectTeacherAssignment $assignment) => array_search($assignment->id, $createdAssignmentIds, true))
+            ->values();
+
+        if ($subjectIds->count() === 1 && count($skippedSubjectIds) === 0) {
+            return response()->json([
+                'message' => 'Teacher assigned successfully.',
+                'data' => $createdAssignments->first(),
+            ], 201);
+        }
+
+        return response()->json([
+            'message' => count($createdAssignmentIds) === 1
+                ? 'Assigned 1 subject to the teacher successfully.'
+                : 'Assigned '.count($createdAssignmentIds).' subjects to the teacher successfully.',
+            'data' => $createdAssignments,
+            'created_count' => count($createdAssignmentIds),
+            'skipped_count' => count($skippedSubjectIds),
+            'skipped_subject_ids' => $skippedSubjectIds,
         ], 201);
     }
 
