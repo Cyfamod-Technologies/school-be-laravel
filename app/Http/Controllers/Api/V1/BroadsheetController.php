@@ -12,13 +12,14 @@ use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\Rule;
 
 class BroadsheetController extends Controller
 {
     public function print(Request $request)
     {
+        $this->ensurePermission($request, ['results.view', 'students.view']);
+
         $user = $request->user();
         $schoolId = optional($user->school)->id;
 
@@ -133,59 +134,24 @@ class BroadsheetController extends Controller
             ];
         });
 
-        // Build CSV
-        $lines = [];
-
-        // Header row
-        $headerCols = ['S/NO', 'ADM.NO', 'NAME OF STUDENT', 'SEX'];
-        foreach ($subjects as $subject) {
-            $headerCols[] = strtoupper($subject->name);
-        }
-        $headerCols[] = 'NO. OF PASSES';
-        $headerCols[] = 'REMARK';
-        $lines[] = implode(',', array_map(fn ($col) => $this->escapeCsv($col), $headerCols));
-
-        // Data rows
-        foreach ($rows as $row) {
-            $student = $row['student'];
-            $fullName = collect([$student->last_name, $student->first_name, $student->middle_name])
-                ->filter()
-                ->implode(', ');
-            $sex = strtoupper(substr((string) ($student->gender ?? ''), 0, 1));
-
-            $cols = [
-                $row['sno'],
-                $this->escapeCsv($student->admission_no ?? ''),
-                $this->escapeCsv($fullName),
-                $sex,
-            ];
-
-            foreach ($row['scores'] as $score) {
-                $cols[] = $this->escapeCsv($score['score']);
-            }
-
-            $cols[] = $row['passes'] > 0 ? $row['passes'] : '';
-            $cols[] = '';
-
-            $lines[] = implode(',', $cols);
-        }
-
-        $className = $class?->name ?? 'class';
-        $armName   = $classArm ? '_' . $classArm->name : '';
-        $termName  = $term?->name ?? 'term';
-        $filename  = preg_replace('/\s+/', '_', strtolower("{$className}{$armName}_{$termName}_broadsheet")) . '.csv';
-
-        return Response::make(implode("\n", $lines), 200, [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        return response()->view('broadsheet', [
+            'school' => $user->school,
+            'session' => $session,
+            'term' => $term,
+            'class' => $class,
+            'classArm' => $classArm,
+            'subjects' => $subjects,
+            'rows' => $rows,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+            'filters' => [
+                'session' => $session?->name,
+                'term' => $term?->name,
+                'class' => $class?->name,
+                'class_arm' => $classArm?->name,
+                'student_count' => $rows->count(),
+            ],
+        ], 200, [
+            'Content-Type' => 'text/html; charset=utf-8',
         ]);
-    }
-
-    private function escapeCsv(string $value): string
-    {
-        if (str_contains($value, ',') || str_contains($value, '"') || str_contains($value, "\n")) {
-            return '"' . str_replace('"', '""', $value) . '"';
-        }
-        return $value;
     }
 }

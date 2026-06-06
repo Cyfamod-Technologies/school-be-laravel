@@ -6,8 +6,8 @@
     <title>Broadsheet – {{ $class?->name }}{{ $classArm ? ' ' . $classArm->name : '' }} – {{ $term?->name }} {{ $session?->name }}</title>
     <style>
         @page {
-            size: A3 landscape;
-            margin: 10mm 8mm;
+            size: A4 landscape;
+            margin: 8mm;
         }
 
         * {
@@ -44,68 +44,68 @@
         .no-print button:hover { background: #1240a8; }
 
         .page {
-            padding: 6mm 4mm;
+            padding: 4mm 3mm;
         }
 
         .school-header {
             text-align: center;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .school-header h1 {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .school-header h2 {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
             margin-top: 2px;
         }
 
         .school-header .class-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             margin-top: 2px;
         }
 
-        .form-master-line {
-            font-size: 9px;
-            margin-top: 4px;
-            text-align: left;
+        .broadsheet-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+            font-size: 8px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-top: 6px;
+            margin-top: 4px;
         }
 
         th, td {
             border: 1px solid #000;
-            padding: 2px 2px;
+            padding: 1px 2px;
             text-align: center;
             vertical-align: middle;
-            font-size: 8.5px;
+            font-size: 7px;
             word-break: break-word;
         }
 
-        /* Fixed-width columns */
-        col.col-sno    { width: 24px; }
-        col.col-admno  { width: 44px; }
-        col.col-name   { width: 110px; }
+        col.col-sno    { width: 22px; }
+        col.col-admno  { width: 46px; }
+        col.col-name   { width: 120px; }
         col.col-sex    { width: 22px; }
-        col.col-subj   { width: 30px; }
+        col.col-subj   { width: 22px; }
         col.col-passes { width: 34px; }
         col.col-remark { width: 44px; }
 
-        /* Rotated subject headers */
         th.rotated {
-            height: 90px;
+            height: 92px;
             white-space: nowrap;
             vertical-align: bottom;
             padding: 0;
@@ -115,10 +115,10 @@
             display: inline-block;
             transform: rotate(-90deg);
             transform-origin: bottom center;
-            width: 88px;
+            width: 86px;
             text-align: left;
             padding-left: 4px;
-            font-size: 8px;
+            font-size: 7px;
             font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
@@ -127,21 +127,22 @@
 
         th.header-main {
             font-weight: bold;
-            font-size: 9px;
+            font-size: 7px;
         }
 
-        tbody tr:nth-child(even) {
-            background: #f9f9f9;
+        thead {
+            display: table-header-group;
         }
 
         td.name-cell {
             text-align: left;
             padding-left: 3px;
-            font-size: 8.5px;
+            font-size: 7px;
         }
 
         td.score-cell {
-            font-size: 8.5px;
+            font-size: 7px;
+            height: 18px;
         }
 
         .footer {
@@ -155,6 +156,9 @@
             .no-print { display: none !important; }
             body { background: #fff; }
             .page { padding: 0; }
+            tr, td, th {
+                page-break-inside: avoid;
+            }
         }
     </style>
 </head>
@@ -168,7 +172,7 @@
 <div class="page">
     <div class="school-header">
         <h1>{{ strtoupper($school?->name ?? 'School Name') }}</h1>
-        <h2>{{ strtoupper($term?->name ?? '') }} BROADSHEET {{ $session?->name ?? '' }} ACADEMIC SESSION</h2>
+        <h2>{{ strtoupper($term?->name ?? '') }} TERM BROADSHEET {{ $session?->name ?? '' }} ACADEMIC SESSION</h2>
         <div class="class-label">
             CLASS:&nbsp;
             <strong>
@@ -177,7 +181,10 @@
         </div>
     </div>
 
-    <div class="form-master-line">FORM MASTER/MISTRESS: _______________________________</div>
+    <div class="broadsheet-meta">
+        <div>Students: <strong>{{ $rows->count() }}</strong></div>
+        <div>Generated: <strong>{{ $generatedAt ?? now()->format('d/m/Y H:i') }}</strong></div>
+    </div>
 
     <table>
         <colgroup>
@@ -193,9 +200,9 @@
         </colgroup>
         <thead>
             <tr>
-                <th class="header-main" rowspan="2">S/NO</th>
-                <th class="header-main" rowspan="2">ADM.NO</th>
-                <th class="header-main" rowspan="2">NAME OF STUDENT</th>
+                <th class="header-main" rowspan="2">S/N</th>
+                <th class="header-main" rowspan="2">ADM NO</th>
+                <th class="header-main" rowspan="2">NAME</th>
                 <th class="header-main" rowspan="2">SEX</th>
                 @foreach ($subjects as $subject)
                     <th class="rotated">
@@ -230,7 +237,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 5 + count($subjects) + 1 }}" style="text-align:center; padding: 12px;">
+                    <td colspan="{{ 6 + count($subjects) }}" style="text-align:center; padding: 12px;">
                         No students found for this class.
                     </td>
                 </tr>
@@ -246,6 +253,18 @@
         {{ $rows->count() }} student(s)
     </div>
 </div>
+
+@if(request()->boolean('autoprint'))
+<script>
+    window.addEventListener('load', function () {
+        try {
+            window.print();
+        } catch (error) {
+            console.error('Unable to trigger print dialog automatically', error);
+        }
+    });
+</script>
+@endif
 
 </body>
 </html>
