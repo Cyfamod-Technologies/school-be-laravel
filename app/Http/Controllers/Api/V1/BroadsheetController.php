@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -88,12 +89,12 @@ class BroadsheetController extends Controller
 
         $studentIds = $students->pluck('id');
 
-        // Aggregate results (no assessment component = term total per subject)
+        // Aggregate results for the selected term. If a subject summary row is absent,
+        // fall back to the sum of that subject's assessment components.
         $results = Result::query()
             ->whereIn('student_id', $studentIds)
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
-            ->whereNull('assessment_component_id')
             ->with('grade_range:id,grade_label')
             ->get()
             ->groupBy('student_id');
@@ -107,22 +108,34 @@ class BroadsheetController extends Controller
 
         $rows = $students->map(function (Student $student, int $index) use ($results, $summaries, $subjects) {
             $studentResults = $results->get($student->id, collect());
-            $bySubject = $studentResults->keyBy('subject_id');
+            $bySubject = $studentResults->groupBy('subject_id');
 
             $subjectScores = $subjects->map(function ($subject) use ($bySubject) {
-                $result = $bySubject->get($subject->id);
-                if (! $result) {
+                $subjectEntries = $bySubject->get($subject->id, collect());
+                $total = $this->resolveResultTotalForEntries($subjectEntries);
+
+                if ($total === null) {
                     return ['score' => '', 'grade' => ''];
                 }
 
+                $result = $subjectEntries->first(function (Result $entry) {
+                    return $entry->assessment_component_id === null && $entry->total_score !== null;
+                }) ?? $subjectEntries->first();
+
                 return [
-                    'score' => number_format((float) $result->total_score, 0),
+                    'score' => number_format($total, 0),
                     'grade' => $result->grade_range?->grade_label ?? '',
                 ];
             });
 
             $summary = $summaries->get($student->id);
-            $passes = $studentResults->filter(fn ($r) => (float) $r->total_score >= 40)->count();
+            $passes = $subjects->filter(function ($subject) use ($bySubject) {
+                $total = $this->resolveResultTotalForEntries(
+                    $bySubject->get($subject->id, collect())
+                );
+
+                return $total !== null && $total >= 40;
+            })->count();
 
             return [
                 'sno'        => $index + 1,
@@ -153,5 +166,32 @@ class BroadsheetController extends Controller
         ], 200, [
             'Content-Type' => 'text/html; charset=utf-8',
         ]);
+    }
+
+    private function resolveResultTotalForEntries(Collection $entries): ?float
+    {
+        if ($entries->isEmpty()) {
+            return null;
+        }
+
+        $overall = $entries->first(function (Result $result) {
+            return $result->assessment_component_id === null && $result->total_score !== null;
+        });
+
+        if ($overall && $overall->total_score !== null) {
+            return round((float) $overall->total_score, 2);
+        }
+
+        $componentTotal = $entries
+            ->filter(fn (Result $result) => $result->assessment_component_id !== null)
+            ->pluck('total_score')
+            ->filter(fn ($value) => $value !== null)
+            ->sum();
+
+        $hasComponentScores = $entries->contains(
+            fn (Result $result) => $result->assessment_component_id !== null
+        );
+
+        return $hasComponentScores ? round((float) $componentTotal, 2) : null;
     }
 }
