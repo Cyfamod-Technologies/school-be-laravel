@@ -252,6 +252,7 @@ class SubjectTeacherAssignmentController extends Controller
                 'message' => 'All selected subjects are already assigned to this teacher for the selected class context(s).',
                 'created_count' => 0,
                 'skipped_count' => count($skippedAssignments),
+                'skipped_subject_ids' => collect($skippedAssignments)->pluck('subject_id')->unique()->values()->all(),
                 'skipped_assignments' => $skippedAssignments,
             ], 422);
         }
@@ -284,6 +285,7 @@ class SubjectTeacherAssignmentController extends Controller
             'data' => $createdAssignments,
             'created_count' => count($createdAssignmentIds),
             'skipped_count' => count($skippedAssignments),
+            'skipped_subject_ids' => collect($skippedAssignments)->pluck('subject_id')->unique()->values()->all(),
             'skipped_assignments' => $skippedAssignments,
         ], 201);
     }
