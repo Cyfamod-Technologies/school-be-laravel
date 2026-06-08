@@ -8,6 +8,7 @@ use App\Models\Subject;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
+use App\Models\ClassArm;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -29,6 +30,27 @@ beforeEach(function () {
         'school_id' => $this->school->id,
         'name' => 'Primary 3',
         'slug' => 'primary-3',
+    ]);
+
+    $this->classTwo = SchoolClass::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Primary 4',
+        'slug' => 'primary-4',
+    ]);
+
+    $this->armA = ClassArm::create([
+        'id' => (string) Str::uuid(),
+        'school_class_id' => $this->class->id,
+        'name' => 'A',
+        'slug' => 'a',
+    ]);
+
+    $this->armB = ClassArm::create([
+        'id' => (string) Str::uuid(),
+        'school_class_id' => $this->class->id,
+        'name' => 'B',
+        'slug' => 'b',
     ]);
 
     $this->teacher = Staff::create([
@@ -138,4 +160,63 @@ it('skips duplicate teacher subject assignments during bulk create', function ()
             ->where('school_class_id', $this->class->id)
             ->count()
     )->toBe(3);
+});
+
+it('creates teacher subject assignments across multiple selected classes in one request', function () {
+    postJson('/api/v1/settings/subject-teacher-assignments', [
+        'subject_ids' => [
+            $this->subjectA->id,
+            $this->subjectB->id,
+        ],
+        'contexts' => [
+            ['school_class_id' => $this->class->id],
+            ['school_class_id' => $this->classTwo->id],
+        ],
+        'staff_id' => $this->teacher->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ])
+        ->assertCreated()
+        ->assertJsonPath('created_count', 4)
+        ->assertJsonPath('skipped_count', 0)
+        ->assertJsonCount(4, 'data');
+
+    expect(
+        SubjectTeacherAssignment::query()
+            ->where('staff_id', $this->teacher->id)
+            ->count()
+    )->toBe(4);
+});
+
+it('creates teacher subject assignments across multiple selected class arms in one request', function () {
+    postJson('/api/v1/settings/subject-teacher-assignments', [
+        'subject_ids' => [
+            $this->subjectA->id,
+        ],
+        'contexts' => [
+            [
+                'school_class_id' => $this->class->id,
+                'class_arm_id' => $this->armA->id,
+            ],
+            [
+                'school_class_id' => $this->class->id,
+                'class_arm_id' => $this->armB->id,
+            ],
+        ],
+        'staff_id' => $this->teacher->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ])
+        ->assertCreated()
+        ->assertJsonPath('created_count', 2)
+        ->assertJsonPath('skipped_count', 0)
+        ->assertJsonCount(2, 'data');
+
+    expect(
+        SubjectTeacherAssignment::query()
+            ->where('staff_id', $this->teacher->id)
+            ->where('school_class_id', $this->class->id)
+            ->whereNotNull('class_arm_id')
+            ->count()
+    )->toBe(2);
 });

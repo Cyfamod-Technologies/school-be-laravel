@@ -125,6 +125,15 @@ class SubjectTeacherAssignmentController extends Controller
      *                 @OA\Items(type="string", format="uuid")
      *             ),
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
+     *             @OA\Property(
+     *                 property="contexts",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="school_class_id", type="string", format="uuid"),
+     *                     @OA\Property(property="class_arm_id", type="string", format="uuid", nullable=true)
+     *                 )
+     *             ),
      *             @OA\Property(property="school_class_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true),
@@ -152,6 +161,9 @@ class SubjectTeacherAssignmentController extends Controller
             'subject_ids' => ['nullable', 'array', 'min:1', 'required_without:subject_id'],
             'subject_ids.*' => ['uuid', 'distinct'],
             'staff_id' => ['required', 'uuid'],
+            'contexts' => ['nullable', 'array', 'min:1'],
+            'contexts.*.school_class_id' => ['required', 'uuid'],
+            'contexts.*.class_arm_id' => ['nullable', 'uuid'],
             'school_class_id' => ['nullable', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
             'student_ids' => ['nullable', 'array'],
@@ -170,8 +182,6 @@ class SubjectTeacherAssignmentController extends Controller
         $basePayload['subject_id'] = $subjectIds->first();
 
         $baseEntities = $this->resolveEntities($school->id, $basePayload);
-        $studentIds = $this->resolveStudentIds($school->id, $validated['student_ids'] ?? null, $baseEntities);
-
         $subjectsById = $subjectIds->mapWithKeys(function (string $subjectId) use ($school, $validated) {
             $payload = $validated;
             $payload['subject_id'] = $subjectId;
@@ -179,50 +189,70 @@ class SubjectTeacherAssignmentController extends Controller
             return [$subjectId => $this->resolveEntities($school->id, $payload)['subject']];
         });
 
+        $contexts = $this->resolveContexts($school->id, $validated, $baseEntities);
+
         $createdAssignmentIds = [];
-        $skippedSubjectIds = [];
+        $skippedAssignments = [];
 
         DB::transaction(function () use (
             $subjectIds,
             $subjectsById,
             $baseEntities,
-            $studentIds,
+            $contexts,
+            $school,
+            $validated,
             &$createdAssignmentIds,
-            &$skippedSubjectIds
+            &$skippedAssignments
         ): void {
-            foreach ($subjectIds as $subjectId) {
-                $entities = [
-                    ...$baseEntities,
-                    'subject' => $subjectsById->get($subjectId),
+            foreach ($contexts as $context) {
+                $contextPayload = [
+                    ...$validated,
+                    'subject_id' => $subjectIds->first(),
+                    'school_class_id' => $context['school_class_id'],
+                    'class_arm_id' => $context['class_arm_id'],
                 ];
+                $contextEntities = $this->resolveEntities($school->id, $contextPayload);
+                $studentIds = $this->resolveStudentIds($school->id, $validated['student_ids'] ?? null, $contextEntities);
 
-                if ($this->teacherAssignmentExists($entities, null)) {
-                    $skippedSubjectIds[] = $subjectId;
-                    continue;
+                foreach ($subjectIds as $subjectId) {
+                    $entities = [
+                        ...$baseEntities,
+                        ...$contextEntities,
+                        'subject' => $subjectsById->get($subjectId),
+                    ];
+
+                    if ($this->teacherAssignmentExists($entities, null)) {
+                        $skippedAssignments[] = [
+                            'subject_id' => $subjectId,
+                            'school_class_id' => $contextEntities['class']?->id,
+                            'class_arm_id' => $contextEntities['class_arm']?->id,
+                        ];
+                        continue;
+                    }
+
+                    $assignment = SubjectTeacherAssignment::create([
+                        'id' => (string) Str::uuid(),
+                        'subject_id' => $subjectId,
+                        'staff_id' => $baseEntities['staff']->id,
+                        'school_class_id' => $contextEntities['class']?->id,
+                        'class_arm_id' => $contextEntities['class_arm']?->id,
+                        'class_section_id' => null,
+                        'student_ids' => $studentIds,
+                        'session_id' => $baseEntities['session']->id,
+                        'term_id' => $baseEntities['term']->id,
+                    ]);
+
+                    $createdAssignmentIds[] = $assignment->id;
                 }
-
-                $assignment = SubjectTeacherAssignment::create([
-                    'id' => (string) Str::uuid(),
-                    'subject_id' => $subjectId,
-                    'staff_id' => $baseEntities['staff']->id,
-                    'school_class_id' => $baseEntities['class']?->id,
-                    'class_arm_id' => $baseEntities['class_arm']?->id,
-                    'class_section_id' => null,
-                    'student_ids' => $studentIds,
-                    'session_id' => $baseEntities['session']->id,
-                    'term_id' => $baseEntities['term']->id,
-                ]);
-
-                $createdAssignmentIds[] = $assignment->id;
             }
         });
 
         if (count($createdAssignmentIds) === 0) {
             return response()->json([
-                'message' => 'All selected subjects are already assigned to this teacher for the selected context.',
+                'message' => 'All selected subjects are already assigned to this teacher for the selected class context(s).',
                 'created_count' => 0,
-                'skipped_count' => count($skippedSubjectIds),
-                'skipped_subject_ids' => $skippedSubjectIds,
+                'skipped_count' => count($skippedAssignments),
+                'skipped_assignments' => $skippedAssignments,
             ], 422);
         }
 
@@ -240,7 +270,7 @@ class SubjectTeacherAssignmentController extends Controller
             ->sortBy(fn (SubjectTeacherAssignment $assignment) => array_search($assignment->id, $createdAssignmentIds, true))
             ->values();
 
-        if ($subjectIds->count() === 1 && count($skippedSubjectIds) === 0) {
+        if ($subjectIds->count() === 1 && count($contexts) === 1 && count($skippedAssignments) === 0) {
             return response()->json([
                 'message' => 'Teacher assigned successfully.',
                 'data' => $createdAssignments->first(),
@@ -253,8 +283,8 @@ class SubjectTeacherAssignmentController extends Controller
                 : 'Assigned '.count($createdAssignmentIds).' subjects to the teacher successfully.',
             'data' => $createdAssignments,
             'created_count' => count($createdAssignmentIds),
-            'skipped_count' => count($skippedSubjectIds),
-            'skipped_subject_ids' => $skippedSubjectIds,
+            'skipped_count' => count($skippedAssignments),
+            'skipped_assignments' => $skippedAssignments,
         ], 201);
     }
 
@@ -504,6 +534,38 @@ class SubjectTeacherAssignmentController extends Controller
         }
 
         return $query->exists();
+    }
+
+    private function resolveContexts(string $schoolId, array $validated, array $baseEntities): array
+    {
+        $contexts = collect($validated['contexts'] ?? [])
+            ->filter(fn ($context) => is_array($context) && ! empty($context['school_class_id']))
+            ->map(function (array $context) use ($schoolId, $validated, $baseEntities) {
+                $payload = [
+                    ...$validated,
+                    'subject_id' => $baseEntities['subject']->id,
+                    'school_class_id' => $context['school_class_id'],
+                    'class_arm_id' => $context['class_arm_id'] ?? null,
+                ];
+
+                $entities = $this->resolveEntities($schoolId, $payload);
+
+                return [
+                    'school_class_id' => $entities['class']?->id,
+                    'class_arm_id' => $entities['class_arm']?->id,
+                ];
+            })
+            ->unique(fn (array $context) => ($context['school_class_id'] ?? '').':'.($context['class_arm_id'] ?? 'all'))
+            ->values();
+
+        if ($contexts->isNotEmpty()) {
+            return $contexts->all();
+        }
+
+        return [[
+            'school_class_id' => $baseEntities['class']?->id,
+            'class_arm_id' => $baseEntities['class_arm']?->id,
+        ]];
     }
 
     private function resolveStudentIds(string $schoolId, $studentIds, array $entities): ?array
