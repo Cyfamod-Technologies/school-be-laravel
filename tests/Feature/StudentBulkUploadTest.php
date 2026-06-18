@@ -250,6 +250,99 @@ it('validates and commits an xlsx bulk student upload', function () {
     expect(Student::where('school_id', $this->school->id)->where('admission_no', '2025/011')->exists())->toBeTrue();
 });
 
+it('auto-generates admission numbers for xlsx rows without admission numbers', function () {
+    if (! class_exists(ZipArchive::class)) {
+        $this->markTestSkipped('PHP zip extension is required to generate XLSX test files.');
+    }
+
+    $rows = [
+        [
+            'Admission No',
+            'First Name',
+            'Middle Name',
+            'Last Name',
+            'Gender (M/F/O)',
+            'Date of Birth (YYYY-MM-DD)',
+            'Admission Date (YYYY-MM-DD)',
+            'Status (active/inactive/graduated/withdrawn)',
+            'Student Nationality',
+            'Student State of Origin',
+            'Student LGA',
+            'House',
+            'Club',
+            'Student Address',
+            'Medical Information',
+            'Session (Name or ID)',
+            'Term (Name or ID)',
+            'Class (Name or ID)',
+            'Class Arm (Name or ID)',
+            'Class Section (Name or ID)',
+            'Parent First Name',
+            'Parent Last Name',
+            'Parent Email',
+            'Parent Phone',
+            'Parent Address',
+            'Parent Occupation',
+            'Parent Nationality',
+            'Parent State of Origin',
+            'Parent LGA',
+        ],
+        [
+            '',
+            'Fatima',
+            '',
+            'Garba',
+            'F',
+            '2012-07-08',
+            '2024-09-01',
+            'active',
+            'Nigerian',
+            'Katsina',
+            'Daura',
+            'Green',
+            'Press',
+            '18 School Road',
+            '',
+            '2025/2026',
+            'First Term',
+            'Grade 6',
+            'Arm B',
+            'Section Blue',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ],
+    ];
+
+    $file = UploadedFile::fake()->createWithContent('students.xlsx', buildStudentBulkXlsx($rows));
+
+    $previewResponse = post(route('students.bulk.preview'), [
+        'file' => $file,
+    ]);
+
+    $previewResponse->assertOk()
+        ->assertJsonPath('preview_rows.0.admission_no', 'Auto-generated');
+
+    $commitResponse = postJson(route('students.bulk.commit', $previewResponse->json('batch_id')));
+    $commitResponse->assertOk()
+        ->assertJsonPath('summary.total_processed', 1);
+
+    $student = Student::where('school_id', $this->school->id)
+        ->where('first_name', 'Fatima')
+        ->where('last_name', 'Garba')
+        ->first();
+
+    expect($student)->not()->toBeNull();
+    expect($student?->admission_no)->not()->toBe('');
+    expect($student?->admission_no)->not()->toBeNull();
+});
+
 it('returns all validated rows in the bulk upload preview', function () {
     $rows = [
         'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',

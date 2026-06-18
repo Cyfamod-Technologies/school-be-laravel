@@ -206,10 +206,14 @@ class StudentBulkUploadService
 
             $headerKey = $definition['header_key'] ?? $this->normalizeHeaderValue($definition['header']);
             $legacyKey = Str::replace('.', '_', $definition['key']);
+            $headerAliases = collect($definition['header_aliases'] ?? [])
+                ->map(fn (string $alias) => $this->normalizeHeaderValue($alias))
+                ->all();
 
             if (
                 ! array_key_exists($headerKey, $normalizedHeader)
                 && ! array_key_exists($legacyKey, $normalizedHeader)
+                && empty(array_intersect($headerAliases, array_keys($normalizedHeader)))
             ) {
                 $missingColumns[] = $definition['header'];
             }
@@ -531,6 +535,7 @@ class StudentBulkUploadService
             [
                 'key' => 'student.admission_no',
                 'header' => 'Admission Number',
+                'header_aliases' => ['Admission No', 'Admission No.', 'Admission Number', 'Student Admission No', 'Student Admission Number'],
                 'required' => false,
                 'example' => '',
             ],
@@ -979,9 +984,15 @@ class StudentBulkUploadService
             if ($headerKey && array_key_exists($headerKey, $headerIndex)) {
                 $value = $row[$headerIndex[$headerKey]] ?? null;
             } else {
+                $headerAliases = collect($definition['header_aliases'] ?? [])
+                    ->map(fn (string $alias) => $this->normalizeHeaderValue($alias))
+                    ->all();
                 $legacyKey = Str::replace('.', '_', $key);
-                if (array_key_exists($legacyKey, $headerIndex)) {
-                    $value = $row[$headerIndex[$legacyKey]] ?? null;
+                $matchedHeaderKey = collect([...$headerAliases, $legacyKey])
+                    ->first(fn (string $candidate) => array_key_exists($candidate, $headerIndex));
+
+                if ($matchedHeaderKey !== null) {
+                    $value = $row[$headerIndex[$matchedHeaderKey]] ?? null;
                 }
             }
 
