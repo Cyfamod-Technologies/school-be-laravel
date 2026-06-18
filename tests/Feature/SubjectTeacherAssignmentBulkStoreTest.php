@@ -9,9 +9,11 @@ use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
 use App\Models\ClassArm;
+use App\Models\ClassTeacher;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
+use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
 beforeEach(function () {
@@ -123,6 +125,77 @@ it('creates multiple teacher subject assignments in one request', function () {
             ->where('school_class_id', $this->class->id)
             ->count()
     )->toBe(2);
+});
+
+it('shows assignments on dashboard for staff users with teacher staff role', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'staff',
+        'status' => 'active',
+        'email' => 'class.teacher@example.test',
+    ]);
+
+    $this->teacher->update([
+        'user_id' => $teacherUser->id,
+        'role' => 'Class Teacher',
+        'email' => 'class.teacher@example.test',
+    ]);
+
+    SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectA->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    getJson('/api/v1/staff/dashboard')
+        ->assertOk()
+        ->assertJsonPath('teacher.id', $this->teacher->id)
+        ->assertJsonPath('stats.classes', 1)
+        ->assertJsonPath('stats.subjects', 1)
+        ->assertJsonPath('assignments.0.class.id', $this->class->id)
+        ->assertJsonPath('assignments.0.subjects.0.id', $this->subjectA->id);
+});
+
+it('shows class teacher assignments on dashboard for staff users with teacher staff role', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'staff',
+        'status' => 'active',
+        'email' => 'class.owner@example.test',
+    ]);
+
+    $this->teacher->update([
+        'user_id' => $teacherUser->id,
+        'role' => 'Class Teacher',
+        'email' => 'class.owner@example.test',
+    ]);
+
+    ClassTeacher::create([
+        'id' => (string) Str::uuid(),
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    getJson('/api/v1/staff/dashboard')
+        ->assertOk()
+        ->assertJsonPath('teacher.id', $this->teacher->id)
+        ->assertJsonPath('stats.classes', 1)
+        ->assertJsonPath('assignments.0.class.id', $this->class->id)
+        ->assertJsonPath('assignments.0.class_arm.id', $this->armA->id);
 });
 
 it('skips duplicate teacher subject assignments during bulk create', function () {
