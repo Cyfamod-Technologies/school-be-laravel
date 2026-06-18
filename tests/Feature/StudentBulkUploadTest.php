@@ -168,6 +168,9 @@ it('validates and commits an xlsx bulk student upload', function () {
         $this->markTestSkipped('PHP zip extension is required to generate XLSX test files.');
     }
 
+    $blankLookingAdmissionNo = html_entity_decode('&nbsp;', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $zeroWidthAdmissionNo = "\u{200B}";
+
     $rows = [
         [
             'Admission Number',
@@ -288,7 +291,7 @@ it('auto-generates admission numbers for xlsx rows without admission numbers', f
             'Parent LGA',
         ],
         [
-            '',
+            $blankLookingAdmissionNo,
             'Fatima',
             '',
             'Garba',
@@ -318,6 +321,37 @@ it('auto-generates admission numbers for xlsx rows without admission numbers', f
             '',
             '',
         ],
+        [
+            $zeroWidthAdmissionNo,
+            'Umar',
+            '',
+            'Sani',
+            'M',
+            '2012-09-10',
+            '2024-09-01',
+            'active',
+            'Nigerian',
+            'Katsina',
+            'Daura',
+            'Green',
+            'Press',
+            '19 School Road',
+            '',
+            '2025/2026',
+            'First Term',
+            'Grade 6',
+            'Arm B',
+            'Section Blue',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ],
     ];
 
     $file = UploadedFile::fake()->createWithContent('students.xlsx', buildStudentBulkXlsx($rows));
@@ -327,11 +361,13 @@ it('auto-generates admission numbers for xlsx rows without admission numbers', f
     ]);
 
     $previewResponse->assertOk()
-        ->assertJsonPath('preview_rows.0.admission_no', 'Auto-generated');
+        ->assertJsonPath('summary.total_rows', 2)
+        ->assertJsonPath('preview_rows.0.admission_no', 'Auto-generated')
+        ->assertJsonPath('preview_rows.1.admission_no', 'Auto-generated');
 
     $commitResponse = postJson(route('students.bulk.commit', $previewResponse->json('batch_id')));
     $commitResponse->assertOk()
-        ->assertJsonPath('summary.total_processed', 1);
+        ->assertJsonPath('summary.total_processed', 2);
 
     $student = Student::where('school_id', $this->school->id)
         ->where('first_name', 'Fatima')
@@ -341,6 +377,12 @@ it('auto-generates admission numbers for xlsx rows without admission numbers', f
     expect($student)->not()->toBeNull();
     expect($student?->admission_no)->not()->toBe('');
     expect($student?->admission_no)->not()->toBeNull();
+
+    expect(Student::where('school_id', $this->school->id)
+        ->where('first_name', 'Umar')
+        ->where('last_name', 'Sani')
+        ->whereNotNull('admission_no')
+        ->exists())->toBeTrue();
 });
 
 it('returns all validated rows in the bulk upload preview', function () {

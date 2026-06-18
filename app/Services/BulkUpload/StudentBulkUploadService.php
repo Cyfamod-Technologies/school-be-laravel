@@ -1041,7 +1041,7 @@ class StudentBulkUploadService
             return $value;
         };
 
-        $rawAdmissionNo = trim((string) ($getValue('student.admission_no') ?? ''));
+        $rawAdmissionNo = $this->normalizeAdmissionNumberInput($getValue('student.admission_no'));
         $studentData['admission_no'] = $rawAdmissionNo !== '' ? $rawAdmissionNo : null;
         $studentData['first_name'] = $getValue('student.first_name', true);
         $studentData['middle_name'] = $getValue('student.middle_name');
@@ -1226,9 +1226,9 @@ class StudentBulkUploadService
                 $existingEntry = $inFileAdmissionNumbers[$normalizedAdmissionNo];
                 $existingName = $existingEntry['name'] !== '' ? $existingEntry['name'] : 'Unknown student';
                 $currentName = $currentStudentName !== '' ? $currentStudentName : 'Unknown student';
-                $duplicateMessage = "This CSV contains two students with admission number {$rawAdmissionNo}: "
+                $duplicateMessage = "This file contains two students with admission number {$rawAdmissionNo}: "
                     . "{$existingName} on row {$existingEntry['row']} and {$currentName} on row {$rowNumber}. "
-                    . 'Each student in the CSV must have a unique admission number.';
+                    . 'Each student in the file must have a unique admission number.';
 
                 $errors[] = [
                     'row' => $existingEntry['row'],
@@ -1561,7 +1561,7 @@ class StudentBulkUploadService
             }
 
             $admissionNo = isset($update['admission_no'])
-                ? trim((string) $update['admission_no'])
+                ? $this->normalizeAdmissionNumberInput($update['admission_no'])
                 : '';
             $deleted = filter_var($update['deleted'] ?? false, FILTER_VALIDATE_BOOL);
 
@@ -1615,10 +1615,11 @@ class StudentBulkUploadService
 
         $update = $rowUpdateMap[$rowKey];
         if (! empty($update['admission_no'])) {
-            $row['student']['admission_no'] = $update['admission_no'];
-            $row['admission_no_input'] = $update['admission_no'];
+            $admissionNo = $this->normalizeAdmissionNumberInput($update['admission_no']);
+            $row['student']['admission_no'] = $admissionNo;
+            $row['admission_no_input'] = $admissionNo;
 
-            if (($row['duplicate']['admission_no'] ?? null) !== $update['admission_no']) {
+            if (($row['duplicate']['admission_no'] ?? null) !== $admissionNo) {
                 $row['duplicate'] = null;
                 $row['duplicate_action'] = 'create';
             }
@@ -1689,7 +1690,7 @@ class StudentBulkUploadService
      */
     private function assertAdmissionNumberIsAvailable(School $school, array $row, array $studentData): void
     {
-        $admissionNo = trim((string) ($studentData['admission_no'] ?? ''));
+        $admissionNo = $this->normalizeAdmissionNumberInput($studentData['admission_no'] ?? null);
         if ($admissionNo === '') {
             return;
         }
@@ -1772,6 +1773,15 @@ class StudentBulkUploadService
             ->replace('.', '_')
             ->trim('_')
             ->value();
+    }
+
+    private function normalizeAdmissionNumberInput(mixed $value): string
+    {
+        $value = (string) ($value ?? '');
+        $value = str_replace("\xC2\xA0", ' ', $value);
+        $value = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{FEFF}]/u', '', $value) ?? $value;
+
+        return trim($value);
     }
 
     /**
