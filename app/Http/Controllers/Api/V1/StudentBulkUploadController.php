@@ -78,7 +78,7 @@ class StudentBulkUploadController extends Controller
     public function preview(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx'],
             'session_id' => ['nullable', 'string'],
             'class_id' => ['nullable', 'string'],
             'class_arm_id' => ['nullable', 'string'],

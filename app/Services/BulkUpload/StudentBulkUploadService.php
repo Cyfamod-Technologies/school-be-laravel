@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\PermissionRegistrar;
+use ZipArchive;
 
 class StudentBulkUploadService
 {
@@ -165,22 +166,12 @@ class StudentBulkUploadService
             }
         }
 
-        $handle = fopen($file->getRealPath(), 'r');
-        if ($handle === false) {
-            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded file.');
-        }
-
-        $delimiter = $this->detectDelimiter($handle);
-
+        $uploadedRows = $this->readUploadedRows($file);
         $header = null;
-        $headerLineNumber = 0;
         $prefetchedRows = [];
-        for ($i = 0; $i < 2; $i++) {
-            $row = fgetcsv($handle, 0, $delimiter);
-            if ($row === false) {
-                break;
-            }
-            $prefetchedRows[] = $row;
+        $rowCursor = 0;
+        for ($i = 0; $i < 2 && $i < count($uploadedRows); $i++) {
+            $prefetchedRows[] = $uploadedRows[$i]['values'];
         }
 
         $shouldSkipPrefetched = count($prefetchedRows) === 2
@@ -188,22 +179,21 @@ class StudentBulkUploadService
             && $this->isSkippableRow($prefetchedRows[1]);
 
         if ($shouldSkipPrefetched) {
-            $headerLineNumber = 2;
-        } else {
-            rewind($handle);
+            $rowCursor = 2;
         }
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $headerLineNumber++;
+        while ($rowCursor < count($uploadedRows)) {
+            $entry = $uploadedRows[$rowCursor++];
+            $row = $entry['values'];
             if ($this->isSkippableRow($row)) {
                 continue;
             }
             $header = $row;
+            $headerLineNumber = $entry['number'];
             break;
         }
 
         if (! $header) {
-            fclose($handle);
             throw new BulkUploadValidationException([], null, [], 'The uploaded file is empty or unreadable.');
         }
 
@@ -234,18 +224,16 @@ class StudentBulkUploadService
                 ? 'none'
                 : implode(', ', array_slice($detectedHeaders, 0, 12));
 
-            fclose($handle);
             throw new BulkUploadValidationException(
                 [],
                 null,
                 [],
                 'The uploaded file is missing required columns: '
                 . implode(', ', $missingColumns)
-                . ". Detected headers: {$detectedSummary}. Delimiter: \"{$delimiter}\"."
+                . ". Detected headers: {$detectedSummary}."
             );
         }
 
-        $rowNumber = $headerLineNumber;
         $preparedRows = [];
         $previewCandidates = [];
         $errors = [];
@@ -254,8 +242,10 @@ class StudentBulkUploadService
         $inFileComposite = [];
         $inFileAdmissionNumbers = [];
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $rowNumber++;
+        while ($rowCursor < count($uploadedRows)) {
+            $entry = $uploadedRows[$rowCursor++];
+            $rowNumber = $entry['number'];
+            $row = $entry['values'];
 
             if ($this->isSkippableRow($row)) {
                 continue;
@@ -298,8 +288,6 @@ class StudentBulkUploadService
 
             $preparedRows[] = $rowPrepared;
         }
-
-        fclose($handle);
 
         if (count($preparedRows) === 0) {
             $errorCsv = $this->buildErrorCsv([], $columns);
@@ -665,6 +653,270 @@ class StudentBulkUploadService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readUploadedRows(UploadedFile $file): array
+    {
+        $extension = Str::lower($file->getClientOriginalExtension());
+
+        if ($extension === 'xlsx') {
+            return $this->readXlsxRows($file);
+        }
+
+        return $this->readCsvRows($file);
+    }
+
+    /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readCsvRows(UploadedFile $file): array
+    {
+        $handle = fopen($file->getRealPath(), 'r');
+        if ($handle === false) {
+            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded file.');
+        }
+
+        $delimiter = $this->detectDelimiter($handle);
+        $rows = [];
+        $rowNumber = 0;
+
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $rowNumber++;
+            $rows[] = [
+                'number' => $rowNumber,
+                'values' => $row,
+            ];
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readXlsxRows(UploadedFile $file): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw new BulkUploadValidationException([], null, [], 'XLSX uploads require the PHP zip extension.');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($file->getRealPath()) !== true) {
+            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded XLSX file.');
+        }
+
+        try {
+            $sharedStrings = $this->readXlsxSharedStrings($zip);
+            $dateStyleIndexes = $this->readXlsxDateStyleIndexes($zip);
+            $worksheetXml = $zip->getFromName($this->firstWorksheetPath($zip));
+            if ($worksheetXml === false) {
+                throw new BulkUploadValidationException([], null, [], 'The XLSX file does not contain a readable worksheet.');
+            }
+
+            $worksheet = simplexml_load_string($worksheetXml);
+            if (! $worksheet || ! isset($worksheet->sheetData)) {
+                throw new BulkUploadValidationException([], null, [], 'The XLSX worksheet is empty or unreadable.');
+            }
+
+            $rows = [];
+            foreach ($worksheet->sheetData->row as $worksheetRow) {
+                $rowNumber = (int) ($worksheetRow['r'] ?? (count($rows) + 1));
+                $values = [];
+
+                foreach ($worksheetRow->c as $cell) {
+                    $reference = (string) ($cell['r'] ?? '');
+                    $columnIndex = $reference !== ''
+                        ? $this->xlsxColumnIndex($reference)
+                        : count($values);
+                    $values[$columnIndex] = $this->xlsxCellValue($cell, $sharedStrings, $dateStyleIndexes);
+                }
+
+                if ($values === []) {
+                    $values = [''];
+                } else {
+                    ksort($values);
+                    $values = array_replace(array_fill(0, max(array_keys($values)) + 1, null), $values);
+                }
+
+                $rows[] = [
+                    'number' => $rowNumber,
+                    'values' => $values,
+                ];
+            }
+
+            return $rows;
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function readXlsxSharedStrings(ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $sharedStringXml = simplexml_load_string($xml);
+        if (! $sharedStringXml) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($sharedStringXml->si as $item) {
+            if (isset($item->t)) {
+                $strings[] = (string) $item->t;
+                continue;
+            }
+
+            $text = '';
+            foreach ($item->r as $run) {
+                $text .= (string) ($run->t ?? '');
+            }
+            $strings[] = $text;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private function readXlsxDateStyleIndexes(ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/styles.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $stylesXml = simplexml_load_string($xml);
+        if (! $stylesXml) {
+            return [];
+        }
+
+        $stylesXml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+        $customDateFormats = [];
+        foreach ($stylesXml->xpath('//main:numFmts/main:numFmt') ?: [] as $numFmt) {
+            $formatId = (int) ($numFmt['numFmtId'] ?? 0);
+            $formatCode = strtolower((string) ($numFmt['formatCode'] ?? ''));
+            if ($this->xlsxLooksLikeDateFormat($formatCode)) {
+                $customDateFormats[$formatId] = true;
+            }
+        }
+
+        $dateStyleIndexes = [];
+        foreach ($stylesXml->xpath('//main:cellXfs/main:xf') ?: [] as $styleIndex => $xf) {
+            $formatId = (int) ($xf['numFmtId'] ?? 0);
+            if ($this->xlsxIsBuiltInDateFormat($formatId) || isset($customDateFormats[$formatId])) {
+                $dateStyleIndexes[(int) $styleIndex] = true;
+            }
+        }
+
+        return $dateStyleIndexes;
+    }
+
+    private function firstWorksheetPath(ZipArchive $zip): string
+    {
+        $workbookXml = $zip->getFromName('xl/workbook.xml');
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+        if ($workbookXml === false || $relsXml === false) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $workbook = simplexml_load_string($workbookXml);
+        $relationships = simplexml_load_string($relsXml);
+        if (! $workbook || ! $relationships || ! isset($workbook->sheets->sheet[0])) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $namespaces = $workbook->sheets->sheet[0]->getNamespaces(true);
+        $relationshipId = (string) ($workbook->sheets->sheet[0]->attributes($namespaces['r'] ?? '')->id ?? '');
+        if ($relationshipId === '') {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        foreach ($relationships->Relationship as $relationship) {
+            if ((string) $relationship['Id'] !== $relationshipId) {
+                continue;
+            }
+
+            $target = ltrim((string) $relationship['Target'], '/');
+            return Str::startsWith($target, 'xl/')
+                ? $target
+                : 'xl/' . $target;
+        }
+
+        return 'xl/worksheets/sheet1.xml';
+    }
+
+    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings, array $dateStyleIndexes): ?string
+    {
+        $type = (string) ($cell['t'] ?? '');
+
+        if ($type === 's') {
+            $index = (int) ($cell->v ?? -1);
+            return $sharedStrings[$index] ?? '';
+        }
+
+        if ($type === 'inlineStr') {
+            if (isset($cell->is->t)) {
+                return (string) $cell->is->t;
+            }
+
+            $text = '';
+            foreach ($cell->is->r as $run) {
+                $text .= (string) ($run->t ?? '');
+            }
+            return $text;
+        }
+
+        if (isset($cell->v)) {
+            $value = (string) $cell->v;
+            $styleIndex = (int) ($cell['s'] ?? -1);
+            if ($type === '' && isset($dateStyleIndexes[$styleIndex]) && is_numeric($value)) {
+                return Carbon::create(1899, 12, 30)->addDays((int) floor((float) $value))->toDateString();
+            }
+
+            return $value;
+        }
+
+        return null;
+    }
+
+    private function xlsxIsBuiltInDateFormat(int $formatId): bool
+    {
+        return in_array($formatId, [14, 15, 16, 17, 22, 27, 30, 36, 45, 46, 47, 50, 57], true);
+    }
+
+    private function xlsxLooksLikeDateFormat(string $formatCode): bool
+    {
+        $formatCode = preg_replace('/\[[^\]]+\]/', '', $formatCode) ?? $formatCode;
+        $formatCode = preg_replace('/"[^"]*"/', '', $formatCode) ?? $formatCode;
+
+        return str_contains($formatCode, 'y')
+            && (str_contains($formatCode, 'd') || str_contains($formatCode, 'm'));
+    }
+
+    private function xlsxColumnIndex(string $reference): int
+    {
+        preg_match('/^[A-Z]+/i', $reference, $matches);
+        $letters = strtoupper($matches[0] ?? 'A');
+        $index = 0;
+
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - 64);
+        }
+
+        return max(0, $index - 1);
     }
 
     /**

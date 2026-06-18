@@ -135,6 +135,93 @@ it('validates and commits a bulk student upload', function () {
     expect(StudentEnrollment::count())->toBe(1);
 });
 
+it('validates and commits an xlsx bulk student upload', function () {
+    if (! class_exists(ZipArchive::class)) {
+        $this->markTestSkipped('PHP zip extension is required to generate XLSX test files.');
+    }
+
+    $rows = [
+        [
+            'Admission Number',
+            'First Name',
+            'Middle Name',
+            'Last Name',
+            'Gender (M/F/O)',
+            'Date of Birth (YYYY-MM-DD)',
+            'Admission Date (YYYY-MM-DD)',
+            'Status (active/inactive/graduated/withdrawn)',
+            'Student Nationality',
+            'Student State of Origin',
+            'Student LGA',
+            'House',
+            'Club',
+            'Student Address',
+            'Medical Information',
+            'Session (Name or ID)',
+            'Term (Name or ID)',
+            'Class (Name or ID)',
+            'Class Arm (Name or ID)',
+            'Class Section (Name or ID)',
+            'Parent First Name',
+            'Parent Last Name',
+            'Parent Email',
+            'Parent Phone',
+            'Parent Address',
+            'Parent Occupation',
+            'Parent Nationality',
+            'Parent State of Origin',
+            'Parent LGA',
+        ],
+        [
+            '2025/011',
+            'Amina',
+            '',
+            'Bello',
+            'F',
+            '2012-03-04',
+            '2024-09-01',
+            'active',
+            'Nigerian',
+            'Kano',
+            'Kano Municipal',
+            'Blue',
+            'Drama',
+            '22 Unity Close',
+            '',
+            '2025/2026',
+            'First Term',
+            'Grade 6',
+            'Arm B',
+            'Section Blue',
+            'Maryam',
+            'Bello',
+            'maryam.bello@example.test',
+            '08030000000',
+            'Central Road',
+            'Engineer',
+            'Nigerian',
+            'Kano',
+            'Kano Municipal',
+        ],
+    ];
+
+    $file = UploadedFile::fake()->createWithContent('students.xlsx', buildStudentBulkXlsx($rows));
+
+    $previewResponse = post(route('students.bulk.preview'), [
+        'file' => $file,
+    ]);
+
+    $previewResponse->assertOk()
+        ->assertJsonPath('summary.total_rows', 1)
+        ->assertJsonPath('preview_rows.0.name', 'Amina Bello');
+
+    $commitResponse = postJson(route('students.bulk.commit', $previewResponse->json('batch_id')));
+    $commitResponse->assertOk()
+        ->assertJsonPath('summary.total_processed', 1);
+
+    expect(Student::where('school_id', $this->school->id)->where('admission_no', '2025/011')->exists())->toBeTrue();
+});
+
 it('returns all validated rows in the bulk upload preview', function () {
     $rows = [
         'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
@@ -184,6 +271,71 @@ it('returns all validated rows in the bulk upload preview', function () {
         ->assertJsonPath('summary.total_rows', 12)
         ->assertJsonCount(12, 'preview_rows');
 });
+
+function buildStudentBulkXlsx(array $rows): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'student-bulk-xlsx-');
+    $zip = new ZipArchive();
+    $zip->open($path, ZipArchive::OVERWRITE);
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Students" sheetId="1" r:id="rId1"/></sheets>
+</workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>');
+    $zip->addFromString('xl/worksheets/sheet1.xml', buildStudentBulkWorksheetXml($rows));
+    $zip->close();
+
+    $contents = file_get_contents($path);
+    unlink($path);
+
+    return $contents ?: '';
+}
+
+function buildStudentBulkWorksheetXml(array $rows): string
+{
+    $xmlRows = [];
+    foreach ($rows as $rowIndex => $row) {
+        $cells = [];
+        foreach (array_values($row) as $columnIndex => $value) {
+            $reference = xlsxColumnName($columnIndex + 1) . ($rowIndex + 1);
+            $escaped = htmlspecialchars((string) $value, ENT_XML1);
+            $cells[] = "<c r=\"{$reference}\" t=\"inlineStr\"><is><t>{$escaped}</t></is></c>";
+        }
+        $rowNumber = $rowIndex + 1;
+        $xmlRows[] = "<row r=\"{$rowNumber}\">" . implode('', $cells) . '</row>';
+    }
+
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>' . implode('', $xmlRows) . '</sheetData>
+</worksheet>';
+}
+
+function xlsxColumnName(int $columnNumber): string
+{
+    $name = '';
+    while ($columnNumber > 0) {
+        $remainder = ($columnNumber - 1) % 26;
+        $name = chr(65 + $remainder) . $name;
+        $columnNumber = intdiv($columnNumber - 1, 26);
+    }
+
+    return $name;
+}
 
 it('returns a friendly duplicate admission number message during commit', function () {
     Student::create([
