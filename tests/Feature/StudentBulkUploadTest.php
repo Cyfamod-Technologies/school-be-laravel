@@ -135,6 +135,34 @@ it('validates and commits a bulk student upload', function () {
     expect(StudentEnrollment::count())->toBe(1);
 });
 
+it('does not require parent details during bulk student upload', function () {
+    $csv = implode("\n", [
+        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
+        '2025/012,Zainab,,Musa,F,2012-05-06,2024-09-01,active,Nigerian,Kaduna,Kaduna North,Blue,Drama,22 Unity Close,,2025/2026,First Term,Grade 6,Arm B,Section Blue,Aisha,, ,08030000000,Central Road,Engineer,Nigerian,Kaduna,Kaduna North',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('students.csv', $csv);
+
+    $previewResponse = post(route('students.bulk.preview'), [
+        'file' => $file,
+    ]);
+
+    $previewResponse->assertOk()
+        ->assertJsonPath('summary.total_rows', 1)
+        ->assertJsonPath('preview_rows.0.parent_email', '—');
+
+    $commitResponse = postJson(route('students.bulk.commit', $previewResponse->json('batch_id')));
+    $commitResponse->assertOk()
+        ->assertJsonPath('summary.total_processed', 1);
+
+    $student = Student::where('school_id', $this->school->id)
+        ->where('admission_no', '2025/012')
+        ->first();
+
+    expect($student)->not()->toBeNull();
+    expect($student?->parent_id)->toBeNull();
+});
+
 it('validates and commits an xlsx bulk student upload', function () {
     if (! class_exists(ZipArchive::class)) {
         $this->markTestSkipped('PHP zip extension is required to generate XLSX test files.');
