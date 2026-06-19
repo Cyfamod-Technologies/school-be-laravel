@@ -5,10 +5,14 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
 use App\Models\Session;
+use App\Models\Staff;
 use App\Models\SkillCategory;
 use App\Models\SkillRating;
 use App\Models\SkillType;
 use App\Models\Student;
+use App\Models\Subject;
+use App\Models\SubjectTeacherAssignment;
+use App\Models\ClassTeacher;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\Carbon;
@@ -214,6 +218,101 @@ it('creates a new skill rating for a student', function () {
         ->assertJsonPath('data.rating_value', 4);
 
     expect(SkillRating::where('student_id', $this->student->id)->count())->toBe(1);
+});
+
+it('allows assigned class teachers to create skill ratings for students in their class', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'staff',
+        'status' => 'active',
+    ]);
+
+    $staff = Staff::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'user_id' => $teacherUser->id,
+        'full_name' => 'Class Teacher',
+        'email' => 'class.teacher@example.test',
+        'phone' => '08010000000',
+        'role' => 'Class Teacher',
+        'gender' => 'female',
+    ]);
+
+    ClassTeacher::create([
+        'id' => (string) Str::uuid(),
+        'staff_id' => $staff->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+        'class_section_id' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->openTerm->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    postJson(route('students.skill-ratings.store', [
+        'student' => $this->student->id,
+    ]), [
+        'session_id' => $this->session->id,
+        'term_id' => $this->openTerm->id,
+        'skill_type_id' => $this->skillType->id,
+        'rating_value' => 4,
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.rating_value', 4);
+});
+
+it('prevents subject teachers from grading skills without class teacher assignment', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'teacher',
+        'status' => 'active',
+    ]);
+
+    $staff = Staff::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'user_id' => $teacherUser->id,
+        'full_name' => 'Subject Teacher',
+        'email' => 'subject.teacher@example.test',
+        'phone' => '08020000000',
+        'role' => 'Subject Teacher',
+        'gender' => 'male',
+    ]);
+
+    $subject = Subject::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Mathematics',
+        'code' => 'MTH',
+    ]);
+
+    SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $subject->id,
+        'staff_id' => $staff->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->openTerm->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    getJson(route('students.skill-ratings.types', [
+        'student' => $this->student->id,
+    ]))->assertForbidden();
+
+    postJson(route('students.skill-ratings.store', [
+        'student' => $this->student->id,
+    ]), [
+        'session_id' => $this->session->id,
+        'term_id' => $this->openTerm->id,
+        'skill_type_id' => $this->skillType->id,
+        'rating_value' => 4,
+    ])->assertForbidden();
 });
 
 it('prevents duplicate skill ratings for the same term', function () {

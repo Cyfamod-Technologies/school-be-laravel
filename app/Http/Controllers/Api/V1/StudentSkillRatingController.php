@@ -8,6 +8,7 @@ use App\Models\SkillRating;
 use App\Models\SkillType;
 use App\Models\Student;
 use App\Models\Term;
+use App\Services\Teachers\TeacherAccessService;
 use App\Support\SkillScope;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,10 @@ use Illuminate\Validation\Rule;
 
 class StudentSkillRatingController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     /**
      * @OA\Get(
      *     path="/api/v1/students/{student}/skill-ratings",
@@ -350,6 +355,11 @@ class StudentSkillRatingController extends Controller
 
         if (! $user || $user->school_id !== $student->school_id) {
             abort(403, 'You are not allowed to perform this action for the selected student.');
+        }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($student)) {
+            abort(403, 'Only the assigned class teacher can view or grade skills for this student.');
         }
     }
 

@@ -173,6 +173,17 @@ class TeacherAssignmentScope
         );
     }
 
+    public function allowsClassTeacherStudent(Student $student): bool
+    {
+        if (! $this->isTeacher) {
+            return true;
+        }
+
+        return $this->classTeacherStudentContexts()->contains(
+            fn (array $context) => $this->matchesContext($context, $student),
+        );
+    }
+
     public function allowsStudentSubject(
         Student $student,
         string $subjectId,
@@ -315,8 +326,6 @@ class TeacherAssignmentScope
                     }
                 }
 
-                // Remove the is_class_teacher flag before returning
-                unset($entry['is_class_teacher']);
                 $entry['subjects'] = array_values($entry['subjects']);
 
                 return $entry;
@@ -378,6 +387,23 @@ class TeacherAssignmentScope
         $this->classAssignments->each($collectContext);
 
         return $contexts
+            ->unique(fn (array $context) => implode(':', [
+                $context['school_class_id'] ?? 'class-null',
+                $context['class_arm_id'] ?? 'arm-null',
+                $context['class_section_id'] ?? 'section-null',
+            ]))
+            ->values();
+    }
+
+    private function classTeacherStudentContexts(): Collection
+    {
+        return $this->classAssignments
+            ->filter(fn ($assignment) => ! empty($assignment->school_class_id))
+            ->map(fn ($assignment) => [
+                'school_class_id' => $assignment->school_class_id,
+                'class_arm_id' => $assignment->class_arm_id ?? null,
+                'class_section_id' => $assignment->class_section_id ?? null,
+            ])
             ->unique(fn (array $context) => implode(':', [
                 $context['school_class_id'] ?? 'class-null',
                 $context['class_arm_id'] ?? 'arm-null',
