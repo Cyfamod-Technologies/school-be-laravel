@@ -353,7 +353,7 @@ class StudentController extends Controller
 
         $scope = $this->teacherAccess->forUser($request->user());
 
-        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($student)) {
             abort(403, 'You are not allowed to view this student.');
         }
 

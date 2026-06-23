@@ -6,6 +6,8 @@ use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Staff;
 use App\Models\Student;
+use App\Models\Subject;
+use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\Carbon;
@@ -14,6 +16,7 @@ use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\putJson;
 
@@ -158,4 +161,51 @@ it('allows teachers to create students', function () {
         ->assertCreated()
         ->assertJsonPath('data.first_name', 'Teacher')
         ->assertJsonPath('data.school_id', $this->school->id);
+});
+
+it('prevents subject teachers from opening student records without class teacher assignment', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'teacher',
+        'status' => 'active',
+    ]);
+
+    $staff = Staff::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'user_id' => $teacherUser->id,
+        'full_name' => 'Subject Teacher',
+        'email' => 'subject.teacher.guard@example.test',
+        'phone' => '08020000000',
+        'role' => 'Subject Teacher',
+        'gender' => 'male',
+    ]);
+
+    $subject = Subject::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => 'Mathematics',
+        'code' => 'MTH',
+    ]);
+
+    SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $subject->id,
+        'staff_id' => $staff->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->arm->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    getJson(route('students.index'))
+        ->assertOk()
+        ->assertJsonFragment(['id' => $this->student->id]);
+
+    getJson(route('students.show', $this->student->id))
+        ->assertForbidden();
 });
