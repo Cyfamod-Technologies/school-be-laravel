@@ -248,7 +248,7 @@ class TeacherAssignmentScope
      *     class_section: array|null,
      *     session: array|null,
      *     term: array|null,
-     *     subjects: array<int, array{id: string, name: ?string, code: ?string}>
+     *     subjects: array<int, array{id: string, name: ?string, code: ?string, is_subject_teacher: bool}>
      * }>
      */
     public function summarizeAssignments(): Collection
@@ -295,6 +295,7 @@ class TeacherAssignmentScope
                     'id' => $assignment->subject->id,
                     'name' => $assignment->subject->name,
                     'code' => $assignment->subject->code,
+                    'is_subject_teacher' => true,
                 ];
             }
         };
@@ -321,6 +322,7 @@ class TeacherAssignmentScope
                                 'id' => $subject->id,
                                 'name' => $subject->name,
                                 'code' => $subject->code,
+                                'is_subject_teacher' => false,
                             ];
                         }
                     }
