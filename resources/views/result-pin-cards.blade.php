@@ -106,17 +106,56 @@
             opacity: 0.9;
             margin-bottom: 2px;
         }
+        .portal-access {
+            margin-top: 4px;
+            padding: 5px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .portal-access-label {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.78);
+            margin-bottom: 2px;
+        }
         .portal-link {
             font-size: 9px;
-            color: rgba(236, 15, 15, 0.9);
-            white-space: nowrap;
+            color: #ffffff;
             font-weight: 700;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.25;
         }
         .portal-link a {
             color: #fff;
             text-decoration: none;
+        }
+        .usage-note {
+            font-size: 9px;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.88);
+            line-height: 1.25;
+        }
+        .access-guide {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+        .access-guide-title {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.78);
+            margin-bottom: 2px;
+        }
+        .access-guide-text {
+            font-size: 8.5px;
+            line-height: 1.3;
+            color: rgba(255, 255, 255, 0.92);
         }
         .footer {
             text-align: center;
@@ -177,23 +216,56 @@
                         </strong>
                     </div>
                     <div class="card-details">
-                        <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
-                        <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
-                        <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
+                        @unless($hideStudentIdentity ?? false)
+                            <div><strong>Student:</strong> {{ $card['student_name'] }}</div>
+                            <div><strong>ADM No:</strong> {{ $card['admission_no'] ?? 'N/A' }}</div>
+                            <div><strong>Class:</strong> {{ $card['class_label'] }}</div>
+                        @endunless
                         <div><strong>Session:</strong> {{ $sessionName ?? 'N/A' }} - <strong>Term:</strong> {{ $termName ?? 'N/A' }}</div>
                         <!-- <div><strong>Term:</strong> {{ $termName ?? 'N/A' }}</div> -->
                     </div>
                     <div class="pin-code">{{ chunk_split($card['pin_code'], 4, ' ') }}</div>
-                    <div class="expiry">Valid until: {{ $card['expires_at'] }} || Student portal link:</div>
+                    <div class="expiry">Valid until: {{ $card['expires_at'] }}</div>
                     @php
                         $studentPortalLink = trim((string) ($studentPortalLink ?? ''));
+                        preg_match('/https?:\/\/\S+/i', $studentPortalLink, $portalMatches);
+                        $portalHref = $portalMatches[0] ?? null;
                     @endphp
                     @if($studentPortalLink !== '')
-                        <div class="portal-link">
-                            <!-- <strong>Student portal link:</strong> <br> -->
-                            <a href="{{ $studentPortalLink }}" target="_blank" rel="noreferrer">
-                                {{ $studentPortalLink }}
-                            </a>
+                        <div class="portal-access">
+                            <div class="portal-access-label">Student Portal</div>
+                            <div class="portal-link">
+                                @if($portalHref)
+                                    <a href="{{ $portalHref }}" target="_blank" rel="noreferrer">
+                                        {{ $studentPortalLink }}
+                                    </a>
+                                @else
+                                    {{ $studentPortalLink }}
+                                @endif
+                            </div>
+                            <div class="usage-note">
+                                @if($card['max_usage'] !== null)
+                                    Usage limit: {{ $card['max_usage'] }} time{{ $card['max_usage'] === 1 ? '' : 's' }}
+                                    (remaining: {{ $card['remaining_usage'] }})
+                                @else
+                                    Usage limit: Unlimited
+                                @endif
+                            </div>
+                            <div class="access-guide">
+                                <div class="access-guide-title">How To Access</div>
+                                <div class="access-guide-text">
+                                    Open the portal link, log in with your ADM No and password, then enter this scratch PIN to check your result.
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="usage-note">
+                            @if($card['max_usage'] !== null)
+                                Usage limit: {{ $card['max_usage'] }} time{{ $card['max_usage'] === 1 ? '' : 's' }}
+                                (remaining: {{ $card['remaining_usage'] }})
+                            @else
+                                Usage limit: Unlimited
+                            @endif
                         </div>
                     @endif
                 </div>

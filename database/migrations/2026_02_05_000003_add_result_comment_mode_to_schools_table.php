@@ -9,9 +9,7 @@ return new class extends Migration
     public function up()
     {
         Schema::table('schools', function (Blueprint $table) {
-            $table->string('result_comment_mode', 20)
-                ->default('manual')
-                ->after('result_show_remarks');
+            $table->string('result_comment_mode', 20)->default('manual');
         });
     }
 

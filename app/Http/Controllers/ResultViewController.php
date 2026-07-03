@@ -559,6 +559,7 @@ class ResultViewController extends Controller
             'nextTermStart' => $nextTerm?->start_date?->format('jS F Y'),
             'reportDate' => Carbon::now()->format('jS F Y'),
             'classSize' => $overallStats['class_size'] ?? $classSize,
+            'schoolOpenedDays' => optional($student->school)->term_school_opened_days,
             'documentTitle' => $studentName ? "{$studentName} | Result Slip" : 'Result Slip',
             'studentInfo' => [
                 'name' => $studentName,
@@ -687,9 +688,7 @@ class ResultViewController extends Controller
         $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
         $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? null;
         $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? null;
-        $schoolOpenedDays = $attendancePresent !== null && $attendanceAbsent !== null
-            ? $attendancePresent + $attendanceAbsent
-            : null;
+        $schoolOpenedDays = optional($student->school)->term_school_opened_days;
 
         $classSize = Student::query()
             ->where('school_id', $student->school_id)
@@ -1330,6 +1329,8 @@ class ResultViewController extends Controller
             'show_lowest' => $school?->result_show_lowest ?? true,
             'show_highest' => $school?->result_show_highest ?? true,
             'show_remarks' => $school?->result_show_remarks ?? true,
+            'hide_student_identity' => $school?->result_hide_student_identity ?? false,
+            'allow_shared_pin_access' => $school?->result_allow_shared_pin_access ?? false,
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
         ];
     }

@@ -50,7 +50,15 @@ class Term extends Model
 	protected $casts = [
 		'start_date' => 'datetime',
 		'end_date' => 'datetime',
-		'term_number' => 'integer'
+		'term_number' => 'integer',
+		'student_count_snapshot' => 'integer',
+		'amount_due' => 'decimal:2',
+		'amount_paid' => 'decimal:2',
+		'midterm_amount_due' => 'decimal:2',
+		'midterm_amount_paid' => 'decimal:2',
+		'outstanding_balance' => 'decimal:2',
+		'payment_due_date' => 'date',
+		'has_midterm_additions' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -62,7 +70,16 @@ class Term extends Model
 		'slug',
 		'start_date',
 		'end_date',
-		'status'
+		'status',
+		'payment_status',
+		'invoice_id',
+		'student_count_snapshot',
+		'amount_due',
+		'amount_paid',
+		'payment_due_date',
+		'has_midterm_additions',
+		'midterm_amount_due',
+		'midterm_amount_paid',
 	];
 
 	protected static function booted(): void
@@ -185,5 +202,52 @@ class Term extends Model
 	public function term_summaries()
 	{
 		return $this->hasMany(TermSummary::class);
+	}
+
+	public function invoice()
+	{
+		return $this->belongsTo(Invoice::class);
+	}
+
+	public function invoices()
+	{
+		return $this->hasMany(Invoice::class);
+	}
+
+	public function midtermAdditions()
+	{
+		return $this->hasMany(MidtermStudentAddition::class);
+	}
+
+	/**
+	 * Check if subscription payment is made (demo schools exempt)
+	 */
+	public function isPaymentRequired(): bool
+	{
+		return $this->school->subdomain !== 'demo';
+	}
+
+	/**
+	 * Check if all fees are paid (original + mid-term)
+	 */
+	public function allFeesPaid(): bool
+	{
+		if (!$this->isPaymentRequired()) {
+			return true;
+		}
+
+		return $this->outstanding_balance <= 0;
+	}
+
+	/**
+	 * Get outstanding balance
+	 */
+	public function getOutstandingBalance(): float
+	{
+		if (!$this->isPaymentRequired()) {
+			return 0;
+		}
+
+		return max(0, ($this->amount_due + $this->midterm_amount_due) - ($this->amount_paid + $this->midterm_amount_paid));
 	}
 }

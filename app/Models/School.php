@@ -66,12 +66,16 @@ class School extends Model
 	protected $casts = [
 		'established_at' => 'datetime',
 		'code_sequence' => 'integer',
+		'enable_free_trial' => 'boolean',
 		'result_show_grade' => 'boolean',
 		'result_show_position' => 'boolean',
 		'result_show_class_average' => 'boolean',
 		'result_show_lowest' => 'boolean',
 		'result_show_highest' => 'boolean',
 		'result_show_remarks' => 'boolean',
+		'term_school_opened_days' => 'integer',
+		'result_hide_student_identity' => 'boolean',
+		'result_allow_shared_pin_access' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -87,9 +91,11 @@ class School extends Model
 		'logo_url',
 		'signature_url',
 		'student_portal_link',
+		'term_school_opened_days',
 		'established_at',
 		'owner_name',
 		'status',
+		'enable_free_trial',
 		'current_session_id',
 		'current_term_id',
 		'result_show_grade',
@@ -98,6 +104,8 @@ class School extends Model
 		'result_show_lowest',
 		'result_show_highest',
 		'result_show_remarks',
+		'result_hide_student_identity',
+		'result_allow_shared_pin_access',
 		'result_comment_mode',
 	];
 
@@ -268,5 +276,41 @@ class School extends Model
 	public function bankDetails()
 	{
 		return $this->hasMany(BankDetail::class);
+	}
+
+	public function invoices()
+	{
+		return $this->hasMany(Invoice::class);
+	}
+
+	public function referrals()
+	{
+		return $this->hasMany(Referral::class);
+	}
+
+	public function commissions()
+	{
+		return $this->hasMany(AgentCommission::class);
+	}
+
+	public function midtermAdditions()
+	{
+		return $this->hasMany(MidtermStudentAddition::class);
+	}
+
+	/**
+	 * Check if this is a demo school
+	 */
+	public function isDemo(): bool
+	{
+		return $this->subdomain === 'demo';
+	}
+
+	/**
+	 * Check if subscription applies to this school
+	 */
+	public function requiresSubscription(): bool
+	{
+		return !$this->isDemo();
 	}
 }

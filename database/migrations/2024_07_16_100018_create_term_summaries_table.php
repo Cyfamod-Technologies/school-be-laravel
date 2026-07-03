@@ -26,7 +26,8 @@ return new class extends Migration
             $table->integer('days_present')->nullable();
             $table->integer('days_absent')->nullable();
             $table->string('final_grade', 10)->nullable();
-            $table->text('overall_comment')->nullable()->default('This student is good.');
+            $table->text('overall_comment')->nullable();
+            $table->text('principal_comment')->nullable();
             $table->timestamps();
 
             $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');

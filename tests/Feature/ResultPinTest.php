@@ -224,4 +224,29 @@ describe('Result PIN management', function () {
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.student.id', $this->student->id);
     });
+
+    it('hides student identity on printed scratch cards when the school setting is enabled', function () {
+        $this->school->update([
+            'result_hide_student_identity' => true,
+        ]);
+
+        ResultPin::create([
+            'student_id' => $this->student->id,
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'pin_code' => 'PINPRINT1',
+            'status' => 'active',
+        ]);
+
+        getJson(route('result-pins.cards.print', [
+            'student_id' => $this->student->id,
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+        ]))
+            ->assertOk()
+            ->assertDontSee('Student 1 Example', false)
+            ->assertDontSee($this->student->admission_no, false)
+            ->assertDontSee('JSS 2 - Ruby', false)
+            ->assertSee('PINPRINT1', false);
+    });
 });

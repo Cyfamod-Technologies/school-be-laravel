@@ -124,6 +124,9 @@
                 @if($termStart && $termEnd)
                     Term Period: {{ $termStart }} - {{ $termEnd }}<br>
                 @endif
+                @if(!empty($schoolOpenedDays))
+                    No. of Times School Opened: {{ $schoolOpenedDays }}<br>
+                @endif
                 @if($nextTermStart)
                     Next resumption date: {{ $nextTermStart }}
                 @endif
@@ -145,7 +148,7 @@
         <tr>
             <td>Session: {{ $sessionName ?? 'N/A' }}</td>
             <td>Term: {{ $termName ?? 'N/A' }}</td>
-            <td>No. of Times School Opened: {{ $schoolOpenedDays ?? 'N/A' }}</td>
+            <td>Report Date: {{ $reportDate ?? 'N/A' }}</td>
             <td>No. of Days Present: {{ $attendance['present'] ?? 'N/A' }}</td>
             <td>No. of Days Absent: {{ $attendance['absent'] ?? 'N/A' }}</td>
             <td>No. in Class: {{ $classSize ?: 'N/A' }}</td>

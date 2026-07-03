@@ -439,6 +439,11 @@ class ResultPinController extends Controller
                 'class_label' => $classLabel ?: 'Class not set',
                 'pin_code' => $pin->pin_code,
                 'expires_at' => $pin->expires_at ? $pin->expires_at->format('jS M, Y') : 'No expiry',
+                'use_count' => (int) ($pin->use_count ?? 0),
+                'max_usage' => $pin->max_usage !== null ? (int) $pin->max_usage : null,
+                'remaining_usage' => $pin->max_usage !== null
+                    ? max((int) $pin->max_usage - (int) ($pin->use_count ?? 0), 0)
+                    : null,
             ];
         });
 
@@ -452,6 +457,7 @@ class ResultPinController extends Controller
             'autoPrint' => $request->boolean('autoprint'),
             'schoolLogoUrl' => $this->resolveMediaUrl($school->logo_url),
             'studentPortalLink' => $school->student_portal_link,
+            'hideStudentIdentity' => (bool) ($school->result_hide_student_identity ?? false),
         ]);
     }
 

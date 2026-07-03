@@ -68,6 +68,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend Agent Login URL
+    |--------------------------------------------------------------------------
+    |
+    | URL to the frontend agent login page used after agent email verification.
+    |
+    */
+
+    'frontend_agent_login_url' => env('FRONTEND_AGENT_LOGIN_URL', '/agent/login'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

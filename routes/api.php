@@ -46,6 +46,8 @@ use App\Http\Controllers\Api\V1\QuizResultController;
 use App\Http\Controllers\Api\V1\PermissionSeedController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
+use App\Http\Controllers\Api\V1\AgentController;
+use App\Http\Controllers\Api\V1\TermController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -416,7 +418,74 @@ Route::prefix('api/v1')->group(function () {
             Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
         });
 
+        // Subscription & Payment Routes (Protected)
+        Route::prefix('terms')->middleware('auth:sanctum')->group(function () {
+            Route::get('{term}', [TermController::class, 'show'])
+                ->whereUuid('term')
+                ->name('terms.show');
+            Route::post('{term}/switch', [TermController::class, 'switchTerm'])
+                ->whereUuid('term')
+                ->name('terms.switch');
+            Route::get('school/all', [TermController::class, 'schoolTerms'])
+                ->name('terms.school.all');
+            Route::get('{term}/payment-details', [TermController::class, 'paymentDetails'])
+                ->whereUuid('term')
+                ->name('terms.payment-details');
+            Route::post('{term}/send-reminder', [TermController::class, 'sendPaymentReminder'])
+                ->whereUuid('term')
+                ->name('terms.send-reminder');
+            Route::post('{term}/paystack/initialize', [TermController::class, 'initializePaystackPayment'])
+                ->whereUuid('term')
+                ->name('terms.paystack.initialize');
+            Route::post('paystack/initialize-session', [TermController::class, 'initializeSessionPaystackPayment'])
+                ->name('terms.paystack.initialize-session');
+            Route::post('paystack/verify', [TermController::class, 'verifyPaystackPayment'])
+                ->name('terms.paystack.verify');
+            Route::get('payments/history', [TermController::class, 'paymentHistory'])
+                ->name('terms.payments.history');
+        });
+
         
+    });
+
+    // Agent Routes (Public registration, then Protected)
+    Route::prefix('agents')->group(function () {
+        // Public registration
+        Route::post('register', [AgentController::class, 'register'])
+            ->name('agents.register');
+        Route::post('google-auth', [AgentController::class, 'googleAuth'])
+            ->name('agents.google-auth');
+        Route::post('login', [AgentController::class, 'login'])
+            ->name('agents.login');
+        Route::get('email/verify', [AgentController::class, 'verifyEmail'])
+            ->name('agents.email.verify');
+        Route::post('password/forgot', [AgentController::class, 'requestPasswordReset'])
+            ->name('agents.password.forgot');
+        Route::post('password/reset', [AgentController::class, 'resetPassword'])
+            ->name('agents.password.reset');
+
+        // Protected agent routes
+        Route::middleware('auth:agent')->group(function () {
+            Route::get('profile', [AgentController::class, 'profile'])
+                ->name('agents.profile');
+            Route::put('profile', [AgentController::class, 'updateProfile'])
+                ->name('agents.profile.update');
+            Route::put('profile/password', [AgentController::class, 'changePassword'])
+                ->name('agents.profile.password');
+            Route::get('dashboard', [AgentController::class, 'dashboard'])
+                ->name('agents.dashboard');
+            Route::post('referrals/generate', [AgentController::class, 'generateReferral'])
+                ->name('agents.referrals.generate');
+            Route::get('referrals/{referral}', [AgentController::class, 'getReferral'])
+                ->whereUuid('referral')
+                ->name('agents.referrals.show');
+            Route::get('commissions/history', [AgentController::class, 'commissionHistory'])
+                ->name('agents.commissions.history');
+            Route::post('payouts/request', [AgentController::class, 'requestPayout'])
+                ->name('agents.payouts.request');
+            Route::get('payouts/history', [AgentController::class, 'payoutHistory'])
+                ->name('agents.payouts.history');
+        });
     });
 
     // CBT (Computer-Based Test) Routes
