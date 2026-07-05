@@ -15,6 +15,8 @@ This application uses a multi-tenant architectural design:
 - **School-Level Tenancy:** Students, enrollments, grading, and settings are tightly isolated to specific `school_id` foreign keys to ensure data segregation.
 - **RBAC (Role-Based Access Control):** Powered by `spatie/laravel-permission`, leveraging team scopes so users have different roles depending on which school context they are acting in.
 
+> **CRITICAL:** Before writing any code, you **must** read the [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). It serves as the live, master blueprint for the Subscription and Agent Affiliate System architecture.
+
 ## 📦 Prerequisites
 - **PHP** >= 8.2
 - **Composer** >= 2.0
@@ -37,6 +39,7 @@ composer install
 cp .env.example .env
 
 # 4. Generate the application key
+# (Required: Mathematically encrypts sessions and passwords to prevent 500 crashes)
 php artisan key:generate
 
 # 5. Create a local database named `school-mgt-test-db` (or whatever you put in .env)
@@ -48,6 +51,13 @@ php artisan serve
 ```
 The API is now running locally at `http://localhost:8000`.
 
+### 🔑 Default Login Credentials
+Running `--seed` executes the `ComprehensiveSchoolSeeder`, which generates a complete ecosystem for the "Demo International School". 
+
+**Admin Portal Access:**
+- **Email:** `demo@gmail.com`
+- **Password:** `12345678`
+
 ## 🧪 Running Tests
 This project relies heavily on Pest and PHPUnit for testing. To ensure you don't accidentally wipe your local database during testing, tests use the isolated `.env.testing` configuration.
 
@@ -57,8 +67,11 @@ php artisan test
 
 ## 🚢 Deployment Architecture
 The repository uses a dual-deployment pipeline defined in GitHub Actions (`.github/workflows/deploy.yml`):
-1. **Hostinger (main):** Automatically deployed via legacy SSH workflows upon pushing to the `main` branch.
-2. **Dokploy (dev & staging):** Deployed natively via GitHub Webhooks. The CI pipeline runs tests, and Dokploy automatically handles pulling the code and rebuilding the Docker containers quietly in the background.
+1. **Production Environment:** Automatically deployed via legacy SSH workflows upon pushing to the `main` branch.
+2. **Development Environment:** Deployed natively via GitHub Webhooks upon pushing to `dev` or `staging`. The CI pipeline runs tests, and the deployment server automatically pulls the code and rebuilds the containers.
+
+## 🤝 How to Contribute
+Please read our [CONTRIBUTING.md](CONTRIBUTING.md) guide before submitting any pull requests. It contains our formatting rules, branch naming conventions, and testing requirements.
 
 ## 🛠️ Common Troubleshooting
 
@@ -66,4 +79,4 @@ The repository uses a dual-deployment pipeline defined in GitHub Actions (`.gith
 **Fix:** MariaDB 10.11 enforces Strict Mode for UUIDs. Ensure you are using `Str::uuid()` instead of dummy strings in your factories.
 
 **Issue:** CI `Deploy via SSH` step is failing on `dev`.
-**Fix:** This is normal! Since `dev` is hosted on Dokploy, SSH is skipped on purpose. Dokploy handles it natively.
+**Fix:** This is normal! Since `dev` is hosted on a webhook-based CD provider, SSH is skipped on purpose. The provider handles it natively.
