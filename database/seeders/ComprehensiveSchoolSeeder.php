@@ -879,6 +879,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                     'school_class_id' => $class->id,
                     'class_arm_id' => $armId,
                     'parent_id' => $parentId,
+                    'portal_password' => '123456',
                     'status' => 'active',
                     'nationality' => 'Nigerian',
                     'state_of_origin' => ['Lagos', 'Oyo', 'Kano', 'Rivers', 'Enugu'][array_rand(['Lagos', 'Oyo', 'Kano', 'Rivers', 'Enugu'])],
