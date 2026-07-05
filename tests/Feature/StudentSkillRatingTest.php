@@ -62,7 +62,7 @@ beforeEach(function () {
         'slug' => 'second-term',
         'start_date' => Carbon::parse('2025-01-10'),
         'end_date' => Carbon::now()->subWeek(),
-        'status' => 'completed',
+        'status' => 'archived',
     ]);
 
     $this->skillCategory = SkillCategory::create([

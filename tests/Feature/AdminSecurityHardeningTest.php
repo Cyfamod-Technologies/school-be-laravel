@@ -79,7 +79,7 @@ class AdminSecurityHardeningTest extends TestCase
         $agent = Agent::factory()->create([
             'status' => 'inactive',
             'approved_at' => now(),
-            'approved_by' => 'some-admin-id'
+            'approved_by' => (string) \Illuminate\Support\Str::uuid()
         ]);
 
         $response = $this->actingAs($superAdmin, 'sanctum')

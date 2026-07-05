@@ -152,7 +152,7 @@ it('creates term summary when missing', function () {
         'slug' => 'second-term',
         'start_date' => now()->addMonths(1),
         'end_date' => now()->addMonths(4),
-        'status' => 'planned',
+        'status' => 'upcoming',
     ]);
 
     putJson(route('students.term-summary.update', [

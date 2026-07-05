@@ -26,6 +26,10 @@ beforeEach(function () {
         'role' => 'admin',
         'status' => 'active',
     ]);
+    
+    $role = \App\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'sanctum', 'school_id' => $this->school->id]);
+    app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->school->id);
+    $this->admin->assignRole($role);
 
     $this->nonAdmin = User::factory()->create([
         'school_id' => $this->school->id,

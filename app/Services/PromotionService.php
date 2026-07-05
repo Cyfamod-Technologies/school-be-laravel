@@ -48,7 +48,7 @@ class PromotionService
         // If a target class arm is explicitly provided, ensure it exists
         // for the target class. Otherwise, keep the student's existing arm.
         if ($targetClassArmId) {
-            $student->class_arm()
+            \App\Models\ClassArm::query()
                 ->where('school_class_id', $targetClass->id)
                 ->findOrFail($targetClassArmId);
         } else {

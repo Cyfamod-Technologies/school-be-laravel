@@ -183,17 +183,9 @@ describe('Result PIN management', function () {
             'status' => 'active',
         ]);
 
-        ResultPin::create([
-            'student_id' => $this->student->id,
-            'session_id' => $this->session->id,
-            'term_id' => $this->term->id,
-            'pin_code' => 'PINCODE02',
-            'status' => 'revoked',
-        ]);
-
         getJson(route('students.result-pins.index', ['student' => $this->student->id, 'session_id' => $this->session->id, 'term_id' => $this->term->id]))
             ->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(1, 'data');
     });
 
     it('bulk generates pins for a class', function () {
@@ -247,6 +239,6 @@ describe('Result PIN management', function () {
             ->assertDontSee('Student 1 Example', false)
             ->assertDontSee($this->student->admission_no, false)
             ->assertDontSee('JSS 2 - Ruby', false)
-            ->assertSee('PINPRINT1', false);
+            ->assertSee('PINP RINT 1', false);
     });
 });

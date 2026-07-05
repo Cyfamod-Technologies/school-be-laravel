@@ -599,6 +599,12 @@ class StudentBulkUploadService
                 'required' => ! $hasArmPreselection,
                 'example' => 'A',
             ],
+            [
+                'key' => 'student.class_section_id',
+                'header' => 'Class Section',
+                'required' => false,
+                'example' => 'Blue',
+            ],
             // Parent columns
             [
                 'key' => 'parent.first_name',
@@ -878,7 +884,24 @@ class StudentBulkUploadService
             $studentData['class_arm_id'] = $classArm->id;
         }
 
-        $studentData['class_section_id'] = null;
+        $sectionValue = $getValue('student.class_section_id');
+        if ($sectionValue && $classArm) {
+            $classSection = $classArm->class_sections->first(function ($sec) use ($sectionValue) {
+                return $this->matchesNameOrId($sectionValue, $sec->id, $sec->name);
+            });
+            
+            if (! $classSection) {
+                $errors[] = [
+                    'row' => $rowNumber,
+                    'column' => $columns['student.class_section_id']['header'],
+                    'message' => 'Class section not found for the selected class arm.',
+                ];
+            } else {
+                $studentData['class_section_id'] = $classSection->id;
+            }
+        } else {
+            $studentData['class_section_id'] = null;
+        }
 
         $parentData['first_name'] = $getValue('parent.first_name');
         $parentData['last_name'] = $getValue('parent.last_name');
