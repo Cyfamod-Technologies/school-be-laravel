@@ -37,7 +37,7 @@ class AgentFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => 'approved',
             'approved_at' => now(),
-            'approved_by' => 'admin',
+            'approved_by' => (string) Str::uuid(),
         ]);
     }
 

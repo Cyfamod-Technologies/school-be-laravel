@@ -34,7 +34,7 @@ describe('PromotionController', function () {
             'slug' => '2024-2025',
             'start_date' => now()->subMonths(8),
             'end_date' => now()->addMonths(4),
-            'status' => 'completed',
+            'status' => 'archived',
         ]);
 
         $this->targetSession = Session::create([
@@ -44,7 +44,18 @@ describe('PromotionController', function () {
             'slug' => '2025-2026',
             'start_date' => now()->addMonths(5),
             'end_date' => now()->addMonths(17),
-            'status' => 'planned',
+            'status' => 'upcoming',
+        ]);
+
+        Term::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'session_id' => $this->targetSession->id,
+            'name' => 'First Term',
+            'slug' => 'first-term-target',
+            'start_date' => now()->addMonths(5),
+            'end_date' => now()->addMonths(8),
+            'status' => 'upcoming',
         ]);
 
         $this->term = Term::create([
@@ -55,7 +66,7 @@ describe('PromotionController', function () {
             'slug' => 'first-term',
             'start_date' => now()->subMonths(7),
             'end_date' => now()->subMonths(4),
-            'status' => 'completed',
+            'status' => 'archived',
         ]);
 
         $this->class = SchoolClass::create([

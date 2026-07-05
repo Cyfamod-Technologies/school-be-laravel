@@ -35,11 +35,21 @@ class StudentEnrollment extends Model
 	protected $keyType = 'string';
 
 	protected $fillable = [
+		'id',
 		'student_id',
 		'class_section_id',
 		'session_id',
 		'term_id'
 	];
+
+	protected static function booted()
+	{
+		static::creating(function (self $model) {
+			if (empty($model->id)) {
+				$model->id = (string) \Illuminate\Support\Str::uuid();
+			}
+		});
+	}
 
 	public function class_section()
 	{

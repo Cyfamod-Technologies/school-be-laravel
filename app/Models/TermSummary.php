@@ -42,6 +42,15 @@ class TermSummary extends Model
 
 	protected $keyType = 'string';
 
+	protected static function booted()
+	{
+		static::creating(function (self $model) {
+			if (empty($model->id)) {
+				$model->id = (string) \Illuminate\Support\Str::uuid();
+			}
+		});
+	}
+
 	protected $attributes = [
 		'overall_comment' => 'This student is good.',
 		'principal_comment' => 'This student is hardworking.',

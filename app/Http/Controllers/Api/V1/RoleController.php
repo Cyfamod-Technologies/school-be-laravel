@@ -16,6 +16,7 @@ class RoleController extends Controller
 {
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'roles.view');
         $perPage = max((int) $request->input('per_page', 15), 1);
         $schoolId = $this->resolveSchoolId($request);
 
@@ -41,6 +42,7 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'roles.create');
         $schoolId = $this->resolveSchoolId($request);
 
         $validated = $request->validate([
@@ -94,6 +96,7 @@ class RoleController extends Controller
 
     public function show(Request $request, Role $role)
     {
+        $this->ensurePermission($request, 'roles.view');
         $this->assertRoleBelongsToSchool($role, $this->resolveSchoolId($request));
 
         return new RoleResource($role->load(['permissions' => function ($relation) use ($role) {
@@ -104,6 +107,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role)
     {
+        $this->ensurePermission($request, 'roles.update');
         $this->assertRoleBelongsToSchool($role, $this->resolveSchoolId($request));
 
         $schoolId = $role->school_id;
@@ -155,6 +159,7 @@ class RoleController extends Controller
 
     public function destroy(Request $request, Role $role): JsonResponse
     {
+        $this->ensurePermission($request, 'roles.delete');
         $this->assertRoleBelongsToSchool($role, $this->resolveSchoolId($request));
 
         if ($role->users()->exists()) {
