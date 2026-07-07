@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PermissionHierarchyController;
 use App\Http\Controllers\Api\V1\PermissionSeedController;
 use App\Http\Controllers\Api\V1\PromotionController;
+use App\Http\Controllers\Api\V1\PublicSchoolWebsiteController;
 use App\Http\Controllers\Api\V1\QuizAnswerController;
 use App\Http\Controllers\Api\V1\QuizAttemptController;
 use App\Http\Controllers\Api\V1\QuizController;
@@ -59,11 +60,10 @@ Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate
 Route::prefix('api/v1')->group(function () {
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
-    Route::get('/email/verify', [EmailVerificationController::class, 'verify'])
-        ->name('api.v1.email.verify');
-
+    Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+    Route::get('/public/schools/{schoolSlug}/website', [PublicSchoolWebsiteController::class, 'show'])->name('public.schools.website.show');
 
     Route::prefix('student')->group(function () {
         Route::post('login', [StudentAuthController::class, 'login']);
