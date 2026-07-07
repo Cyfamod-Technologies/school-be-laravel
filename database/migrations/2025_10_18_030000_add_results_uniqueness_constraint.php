@@ -60,12 +60,12 @@ return new class extends Migration
     {
         $schema = Schema::getConnection()->getDatabaseName();
 
-        $rows = Schema::getConnection()->select("
+        $rows = Schema::getConnection()->select('
             SELECT DISTINCT index_name
             FROM information_schema.statistics
             WHERE table_schema = ?
               AND table_name = ?
-        ", [$schema, $table]);
+        ', [$schema, $table]);
 
         return collect($rows)->pluck('index_name')->map(fn ($name) => (string) $name)->all();
     }

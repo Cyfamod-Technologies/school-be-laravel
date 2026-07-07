@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * Class Agent
@@ -29,8 +29,6 @@ use Illuminate\Support\Str;
  * @property string|null $rejection_reason
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class Agent extends Authenticatable
 {
@@ -47,7 +45,9 @@ class Agent extends Authenticatable
     }
 
     protected $table = 'agents';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -109,6 +109,7 @@ class Agent extends Authenticatable
         $this->status = 'approved';
         $this->approved_by = $approvedBy;
         $this->approved_at = now();
+
         return $this->save();
     }
 
@@ -116,6 +117,7 @@ class Agent extends Authenticatable
     {
         $this->status = 'inactive';
         $this->rejection_reason = $reason;
+
         return $this->save();
     }
 

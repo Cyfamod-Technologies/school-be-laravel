@@ -28,6 +28,7 @@ class GradeScaleController extends Controller
      *     path="/api/v1/grades/scales",
      *     tags={"school-v1.9"},
      *     summary="List grading scales",
+     *
      *     @OA\Response(response=200, description="Scales returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -91,11 +92,15 @@ class GradeScaleController extends Controller
      *     path="/api/v1/grades/scales/{id}",
      *     tags={"school-v1.9"},
      *     summary="Update grading scale ranges",
+     *
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"ranges"},
+     *
      *             @OA\Property(property="ranges", type="array", @OA\Items(
      *                 @OA\Property(property="id", type="string", format="uuid"),
      *                 @OA\Property(property="min_score", type="number"),
@@ -107,6 +112,7 @@ class GradeScaleController extends Controller
      *             @OA\Property(property="deleted_ids", type="array", @OA\Items(type="string", format="uuid"))
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Scale updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error")

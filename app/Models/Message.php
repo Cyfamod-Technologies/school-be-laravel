@@ -22,37 +22,36 @@ use Illuminate\Database\Eloquent\Model;
  * @property bool $is_read
  * @property Carbon $sent_at
  * @property Carbon $updated_at
- *
  * @property User $user
- *
- * @package App\Models
  */
 class Message extends Model
 {
-	protected $table = 'messages';
-	public $incrementing = false;
+    protected $table = 'messages';
 
-	protected $keyType = 'string';
-	public $timestamps = false;
+    public $incrementing = false;
 
-	protected $casts = [
-		'is_read' => 'bool',
-		'sent_at' => 'datetime'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'thread_id',
-		'sender_id',
-		'receiver_id',
-		'sender_role',
-		'receiver_role',
-		'message_body',
-		'is_read',
-		'sent_at'
-	];
+    public $timestamps = false;
 
-	public function user()
-	{
-		return $this->belongsTo(User::class, 'sender_id');
-	}
+    protected $casts = [
+        'is_read' => 'bool',
+        'sent_at' => 'datetime',
+    ];
+
+    protected $fillable = [
+        'thread_id',
+        'sender_id',
+        'receiver_id',
+        'sender_role',
+        'receiver_role',
+        'message_body',
+        'is_read',
+        'sent_at',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'sender_id');
+    }
 }

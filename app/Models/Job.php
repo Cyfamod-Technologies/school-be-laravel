@@ -18,25 +18,24 @@ use Illuminate\Database\Eloquent\Model;
  * @property int|null $reserved_at
  * @property int $available_at
  * @property int $created_at
- *
- * @package App\Models
  */
 class Job extends Model
 {
-	protected $table = 'jobs';
-	public $timestamps = false;
+    protected $table = 'jobs';
 
-	protected $casts = [
-		'attempts' => 'int',
-		'reserved_at' => 'int',
-		'available_at' => 'int'
-	];
+    public $timestamps = false;
 
-	protected $fillable = [
-		'queue',
-		'payload',
-		'attempts',
-		'reserved_at',
-		'available_at'
-	];
+    protected $casts = [
+        'attempts' => 'int',
+        'reserved_at' => 'int',
+        'available_at' => 'int',
+    ];
+
+    protected $fillable = [
+        'queue',
+        'payload',
+        'attempts',
+        'reserved_at',
+        'available_at',
+    ];
 }

@@ -68,7 +68,7 @@ class UserRoleController extends Controller
                 ->where('name', 'teacher')
                 ->first();
 
-            if ($teacherRole && !in_array($teacherRole->id, $validated['roles'])) {
+            if ($teacherRole && ! in_array($teacherRole->id, $validated['roles'])) {
                 $validated['roles'][] = $teacherRole->id;
             }
         }

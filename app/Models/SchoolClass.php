@@ -20,77 +20,75 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property Collection|AnalyticsDatum[] $analytics_data
  * @property Collection|ClassArm[] $class_arms
  * @property Collection|Student[] $students
  * @property Collection|Subject[] $subjects
- *
- * @package App\Models
  */
 class SchoolClass extends Model
 {
-	protected $table = 'classes';
-	public $incrementing = false;
+    protected $table = 'classes';
+
+    public $incrementing = false;
+
     protected $keyType = 'string';
 
-
-	protected $fillable = [
+    protected $fillable = [
         'id',
-		'school_id',
-		'name',
-		'slug',
-		'description',
-		'order',
-		'result_show_position',
-	];
+        'school_id',
+        'name',
+        'slug',
+        'description',
+        'order',
+        'result_show_position',
+    ];
 
-	protected $casts = [
-		'order' => 'int',
-		'result_show_position' => 'boolean',
-	];
+    protected $casts = [
+        'order' => 'int',
+        'result_show_position' => 'boolean',
+    ];
 
-	/**
-	 * The "booted" method of the model.
-	 */
-	protected static function booted(): void
-	{
-		// Default ordering by 'order' column
-		static::addGlobalScope('order', function ($builder) {
-			$builder->orderBy('order', 'asc');
-		});
-	}
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // Default ordering by 'order' column
+        static::addGlobalScope('order', function ($builder) {
+            $builder->orderBy('order', 'asc');
+        });
+    }
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function analytics_data()
-	{
-		return $this->hasMany(AnalyticsDatum::class);
-	}
+    public function analytics_data()
+    {
+        return $this->hasMany(AnalyticsDatum::class);
+    }
 
-	public function class_arms()
-	{
-		return $this->hasMany(ClassArm::class, 'school_class_id');
-	}
+    public function class_arms()
+    {
+        return $this->hasMany(ClassArm::class, 'school_class_id');
+    }
 
-	public function students()
-	{
-		return $this->hasMany(Student::class);
-	}
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
 
-	public function assignments()
-	{
-		return $this->hasMany(SubjectAssignment::class, 'school_class_id');
-	}
+    public function assignments()
+    {
+        return $this->hasMany(SubjectAssignment::class, 'school_class_id');
+    }
 
-	public function subjects()
-	{
-		return $this->belongsToMany(Subject::class, 'subject_school_class_assignments')
-					->withPivot(['id', 'class_arm_id', 'class_section_id'])
-					->withTimestamps();
-	}
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_school_class_assignments')
+            ->withPivot(['id', 'class_arm_id', 'class_section_id'])
+            ->withTimestamps();
+    }
 }

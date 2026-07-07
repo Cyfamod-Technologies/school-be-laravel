@@ -16,6 +16,7 @@ return new class extends Migration
         $addColumn = function (string $columnName, callable $definition) use (&$afterColumn): void {
             if (Schema::hasColumn('terms', $columnName)) {
                 $afterColumn = $columnName;
+
                 return;
             }
 

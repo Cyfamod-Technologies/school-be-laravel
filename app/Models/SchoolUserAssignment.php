@@ -17,31 +17,29 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $user_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property User $user
- *
- * @package App\Models
  */
 class SchoolUserAssignment extends Model
 {
-	protected $table = 'school_user_assignments';
-	public $incrementing = false;
+    protected $table = 'school_user_assignments';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'school_id',
-		'user_id'
-	];
+    protected $keyType = 'string';
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'school_id',
+        'user_id',
+    ];
 
-	public function user()
-	{
-		return $this->belongsTo(User::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

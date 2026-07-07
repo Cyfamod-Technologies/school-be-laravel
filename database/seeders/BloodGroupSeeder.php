@@ -32,4 +32,3 @@ class BloodGroupSeeder extends Seeder
         }
     }
 }
-

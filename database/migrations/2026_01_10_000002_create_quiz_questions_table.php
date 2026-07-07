@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('image_url')->nullable();
             $table->text('explanation')->nullable();
             $table->timestamps();
-            
+
             $table->foreign('quiz_id')->references('id')->on('quizzes')->onDelete('cascade');
             $table->index(['quiz_id', 'order']);
         });

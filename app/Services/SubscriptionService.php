@@ -2,19 +2,23 @@
 
 namespace App\Services;
 
-use App\Models\School;
-use App\Models\Term;
 use App\Models\Invoice;
 use App\Models\MidtermStudentAddition;
+use App\Models\School;
+use App\Models\Term;
 use App\Models\TermPaymentTransaction;
 use Illuminate\Support\Facades\DB;
 
 class SubscriptionService
 {
     private int $pricePerStudent;
+
     private int $invoiceGenerationDaysBefore;
+
     private bool $freeTrialEnabled;
+
     private int $freeTrialTerms;
+
     private bool $freeTrialOptionalPerSchool;
 
     public function __construct()
@@ -53,9 +57,9 @@ class SubscriptionService
         $originalAmount = $term->amount_due;
         $midtermAmount = $term->midterm_amount_due;
 
-        $message = "✗ Unpaid balance: ₦" . number_format($outstanding, 2);
-        $message .= "\n(Original: ₦" . number_format($originalAmount, 2);
-        $message .= " + Mid-term admissions: ₦" . number_format($midtermAmount, 2) . ")";
+        $message = '✗ Unpaid balance: ₦'.number_format($outstanding, 2);
+        $message .= "\n(Original: ₦".number_format($originalAmount, 2);
+        $message .= ' + Mid-term admissions: ₦'.number_format($midtermAmount, 2).')';
 
         return $message;
     }
@@ -222,6 +226,7 @@ class SubscriptionService
     public function calculateCommission(float $amount): float
     {
         $percentage = $this->getCommissionConfig()['percentage'];
+
         return $amount * ($percentage / 100);
     }
 

@@ -7,11 +7,10 @@ use App\Models\Permission;
 use Database\Seeders\FrontendPermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Controller for seeding frontend permissions for a school.
- * 
+ *
  * Note: Permissions are now auto-seeded when listing permissions via PermissionController.
  * This controller provides explicit seeding/syncing endpoints for manual control.
  */
@@ -19,7 +18,7 @@ class PermissionSeedController extends Controller
 {
     /**
      * Seed all frontend permissions for the current user's school.
-     * 
+     *
      * This is idempotent - it will only create permissions that don't exist.
      */
     public function seed(Request $request): JsonResponse
@@ -40,14 +39,14 @@ class PermissionSeedController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to seed permissions: ' . $e->getMessage(),
+                'message' => 'Failed to seed permissions: '.$e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Get the catalog of all available permissions.
-     * 
+     *
      * Returns the full list of permissions from the FrontendPermissionSeeder
      * along with their descriptions, regardless of whether they've been seeded.
      */
@@ -86,7 +85,7 @@ class PermissionSeedController extends Controller
 
     /**
      * Sync permissions: seed missing ones and return current state.
-     * 
+     *
      * This is a combined endpoint that seeds missing permissions
      * and returns the full catalog with IDs.
      */

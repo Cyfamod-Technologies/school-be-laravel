@@ -4,8 +4,6 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
-
-use App\Models\Student;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -24,68 +22,67 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $user_agent
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Quiz $quiz
  * @property Student $student
  * @property Session|null $session
  * @property Term|null $term
  * @property Collection|QuizAnswer[] $answers
  * @property QuizResult|null $result
- *
- * @package App\Models
  */
 class QuizAttempt extends Model
 {
-	protected $table = 'quiz_attempts';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'quiz_attempts';
 
-	protected $fillable = [
-		'id',
-		'quiz_id',
-		'student_id',
-		'session_id',
-		'term_id',
-		'start_time',
-		'end_time',
-		'duration_seconds',
-		'status',
-		'ip_address',
-		'user_agent',
-	];
+    public $incrementing = false;
 
-	protected $casts = [
-		'start_time' => 'datetime',
-		'end_time' => 'datetime',
-	];
+    protected $keyType = 'string';
 
-	public function quiz()
-	{
-		return $this->belongsTo(Quiz::class);
-	}
+    protected $fillable = [
+        'id',
+        'quiz_id',
+        'student_id',
+        'session_id',
+        'term_id',
+        'start_time',
+        'end_time',
+        'duration_seconds',
+        'status',
+        'ip_address',
+        'user_agent',
+    ];
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class, 'student_id');
-	}
+    protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+    ];
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class);
+    }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
-	}
+    public function student()
+    {
+        return $this->belongsTo(Student::class, 'student_id');
+    }
 
-	public function answers()
-	{
-		return $this->hasMany(QuizAnswer::class, 'attempt_id');
-	}
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
 
-	public function result()
-	{
-		return $this->hasOne(QuizResult::class, 'attempt_id');
-	}
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(QuizAnswer::class, 'attempt_id');
+    }
+
+    public function result()
+    {
+        return $this->hasOne(QuizResult::class, 'attempt_id');
+    }
 }

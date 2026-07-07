@@ -22,6 +22,7 @@ class SkillCategoryController extends Controller
      *     path="/api/v1/settings/skill-categories",
      *     tags={"school-v1.9"},
      *     summary="List skill categories",
+     *
      *     @OA\Response(response=200, description="Categories returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -70,14 +71,18 @@ class SkillCategoryController extends Controller
      *     path="/api/v1/settings/skill-categories",
      *     tags={"school-v1.9"},
      *     summary="Create skill category",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"name"},
+     *
      *             @OA\Property(property="name", type="string", example="Affective Skills"),
      *             @OA\Property(property="description", type="string", example="Behavioural attributes")
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Category created"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -115,14 +120,19 @@ class SkillCategoryController extends Controller
      *     path="/api/v1/settings/skill-categories/{id}",
      *     tags={"school-v1.9"},
      *     summary="Update skill category",
+     *
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="name", type="string"),
      *             @OA\Property(property="description", type="string")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Category updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error")
@@ -154,7 +164,9 @@ class SkillCategoryController extends Controller
      *     path="/api/v1/settings/skill-categories/{id}",
      *     tags={"school-v1.9"},
      *     summary="Delete skill category",
+     *
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Category deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )

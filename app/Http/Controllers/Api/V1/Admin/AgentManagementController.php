@@ -10,9 +10,7 @@ use InvalidArgumentException;
 
 class AgentManagementController extends Controller
 {
-    public function __construct(private readonly AgentAdminService $agentAdminService)
-    {
-    }
+    public function __construct(private readonly AgentAdminService $agentAdminService) {}
 
     public function index(Request $request)
     {

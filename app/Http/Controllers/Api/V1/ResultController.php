@@ -12,7 +12,6 @@ use App\Models\Term;
 use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -25,9 +24,7 @@ use Illuminate\Validation\ValidationException;
  */
 class ResultController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * @OA\Get(
@@ -35,6 +32,7 @@ class ResultController extends Controller
      *     tags={"school-v1.9"},
      *     summary="List results",
      *     description="Paginated results with filters for student, subject, session, term, class/arm/section, and score ranges.",
+     *
      *     @OA\Parameter(name="student_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="subject_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
@@ -45,6 +43,7 @@ class ResultController extends Controller
      *     @OA\Parameter(name="class_section_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="min_score", in="query", required=false, @OA\Schema(type="number")),
      *     @OA\Parameter(name="max_score", in="query", required=false, @OA\Schema(type="number")),
+     *
      *     @OA\Response(response=200, description="Results returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -136,16 +135,21 @@ class ResultController extends Controller
      *     tags={"school-v1.9"},
      *     summary="Batch upsert results",
      *     description="Creates or updates multiple result records for students and subjects.",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"entries"},
+     *
      *             @OA\Property(property="session_id", type="string", format="uuid"),
      *             @OA\Property(property="term_id", type="string", format="uuid"),
      *             @OA\Property(property="assessment_component_id", type="string", format="uuid"),
      *             @OA\Property(property="entries", type="array",
+     *
      *                 @OA\Items(
      *                     required={"student_id","subject_id","score"},
+     *
      *                     @OA\Property(property="student_id", type="string", format="uuid"),
      *                     @OA\Property(property="subject_id", type="string", format="uuid"),
      *                     @OA\Property(property="score", type="number", example=75),
@@ -157,6 +161,7 @@ class ResultController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Results processed"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -236,7 +241,7 @@ class ResultController extends Controller
         if ($students->count() !== $studentIds->count()) {
             $missing = $studentIds->diff($students->keys());
             throw ValidationException::withMessages([
-                'entries' => ['One or more students were not found for this school: ' . $missing->implode(', ')],
+                'entries' => ['One or more students were not found for this school: '.$missing->implode(', ')],
             ]);
         }
 
@@ -249,7 +254,7 @@ class ResultController extends Controller
         if ($subjects->count() !== $subjectIds->count()) {
             $missing = $subjectIds->diff($subjects->keys());
             throw ValidationException::withMessages([
-                'entries' => ['One or more subjects were not found for this school: ' . $missing->implode(', ')],
+                'entries' => ['One or more subjects were not found for this school: '.$missing->implode(', ')],
             ]);
         }
 
@@ -267,7 +272,7 @@ class ResultController extends Controller
         if ($componentIds->isNotEmpty() && $components->count() !== $componentIds->unique()->count()) {
             $missing = $componentIds->unique()->diff($components->keys());
             throw ValidationException::withMessages([
-                'assessment_component_id' => ['One or more assessment components were not found for this school: ' . $missing->implode(', ')],
+                'assessment_component_id' => ['One or more assessment components were not found for this school: '.$missing->implode(', ')],
             ]);
         }
 

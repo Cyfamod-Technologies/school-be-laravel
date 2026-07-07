@@ -21,9 +21,7 @@ use Illuminate\Support\Str;
  */
 class ResultPinController extends Controller
 {
-    public function __construct(private readonly ResultPinService $service)
-    {
-    }
+    public function __construct(private readonly ResultPinService $service) {}
 
     /**
      * @OA\Get(
@@ -31,27 +29,34 @@ class ResultPinController extends Controller
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="List result PINs for a student",
      *     description="Returns a student's result PINs filtered by session and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="List returned"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -77,17 +82,22 @@ class ResultPinController extends Controller
      *     path="/api/v1/students/{student}/result-pins",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Generate a result PIN for a student",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"session_id","term_id"},
+     *
      *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="expires_at", type="string", format="date-time", example="2025-12-31T23:59:59Z"),
@@ -95,6 +105,7 @@ class ResultPinController extends Controller
      *             @OA\Property(property="max_usage", type="integer", example=3)
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="PIN generated"),
      *     @OA\Response(response=403, description="Forbidden"),
      *     @OA\Response(response=422, description="Validation error")
@@ -142,10 +153,13 @@ class ResultPinController extends Controller
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Bulk-generate result PINs",
      *     description="Generate result PINs for many students using class or explicit student filters.",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"session_id","term_id"},
+     *
      *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
@@ -156,6 +170,7 @@ class ResultPinController extends Controller
      *             @OA\Property(property="max_usage", type="integer", example=1)
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Bulk generation completed"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -229,12 +244,14 @@ class ResultPinController extends Controller
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="List result PINs across the school",
      *     description="Requires session_id and term_id; supports filtering by student, class, arm, and status.",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="student_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="status", in="query", required=false, @OA\Schema(type="string")),
+     *
      *     @OA\Response(response=200, description="List returned"),
      *     @OA\Response(response=422, description="Missing required filters")
      * )
@@ -295,13 +312,16 @@ class ResultPinController extends Controller
      *     path="/api/v1/result-pins/{resultPin}/invalidate",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Invalidate a result PIN",
+     *
      *     @OA\Parameter(
      *         name="resultPin",
      *         in="path",
      *         required=true,
      *         description="Result PIN ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="PIN invalidated"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -325,11 +345,13 @@ class ResultPinController extends Controller
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Print scratch cards for result PINs",
      *     description="Renders printable cards for a student or class for a given session/term.",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="student_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -477,7 +499,7 @@ class ResultPinController extends Controller
             return asset($trimmed);
         }
 
-        return asset('storage/' . $trimmed);
+        return asset('storage/'.$trimmed);
     }
 
     private function authorizeStudent(Request $request, Student $student): void
@@ -532,7 +554,7 @@ class ResultPinController extends Controller
 
         $studentName = null;
         if ($withRelations && $student) {
-            $studentName = trim($student->first_name . ' ' . $student->last_name);
+            $studentName = trim($student->first_name.' '.$student->last_name);
         }
 
         $sessionName = $withRelations && $session ? $session->name : null;

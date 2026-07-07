@@ -7,9 +7,7 @@ use App\Models\PromotionLog;
 use App\Models\Student;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Validation\Rule;
 
 /**
  * @OA\Tag(
@@ -19,9 +17,7 @@ use Illuminate\Validation\Rule;
  */
 class PromotionController extends Controller
 {
-    public function __construct(private readonly PromotionService $service)
-    {
-    }
+    public function __construct(private readonly PromotionService $service) {}
 
     /**
      * @OA\Post(
@@ -29,10 +25,13 @@ class PromotionController extends Controller
      *     tags={"school-v2.0"},
      *     summary="Bulk promote students",
      *     description="Promotes students from a source class/session/term to a target class/session (optionally retaining subjects).",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"target_session_id","target_class_id","student_ids"},
+     *
      *             @OA\Property(property="current_session_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="current_term_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="current_class_id", type="string", format="uuid", nullable=true),
@@ -46,6 +45,7 @@ class PromotionController extends Controller
      *             @OA\Property(property="student_ids", type="array", @OA\Items(type="string", format="uuid"))
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Promotion completed"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -92,9 +92,11 @@ class PromotionController extends Controller
      *     tags={"school-v2.0"},
      *     summary="Promotion history",
      *     description="Returns recent promotion logs with optional filters.",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="History returned")
      * )
      */
@@ -130,7 +132,8 @@ class PromotionController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $content = "Promotion report export is not yet implemented.";
+        $content = 'Promotion report export is not yet implemented.';
+
         return Response::make($content, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="promotion-report.pdf"',
@@ -147,7 +150,7 @@ class PromotionController extends Controller
         return [
             'id' => $log->id,
             'student_id' => $log->student_id,
-            'student_name' => $student ? trim($student->first_name . ' ' . $student->last_name) : null,
+            'student_name' => $student ? trim($student->first_name.' '.$student->last_name) : null,
             'from_class' => $fromClass?->name,
             'to_class' => $toClass?->name,
             'performed_by' => $performer?->name,

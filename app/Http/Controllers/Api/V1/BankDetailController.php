@@ -20,6 +20,7 @@ class BankDetailController extends Controller
      *     path="/api/v1/fees/bank-details",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="List bank details",
+     *
      *     @OA\Response(response=200, description="Bank details returned")
      * )
      */
@@ -50,6 +51,7 @@ class BankDetailController extends Controller
      *     path="/api/v1/fees/bank-details",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Create bank detail",
+     *
      *     @OA\Response(response=201, description="Created")
      * )
      */
@@ -60,7 +62,7 @@ class BankDetailController extends Controller
     {
         $school = $request->user()->school;
 
-        if (!$school) {
+        if (! $school) {
             return response()->json([
                 'message' => 'Authenticated user is not associated with any school.',
             ], 422);
@@ -95,6 +97,7 @@ class BankDetailController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to create bank detail.',
                 'error' => $e->getMessage(),
@@ -121,7 +124,9 @@ class BankDetailController extends Controller
      *     path="/api/v1/fees/bank-details/{bankDetail}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Update bank detail",
+     *
      *     @OA\Parameter(name="bankDetail", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Updated")
      * )
      */
@@ -162,6 +167,7 @@ class BankDetailController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to update bank detail.',
                 'error' => $e->getMessage(),
@@ -174,7 +180,9 @@ class BankDetailController extends Controller
      *     path="/api/v1/fees/bank-details/{bankDetail}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Delete bank detail",
+     *
      *     @OA\Parameter(name="bankDetail", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=204, description="Deleted")
      * )
      */
@@ -200,7 +208,9 @@ class BankDetailController extends Controller
      *     path="/api/v1/fees/bank-details/{bankDetail}/set-default",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Mark bank detail as default",
+     *
      *     @OA\Parameter(name="bankDetail", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Updated")
      * )
      */
@@ -227,6 +237,7 @@ class BankDetailController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to set default bank detail.',
                 'error' => $e->getMessage(),
@@ -244,7 +255,7 @@ class BankDetailController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$bankDetail) {
+        if (! $bankDetail) {
             return response()->json([
                 'message' => 'No default bank detail found.',
             ], 404);

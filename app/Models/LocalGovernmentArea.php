@@ -8,30 +8,31 @@ use Illuminate\Support\Str;
 
 class LocalGovernmentArea extends Model
 {
-	use HasFactory;
+    use HasFactory;
 
-	protected $table = 'local_government_areas';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'local_government_areas';
 
-	protected $fillable = [
-		'id',
-		'state_id',
-		'name',
-	];
+    public $incrementing = false;
 
-	protected static function booted()
-	{
-		static::creating(function (self $model) {
-			if (empty($model->id)) {
-				$model->id = (string) Str::uuid();
-			}
-		});
-	}
+    protected $keyType = 'string';
 
-	public function state()
-	{
-		return $this->belongsTo(State::class);
-	}
+    protected $fillable = [
+        'id',
+        'state_id',
+        'name',
+    ];
+
+    protected static function booted()
+    {
+        static::creating(function (self $model) {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
+
+    public function state()
+    {
+        return $this->belongsTo(State::class);
+    }
 }
-

@@ -25,7 +25,7 @@ class AgentPayoutGateTest extends TestCase
     {
         // Create a pending agent
         $agent = Agent::factory()->create([
-            'status' => 'pending'
+            'status' => 'pending',
         ]);
 
         $school = \App\Models\School::factory()->create();
@@ -58,7 +58,7 @@ class AgentPayoutGateTest extends TestCase
     {
         // Create an approved agent
         $agent = Agent::factory()->create([
-            'status' => 'approved'
+            'status' => 'approved',
         ]);
 
         $school = \App\Models\School::factory()->create();

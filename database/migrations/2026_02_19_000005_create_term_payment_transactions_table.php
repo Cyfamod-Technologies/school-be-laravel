@@ -49,4 +49,3 @@ return new class extends Migration
         Schema::dropIfExists('term_payment_transactions');
     }
 };
-

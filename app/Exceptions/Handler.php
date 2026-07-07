@@ -3,12 +3,11 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
-use Illuminate\Support\Arr;
-
 
 class Handler extends ExceptionHandler
 {
@@ -17,7 +16,7 @@ class Handler extends ExceptionHandler
     public function render(Request $request, Throwable $e): JsonResponse|\Illuminate\Http\Response
     {
         // If this is an API call (prefix api/*), X-Requested-With header is present, or the client expects JSON...
-        $isApiRequest = $request->is('api/*') 
+        $isApiRequest = $request->is('api/*')
             || $request->header('X-Requested-With') === 'XMLHttpRequest'
             || $request->expectsJson();
 
@@ -29,7 +28,7 @@ class Handler extends ExceptionHandler
 
             // Base payload
             $payload = [
-                'message' => $status === 500 && !config('app.debug')
+                'message' => $status === 500 && ! config('app.debug')
                     ? 'Server Error'
                     : $e->getMessage(),
             ];
@@ -37,7 +36,7 @@ class Handler extends ExceptionHandler
             // In debug mode, add exception class & trace
             if (config('app.debug')) {
                 $payload['exception'] = get_class($e);
-                $payload['trace']     = collect($e->getTrace())->map(fn($frame) => Arr::except($frame, ['args']))->all();
+                $payload['trace'] = collect($e->getTrace())->map(fn ($frame) => Arr::except($frame, ['args']))->all();
             }
 
             return response()->json($payload, $status);

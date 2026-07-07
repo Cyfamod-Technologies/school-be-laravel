@@ -4,12 +4,10 @@ namespace App\Services;
 
 use App\Models\PromotionLog;
 use App\Models\SchoolClass;
-use App\Models\Student;
 use App\Models\Session;
-use App\Models\Term;
+use App\Models\Student;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PromotionService

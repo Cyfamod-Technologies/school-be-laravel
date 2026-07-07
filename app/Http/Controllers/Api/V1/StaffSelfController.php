@@ -18,6 +18,7 @@ class StaffSelfController extends Controller
      *     tags={"school-v1.5"},
      *     summary="Get my staff profile",
      *     description="Returns the authenticated staff profile.",
+     *
      *     @OA\Response(response=200, description="Profile returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -39,9 +40,12 @@ class StaffSelfController extends Controller
      *     tags={"school-v1.5"},
      *     summary="Update my staff profile",
      *     description="Allows a staff member to update their profile and password.",
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="full_name", type="string", example="Jane Doe"),
      *             @OA\Property(property="email", type="string", format="email", example="jane@example.com"),
      *             @OA\Property(property="phone", type="string", example="+2348000000000"),
@@ -54,6 +58,7 @@ class StaffSelfController extends Controller
      *             @OA\Property(property="old_password", type="string", format="password", example="currentPassword123")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Profile updated"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")

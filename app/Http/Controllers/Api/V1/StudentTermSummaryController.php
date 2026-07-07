@@ -20,27 +20,34 @@ class StudentTermSummaryController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Fetch a student's term summary comments",
      *     description="Returns class teacher and principal comments for the provided session/term or the student's current session/term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Term summary returned"),
      *     @OA\Response(response=422, description="Missing session or term"),
      *     @OA\Response(response=403, description="Forbidden")
@@ -96,23 +103,29 @@ class StudentTermSummaryController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Update term summary comments for a student",
      *     description="Creates or updates class teacher and principal comments for a specific session and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"session_id","term_id"},
+     *
      *             @OA\Property(property="session_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="term_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="class_teacher_comment", type="string", example="Showing steady improvement."),
      *             @OA\Property(property="principal_comment", type="string", example="Keep up the good work.")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Comments updated"),
      *     @OA\Response(response=403, description="Forbidden"),
      *     @OA\Response(response=422, description="Validation error")
@@ -146,7 +159,7 @@ class StudentTermSummaryController extends Controller
             ->first();
 
         if (! $termSummary) {
-            $termSummary = new TermSummary();
+            $termSummary = new TermSummary;
             $termSummary->id = (string) Str::uuid();
             $termSummary->student_id = $student->id;
             $termSummary->session_id = $validated['session_id'];

@@ -14,24 +14,25 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $key
  * @property string $owner
  * @property int $expiration
- *
- * @package App\Models
  */
 class CacheLock extends Model
 {
-	protected $table = 'cache_locks';
-	protected $primaryKey = 'key';
-	public $incrementing = false;
+    protected $table = 'cache_locks';
 
-	protected $keyType = 'string';
-	public $timestamps = false;
+    protected $primaryKey = 'key';
 
-	protected $casts = [
-		'expiration' => 'int'
-	];
+    public $incrementing = false;
 
-	protected $fillable = [
-		'owner',
-		'expiration'
-	];
+    protected $keyType = 'string';
+
+    public $timestamps = false;
+
+    protected $casts = [
+        'expiration' => 'int',
+    ];
+
+    protected $fillable = [
+        'owner',
+        'expiration',
+    ];
 }

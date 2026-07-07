@@ -20,51 +20,50 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property ClassArm $class_arm
  * @property Collection|ClassTeacher[] $class_teachers
  * @property Collection|StudentEnrollment[] $student_enrollments
  * @property Collection|Student[] $students
  * @property Collection|SubjectTeacherAssignment[] $subject_teacher_assignments
- *
- * @package App\Models
  */
 class ClassSection extends Model
 {
-	protected $table = 'class_sections';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'class_sections';
 
-	protected $fillable = [
-		'id',
-		'class_arm_id',
-		'name',
-		'slug',
-		'description',
-	];
+    public $incrementing = false;
 
-	public function class_arm()
-	{
-		return $this->belongsTo(ClassArm::class);
-	}
+    protected $keyType = 'string';
 
-	public function class_teachers()
-	{
-		return $this->hasMany(ClassTeacher::class);
-	}
+    protected $fillable = [
+        'id',
+        'class_arm_id',
+        'name',
+        'slug',
+        'description',
+    ];
 
-	public function student_enrollments()
-	{
-		return $this->hasMany(StudentEnrollment::class);
-	}
+    public function class_arm()
+    {
+        return $this->belongsTo(ClassArm::class);
+    }
 
-	public function students()
-	{
-		return $this->hasMany(Student::class);
-	}
+    public function class_teachers()
+    {
+        return $this->hasMany(ClassTeacher::class);
+    }
 
-	public function subject_teacher_assignments()
-	{
-		return $this->hasMany(SubjectTeacherAssignment::class);
-	}
+    public function student_enrollments()
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
+
+    public function subject_teacher_assignments()
+    {
+        return $this->hasMany(SubjectTeacherAssignment::class);
+    }
 }

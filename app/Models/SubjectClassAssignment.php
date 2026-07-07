@@ -17,31 +17,29 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $class_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Class $class
  * @property Subject $subject
- *
- * @package App\Models
  */
 class SubjectClassAssignment extends Model
 {
-	protected $table = 'subject_class_assignments';
-	public $incrementing = false;
+    protected $table = 'subject_class_assignments';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'subject_id',
-		'class_id'
-	];
+    protected $keyType = 'string';
 
-	public function class()
-	{
-		return $this->belongsTo(SchoolClass::class);
-	}
+    protected $fillable = [
+        'subject_id',
+        'class_id',
+    ];
 
-	public function subject()
-	{
-		return $this->belongsTo(Subject::class);
-	}
+    public function class()
+    {
+        return $this->belongsTo(SchoolClass::class);
+    }
+
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
+    }
 }

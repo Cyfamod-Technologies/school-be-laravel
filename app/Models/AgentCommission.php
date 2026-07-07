@@ -21,8 +21,6 @@ use Illuminate\Support\Str;
  * @property string|null $payout_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class AgentCommission extends Model
 {
@@ -38,7 +36,9 @@ class AgentCommission extends Model
     }
 
     protected $table = 'agent_commissions';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -93,6 +93,7 @@ class AgentCommission extends Model
     public function approve()
     {
         $this->status = 'approved';
+
         return $this->save();
     }
 
@@ -100,6 +101,7 @@ class AgentCommission extends Model
     {
         $this->status = 'paid';
         $this->payout_id = $payoutId;
+
         return $this->save();
     }
 }

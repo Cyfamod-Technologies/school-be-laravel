@@ -8,36 +8,37 @@ use Illuminate\Support\Str;
 
 class State extends Model
 {
-	use HasFactory;
+    use HasFactory;
 
-	protected $table = 'states';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'states';
 
-	protected $fillable = [
-		'id',
-		'country_id',
-		'name',
-		'code',
-	];
+    public $incrementing = false;
 
-	protected static function booted()
-	{
-		static::creating(function (self $model) {
-			if (empty($model->id)) {
-				$model->id = (string) Str::uuid();
-			}
-		});
-	}
+    protected $keyType = 'string';
 
-	public function country()
-	{
-		return $this->belongsTo(Country::class);
-	}
+    protected $fillable = [
+        'id',
+        'country_id',
+        'name',
+        'code',
+    ];
 
-	public function local_government_areas()
-	{
-		return $this->hasMany(LocalGovernmentArea::class);
-	}
+    protected static function booted()
+    {
+        static::creating(function (self $model) {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
+
+    public function country()
+    {
+        return $this->belongsTo(Country::class);
+    }
+
+    public function local_government_areas()
+    {
+        return $this->hasMany(LocalGovernmentArea::class);
+    }
 }
-

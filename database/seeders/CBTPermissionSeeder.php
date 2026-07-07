@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Spatie\Permission\Models\Permission;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
 
 class CBTPermissionSeeder extends Seeder
 {

@@ -22,7 +22,7 @@ return new class extends Migration
             $table->integer('time_spent_seconds')->nullable();
             $table->timestamp('answered_at');
             $table->timestamps();
-            
+
             $table->foreign('attempt_id')->references('id')->on('quiz_attempts')->onDelete('cascade');
             $table->foreign('question_id')->references('id')->on('quiz_questions')->onDelete('cascade');
             $table->foreign('selected_option_id')->references('id')->on('quiz_options')->onDelete('set null');

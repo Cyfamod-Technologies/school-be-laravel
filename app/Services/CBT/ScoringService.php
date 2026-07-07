@@ -2,8 +2,8 @@
 
 namespace App\Services\CBT;
 
-use App\Models\QuizAttempt;
 use App\Models\QuizAnswer;
+use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
 use App\Models\QuizResult;
 use Carbon\Carbon;
@@ -11,322 +11,323 @@ use Illuminate\Support\Str;
 
 class ScoringService
 {
-	/**
-	 * Calculate score for an attempt
-	 */
-	public function calculateAttemptScore(QuizAttempt $attempt): QuizResult
-	{
-		$quiz = $attempt->quiz;
-		$answers = $attempt->answers()->with('question')->get();
+    /**
+     * Calculate score for an attempt
+     */
+    public function calculateAttemptScore(QuizAttempt $attempt): QuizResult
+    {
+        $quiz = $attempt->quiz;
+        $answers = $attempt->answers()->with('question')->get();
 
-		$questionCount = $quiz->questions()->count();
-		$totalQuestions = $questionCount > 0 ? $questionCount : $quiz->total_questions;
-		$attemptedQuestions = $answers->count();
-		$correctAnswers = 0;
-		$totalMarks = 0;
-		$marksObtained = 0;
+        $questionCount = $quiz->questions()->count();
+        $totalQuestions = $questionCount > 0 ? $questionCount : $quiz->total_questions;
+        $attemptedQuestions = $answers->count();
+        $correctAnswers = 0;
+        $totalMarks = 0;
+        $marksObtained = 0;
 
-		// Process each answer
-		foreach ($answers as $answer) {
-			$question = $answer->question;
-			$totalMarks += $question->marks;
+        // Process each answer
+        foreach ($answers as $answer) {
+            $question = $answer->question;
+            $totalMarks += $question->marks;
 
-			// Evaluate answer correctness
-			$isCorrect = $this->evaluateAnswer($question, $answer);
-			$marks = $isCorrect ? $question->marks : 0;
+            // Evaluate answer correctness
+            $isCorrect = $this->evaluateAnswer($question, $answer);
+            $marks = $isCorrect ? $question->marks : 0;
 
-			// Update answer
-			$answer->update([
-				'is_correct' => $isCorrect,
-				'marks_obtained' => $marks,
-			]);
+            // Update answer
+            $answer->update([
+                'is_correct' => $isCorrect,
+                'marks_obtained' => $marks,
+            ]);
 
-			if ($isCorrect) {
-				$correctAnswers++;
-				$marksObtained += $marks;
-			}
-		}
+            if ($isCorrect) {
+                $correctAnswers++;
+                $marksObtained += $marks;
+            }
+        }
 
-		// Calculate percentage and grade
-		$percentage = $totalMarks > 0 ? ($marksObtained / $totalMarks) * 100 : 0;
-		$grade = $this->determineGrade($percentage);
-		$status = $percentage >= $quiz->passing_score ? 'pass' : 'fail';
+        // Calculate percentage and grade
+        $percentage = $totalMarks > 0 ? ($marksObtained / $totalMarks) * 100 : 0;
+        $grade = $this->determineGrade($percentage);
+        $status = $percentage >= $quiz->passing_score ? 'pass' : 'fail';
 
-		// Create or update result
-		$result = QuizResult::firstOrCreate(
-			['attempt_id' => $attempt->id],
-			[
-				'id' => Str::uuid(),
-				'quiz_id' => $quiz->id,
-				'student_id' => $attempt->student_id,
-				'total_questions' => $totalQuestions,
-				'attempted_questions' => $attemptedQuestions,
-				'correct_answers' => $correctAnswers,
-				'total_marks' => $totalMarks,
-				'marks_obtained' => $marksObtained,
-				'percentage' => round($percentage, 2),
-				'grade' => $grade,
-				'status' => $status,
-				'submitted_at' => $attempt->end_time ?? Carbon::now(),
-				'graded_at' => Carbon::now(),
-			]
-		);
+        // Create or update result
+        $result = QuizResult::firstOrCreate(
+            ['attempt_id' => $attempt->id],
+            [
+                'id' => Str::uuid(),
+                'quiz_id' => $quiz->id,
+                'student_id' => $attempt->student_id,
+                'total_questions' => $totalQuestions,
+                'attempted_questions' => $attemptedQuestions,
+                'correct_answers' => $correctAnswers,
+                'total_marks' => $totalMarks,
+                'marks_obtained' => $marksObtained,
+                'percentage' => round($percentage, 2),
+                'grade' => $grade,
+                'status' => $status,
+                'submitted_at' => $attempt->end_time ?? Carbon::now(),
+                'graded_at' => Carbon::now(),
+            ]
+        );
 
-		// Update attempt status
-		$attempt->update(['status' => 'graded']);
+        // Update attempt status
+        $attempt->update(['status' => 'graded']);
 
-		return $result;
-	}
+        return $result;
+    }
 
-	/**
-	 * Evaluate if an answer is correct
-	 */
-	public function evaluateAnswer(QuizQuestion $question, QuizAnswer $answer): bool
-	{
-		switch ($question->question_type) {
-			case 'mcq':
-				return $this->evaluateMCQ($question, $answer);
-			case 'true_false':
-				return $this->evaluateTrueFalse($question, $answer);
-			case 'multiple_select':
-				return $this->evaluateMultipleSelect($question, $answer);
-			case 'short_answer':
-				return $this->evaluateShortAnswer($question, $answer);
-			default:
-				return false;
-		}
-	}
+    /**
+     * Evaluate if an answer is correct
+     */
+    public function evaluateAnswer(QuizQuestion $question, QuizAnswer $answer): bool
+    {
+        switch ($question->question_type) {
+            case 'mcq':
+                return $this->evaluateMCQ($question, $answer);
+            case 'true_false':
+                return $this->evaluateTrueFalse($question, $answer);
+            case 'multiple_select':
+                return $this->evaluateMultipleSelect($question, $answer);
+            case 'short_answer':
+                return $this->evaluateShortAnswer($question, $answer);
+            default:
+                return false;
+        }
+    }
 
-	/**
-	 * Evaluate MCQ answer
-	 */
-	private function evaluateMCQ(QuizQuestion $question, QuizAnswer $answer): bool
-	{
-		if (!$answer->selected_option_id) {
-			return false;
-		}
+    /**
+     * Evaluate MCQ answer
+     */
+    private function evaluateMCQ(QuizQuestion $question, QuizAnswer $answer): bool
+    {
+        if (! $answer->selected_option_id) {
+            return false;
+        }
 
-		$correctOption = $question->options()
-			->where('is_correct', true)
-			->first();
+        $correctOption = $question->options()
+            ->where('is_correct', true)
+            ->first();
 
-		return $correctOption && $correctOption->id === $answer->selected_option_id;
-	}
+        return $correctOption && $correctOption->id === $answer->selected_option_id;
+    }
 
-	/**
-	 * Evaluate True/False answer
-	 */
-	private function evaluateTrueFalse(QuizQuestion $question, QuizAnswer $answer): bool
-	{
-		if (!$answer->selected_option_id) {
-			return false;
-		}
+    /**
+     * Evaluate True/False answer
+     */
+    private function evaluateTrueFalse(QuizQuestion $question, QuizAnswer $answer): bool
+    {
+        if (! $answer->selected_option_id) {
+            return false;
+        }
 
-		$correctOption = $question->options()
-			->where('is_correct', true)
-			->first();
+        $correctOption = $question->options()
+            ->where('is_correct', true)
+            ->first();
 
-		return $correctOption && $correctOption->id === $answer->selected_option_id;
-	}
+        return $correctOption && $correctOption->id === $answer->selected_option_id;
+    }
 
-	/**
-	 * Evaluate Multiple Select answer
-	 */
-	private function evaluateMultipleSelect(QuizQuestion $question, QuizAnswer $answer): bool
-	{
-		$selectedOptionIds = [];
+    /**
+     * Evaluate Multiple Select answer
+     */
+    private function evaluateMultipleSelect(QuizQuestion $question, QuizAnswer $answer): bool
+    {
+        $selectedOptionIds = [];
 
-		if ($answer->answer_text) {
-			$decoded = json_decode($answer->answer_text, true);
-			if (is_array($decoded)) {
-				$selectedOptionIds = array_values(array_filter($decoded, 'is_string'));
-			}
-		}
+        if ($answer->answer_text) {
+            $decoded = json_decode($answer->answer_text, true);
+            if (is_array($decoded)) {
+                $selectedOptionIds = array_values(array_filter($decoded, 'is_string'));
+            }
+        }
 
-		if (empty($selectedOptionIds) && $answer->selected_option_id) {
-			$selectedOptionIds = [$answer->selected_option_id];
-		}
+        if (empty($selectedOptionIds) && $answer->selected_option_id) {
+            $selectedOptionIds = [$answer->selected_option_id];
+        }
 
-		if (empty($selectedOptionIds)) {
-			return false;
-		}
+        if (empty($selectedOptionIds)) {
+            return false;
+        }
 
-		$correctOptionIds = $question->options()
-			->where('is_correct', true)
-			->pluck('id')
-			->all();
+        $correctOptionIds = $question->options()
+            ->where('is_correct', true)
+            ->pluck('id')
+            ->all();
 
-		if (empty($correctOptionIds)) {
-			return false;
-		}
+        if (empty($correctOptionIds)) {
+            return false;
+        }
 
-		sort($selectedOptionIds);
-		sort($correctOptionIds);
+        sort($selectedOptionIds);
+        sort($correctOptionIds);
 
-		return $selectedOptionIds === $correctOptionIds;
-	}
+        return $selectedOptionIds === $correctOptionIds;
+    }
 
-	/**
-	 * Evaluate Short Answer response
-	 */
-	private function evaluateShortAnswer(QuizQuestion $question, QuizAnswer $answer): bool
-	{
-		$studentAnswer = $this->normalizeShortAnswerText($answer->answer_text);
-		if ($studentAnswer === '') {
-			return false;
-		}
+    /**
+     * Evaluate Short Answer response
+     */
+    private function evaluateShortAnswer(QuizQuestion $question, QuizAnswer $answer): bool
+    {
+        $studentAnswer = $this->normalizeShortAnswerText($answer->answer_text);
+        if ($studentAnswer === '') {
+            return false;
+        }
 
-		$matchMode = $question->short_answer_match ?: 'exact';
-		$acceptedAnswers = $this->normalizeShortAnswerList($question->short_answer_answers ?? []);
-		$keywords = $this->normalizeShortAnswerList($question->short_answer_keywords ?? []);
+        $matchMode = $question->short_answer_match ?: 'exact';
+        $acceptedAnswers = $this->normalizeShortAnswerList($question->short_answer_answers ?? []);
+        $keywords = $this->normalizeShortAnswerList($question->short_answer_keywords ?? []);
 
-		if (empty($acceptedAnswers) && empty($keywords)) {
-			return false;
-		}
+        if (empty($acceptedAnswers) && empty($keywords)) {
+            return false;
+        }
 
-		if ($matchMode === 'keywords') {
-			$requiredKeywords = !empty($keywords) ? $keywords : $acceptedAnswers;
-			return $this->containsAllKeywords($studentAnswer, $requiredKeywords);
-		}
+        if ($matchMode === 'keywords') {
+            $requiredKeywords = ! empty($keywords) ? $keywords : $acceptedAnswers;
 
-		$comparisonList = !empty($acceptedAnswers) ? $acceptedAnswers : $keywords;
+            return $this->containsAllKeywords($studentAnswer, $requiredKeywords);
+        }
 
-		if ($matchMode === 'contains') {
-			return $this->containsAnyPhrase($studentAnswer, $comparisonList);
-		}
+        $comparisonList = ! empty($acceptedAnswers) ? $acceptedAnswers : $keywords;
 
-		return in_array($studentAnswer, $comparisonList, true);
-	}
+        if ($matchMode === 'contains') {
+            return $this->containsAnyPhrase($studentAnswer, $comparisonList);
+        }
 
-	private function normalizeShortAnswerText(?string $text): string
-	{
-		$text = trim((string) $text);
-		if ($text === '') {
-			return '';
-		}
+        return in_array($studentAnswer, $comparisonList, true);
+    }
 
-		$text = Str::lower($text);
-		$text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? '';
-		$text = preg_replace('/\s+/u', ' ', $text) ?? '';
+    private function normalizeShortAnswerText(?string $text): string
+    {
+        $text = trim((string) $text);
+        if ($text === '') {
+            return '';
+        }
 
-		return trim($text);
-	}
+        $text = Str::lower($text);
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? '';
+        $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
-	/**
-	 * @return string[]
-	 */
-	private function normalizeShortAnswerList($values): array
-	{
-		if (!is_array($values)) {
-			return [];
-		}
+        return trim($text);
+    }
 
-		$normalized = array_map(function ($value) {
-			return $this->normalizeShortAnswerText(is_string($value) ? $value : '');
-		}, $values);
+    /**
+     * @return string[]
+     */
+    private function normalizeShortAnswerList($values): array
+    {
+        if (! is_array($values)) {
+            return [];
+        }
 
-		$normalized = array_values(array_filter($normalized, static function ($value) {
-			return $value !== '';
-		}));
+        $normalized = array_map(function ($value) {
+            return $this->normalizeShortAnswerText(is_string($value) ? $value : '');
+        }, $values);
 
-		return array_values(array_unique($normalized));
-	}
+        $normalized = array_values(array_filter($normalized, static function ($value) {
+            return $value !== '';
+        }));
 
-	/**
-	 * Check if the student answer contains all keywords.
-	 *
-	 * @param string[] $keywords
-	 */
-	private function containsAllKeywords(string $studentAnswer, array $keywords): bool
-	{
-		if (empty($keywords)) {
-			return false;
-		}
+        return array_values(array_unique($normalized));
+    }
 
-		foreach ($keywords as $keyword) {
-			if (!str_contains($studentAnswer, $keyword)) {
-				return false;
-			}
-		}
+    /**
+     * Check if the student answer contains all keywords.
+     *
+     * @param  string[]  $keywords
+     */
+    private function containsAllKeywords(string $studentAnswer, array $keywords): bool
+    {
+        if (empty($keywords)) {
+            return false;
+        }
 
-		return true;
-	}
+        foreach ($keywords as $keyword) {
+            if (! str_contains($studentAnswer, $keyword)) {
+                return false;
+            }
+        }
 
-	/**
-	 * Check if the student answer contains any accepted phrase.
-	 *
-	 * @param string[] $phrases
-	 */
-	private function containsAnyPhrase(string $studentAnswer, array $phrases): bool
-	{
-		if (empty($phrases)) {
-			return false;
-		}
+        return true;
+    }
 
-		foreach ($phrases as $phrase) {
-			if ($phrase !== '' && str_contains($studentAnswer, $phrase)) {
-				return true;
-			}
-		}
+    /**
+     * Check if the student answer contains any accepted phrase.
+     *
+     * @param  string[]  $phrases
+     */
+    private function containsAnyPhrase(string $studentAnswer, array $phrases): bool
+    {
+        if (empty($phrases)) {
+            return false;
+        }
 
-		return false;
-	}
+        foreach ($phrases as $phrase) {
+            if ($phrase !== '' && str_contains($studentAnswer, $phrase)) {
+                return true;
+            }
+        }
 
-	/**
-	 * Determine grade based on percentage
-	 */
-	public function determineGrade(float $percentage): string
-	{
-		if ($percentage >= 90) {
-			return 'A';
-		} elseif ($percentage >= 80) {
-			return 'B';
-		} elseif ($percentage >= 70) {
-			return 'C';
-		} elseif ($percentage >= 60) {
-			return 'D';
-		} else {
-			return 'F';
-		}
-	}
+        return false;
+    }
 
-	/**
-	 * Get quiz statistics
-	 */
-	public function getQuizStatistics(int $quizId): array
-	{
-		$results = QuizResult::where('quiz_id', $quizId)->get();
+    /**
+     * Determine grade based on percentage
+     */
+    public function determineGrade(float $percentage): string
+    {
+        if ($percentage >= 90) {
+            return 'A';
+        } elseif ($percentage >= 80) {
+            return 'B';
+        } elseif ($percentage >= 70) {
+            return 'C';
+        } elseif ($percentage >= 60) {
+            return 'D';
+        } else {
+            return 'F';
+        }
+    }
 
-		if ($results->isEmpty()) {
-			return [
-				'total_attempts' => 0,
-				'passed' => 0,
-				'failed' => 0,
-				'average_score' => 0,
-				'average_percentage' => 0,
-				'pass_rate' => 0,
-				'grade_distribution' => [],
-			];
-		}
+    /**
+     * Get quiz statistics
+     */
+    public function getQuizStatistics(int $quizId): array
+    {
+        $results = QuizResult::where('quiz_id', $quizId)->get();
 
-		$totalAttempts = $results->count();
-		$passed = $results->where('status', 'pass')->count();
-		$failed = $totalAttempts - $passed;
+        if ($results->isEmpty()) {
+            return [
+                'total_attempts' => 0,
+                'passed' => 0,
+                'failed' => 0,
+                'average_score' => 0,
+                'average_percentage' => 0,
+                'pass_rate' => 0,
+                'grade_distribution' => [],
+            ];
+        }
 
-		return [
-			'total_attempts' => $totalAttempts,
-			'passed' => $passed,
-			'failed' => $failed,
-			'average_score' => round($results->avg('marks_obtained'), 2),
-			'average_percentage' => round($results->avg('percentage'), 2),
-			'pass_rate' => round(($passed / $totalAttempts) * 100, 2),
-			'grade_distribution' => [
-				'A' => $results->where('grade', 'A')->count(),
-				'B' => $results->where('grade', 'B')->count(),
-				'C' => $results->where('grade', 'C')->count(),
-				'D' => $results->where('grade', 'D')->count(),
-				'F' => $results->where('grade', 'F')->count(),
-			],
-		];
-	}
+        $totalAttempts = $results->count();
+        $passed = $results->where('status', 'pass')->count();
+        $failed = $totalAttempts - $passed;
+
+        return [
+            'total_attempts' => $totalAttempts,
+            'passed' => $passed,
+            'failed' => $failed,
+            'average_score' => round($results->avg('marks_obtained'), 2),
+            'average_percentage' => round($results->avg('percentage'), 2),
+            'pass_rate' => round(($passed / $totalAttempts) * 100, 2),
+            'grade_distribution' => [
+                'A' => $results->where('grade', 'A')->count(),
+                'B' => $results->where('grade', 'B')->count(),
+                'C' => $results->where('grade', 'C')->count(),
+                'D' => $results->where('grade', 'D')->count(),
+                'F' => $results->where('grade', 'F')->count(),
+            ],
+        ];
+    }
 }

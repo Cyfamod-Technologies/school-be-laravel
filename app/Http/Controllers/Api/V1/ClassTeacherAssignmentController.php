@@ -27,6 +27,7 @@ class ClassTeacherAssignmentController extends Controller
      *     tags={"school-v1.8"},
      *     summary="List class teacher assignments",
      *     description="Paginated list filtered by staff, class, arm, section, session, or term.",
+     *
      *     @OA\Parameter(name="staff_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
@@ -34,6 +35,7 @@ class ClassTeacherAssignmentController extends Controller
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="search", in="query", required=false, description="Search teacher or class name", @OA\Schema(type="string")),
+     *
      *     @OA\Response(response=200, description="Assignments returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -107,10 +109,13 @@ class ClassTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/class-teachers",
      *     tags={"school-v1.8"},
      *     summary="Create class teacher assignment",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"staff_id","school_class_id","session_id","term_id"},
+     *
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
@@ -119,6 +124,7 @@ class ClassTeacherAssignmentController extends Controller
      *             @OA\Property(property="term_id", type="string", format="uuid")
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Assignment created"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
      * )
@@ -202,16 +208,21 @@ class ClassTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/class-teachers/{id}",
      *     tags={"school-v1.8"},
      *     summary="Update class teacher assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
@@ -220,6 +231,7 @@ class ClassTeacherAssignmentController extends Controller
      *             @OA\Property(property="term_id", type="string", format="uuid")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
@@ -286,13 +298,16 @@ class ClassTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/class-teachers/{id}",
      *     tags={"school-v1.8"},
      *     summary="Delete class teacher assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )

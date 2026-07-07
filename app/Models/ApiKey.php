@@ -17,18 +17,17 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $key
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- *
- * @package App\Models
  */
 class ApiKey extends Model
 {
-	protected $table = 'api_keys';
-	public $incrementing = false;
+    protected $table = 'api_keys';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'name',
-		'key'
-	];
+    protected $keyType = 'string';
+
+    protected $fillable = [
+        'name',
+        'key',
+    ];
 }

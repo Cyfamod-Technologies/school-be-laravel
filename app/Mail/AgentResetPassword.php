@@ -17,8 +17,7 @@ class AgentResetPassword extends Mailable
         public Agent $agent,
         public string $resetUrl,
         public CarbonInterface $expiresAt,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

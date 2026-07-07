@@ -3,29 +3,28 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
 use App\Mail\VerifyEmail;
 use App\Models\EmailVerificationToken;
-use App\Models\School;
-use App\Models\Session;
-use App\Models\Term;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
-use App\Models\User;
-use App\Models\Student;
-use App\Models\SchoolParent;
-use App\Models\Staff;
 use App\Models\Referral;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use App\Models\School;
+use App\Models\SchoolParent;
+use App\Models\Session;
+use App\Models\Staff;
+use App\Models\Student;
+use App\Models\Term;
+use App\Models\User;
 use App\Services\Rbac\RbacService;
 use App\Services\ReferralService;
 use App\Services\SubscriptionService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
@@ -43,10 +42,13 @@ class SchoolController extends Controller
      *      path="/api/v1/register-school",
      *      summary="Register a new school",
      *      tags={"school-v1.0"},
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name","address","email","password","password_confirmation"},
+     *
      *              @OA\Property(property="name", type="string", example="My School"),
      *              @OA\Property(property="address", type="string", example="123 Main St"),
      *              @OA\Property(property="email", type="string", format="email", example="school@example.com"),
@@ -56,10 +58,13 @@ class SchoolController extends Controller
      *              @OA\Property(property="referral_code", type="string", example="AGT-ABC12345")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="School registered successfully",
+     *
      *          @OA\JsonContent(
+     *
      *              @OA\Property(property="message", type="string", example="School registered successfully"),
      *              @OA\Property(property="school", type="object",
      *                  @OA\Property(property="id", type="string", format="uuid"),
@@ -87,6 +92,7 @@ class SchoolController extends Controller
      *              )
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=422,
      *          description="Validation error"
@@ -185,22 +191,29 @@ class SchoolController extends Controller
      *     path="/api/v1/login",
      *     summary="Login as a school admin",
      *     tags={"school-v1.0"},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"email","password"},
+     *
      *             @OA\Property(property="email", type="string", format="email", example="admin@example.com"),
      *             @OA\Property(property="password", type="string", format="password", example="password"),
      *         ),
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Successful login",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="token", type="string"),
      *             @OA\Property(property="user", type="object"),
      *         ),
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthorized",
@@ -259,6 +272,7 @@ class SchoolController extends Controller
 
         $hasAllowedRole = $this->withTeamContext($user->school_id, function () use ($user) {
             $guard = config('permission.default_guard', 'sanctum');
+
             return $user->roles()
                 ->where('roles.guard_name', $guard)
                 ->where(function ($query) use ($user) {
@@ -302,13 +316,17 @@ class SchoolController extends Controller
      *     summary="Logout the authenticated user",
      *     tags={"school-v1.0"},
      *     security={{"sanctum":{}}},
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Successfully logged out",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Logged out successfully"),
      *         ),
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated",
@@ -356,16 +374,21 @@ class SchoolController extends Controller
             'revoked_tokens' => $revoked,
         ]);
     }
+
     /**
      * @OA\Put(
      *     path="/api/v1/school",
      *     summary="Update school profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\RequestBody(
+     *
      *         @OA\MediaType(
      *             mediaType="application/json",
+     *
      *             @OA\Schema(
+     *
      *                 @OA\Property(property="name", type="string"),
      *                 @OA\Property(property="address", type="string"),
      *                 @OA\Property(property="email", type="string"),
@@ -377,6 +400,7 @@ class SchoolController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="School profile updated successfully"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")
@@ -387,7 +411,7 @@ class SchoolController extends Controller
         $user = Auth::user();
         $school = $user->school;
 
-        if (!$school) {
+        if (! $school) {
             return response()->json(['message' => 'School not found'], 404);
         }
 
@@ -521,13 +545,13 @@ class SchoolController extends Controller
                 if ($previousUnpaidTerm) {
                     $contextSessionName = $previousUnpaidTerm->session?->name;
                     $context = $contextSessionName
-                        ? $previousUnpaidTerm->name . ' (' . $contextSessionName . ')'
+                        ? $previousUnpaidTerm->name.' ('.$contextSessionName.')'
                         : $previousUnpaidTerm->name;
                     $contextOutstanding = number_format((float) $previousUnpaidTerm->getOutstandingBalance(), 2);
 
                     return response()->json([
-                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared for '
-                            . $context . '. Outstanding: ₦' . $contextOutstanding . '.',
+                        'message' => 'Cannot switch to '.$term->name.' until payment is cleared for '
+                            .$context.'. Outstanding: ₦'.$contextOutstanding.'.',
                     ], 422);
                 }
 
@@ -546,7 +570,7 @@ class SchoolController extends Controller
                 $outstanding = round((float) $term->getOutstandingBalance(), 2);
                 if ($outstanding > 0) {
                     return response()->json([
-                        'message' => 'Cannot switch to ' . $term->name . ' until payment is cleared. Outstanding: ₦' . number_format($outstanding, 2) . '.',
+                        'message' => 'Cannot switch to '.$term->name.' until payment is cleared. Outstanding: ₦'.number_format($outstanding, 2).'.',
                     ], 422);
                 }
             }
@@ -630,9 +654,12 @@ class SchoolController extends Controller
      *     summary="Update School Admin profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="name", type="string", example="Jane Doe"),
      *             @OA\Property(property="email", type="string", format="email", example="jane@example.com"),
      *             @OA\Property(property="old_password", type="string", example="currentPassword123"),
@@ -640,51 +667,51 @@ class SchoolController extends Controller
      *             @OA\Property(property="password_confirmation", type="string", example="newPassword456")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="School Admin profile updated successfully"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")
      * )
      */
-
     public function updateSchoolAdminProfile(Request $request)
-        {
-            $user = Auth::user();
-        
-            $rules = [
-                'name' => 'string|max:255',
-                'email' => 'string|email|max:255|unique:users,email,' . $user->id,
-            ];
-        
-            // If user is trying to change password, add password + old_password rules
-            if ($request->filled('password')) {
-                $rules['password'] = 'required|string|min:8|confirmed';
-                $rules['old_password'] = 'required|string';
-            }
-        
-            $validator = Validator::make($request->all(), $rules);
-        
-            if ($validator->fails()) {
-                return response()->json($validator->errors(), 422);
-            }
-        
-            // Check old password
-            if ($request->filled('password') && !Hash::check($request->old_password, $user->password)) {
-                return response()->json(['old_password' => ['Old password is incorrect']], 422);
-            }
-        
-            $data = $request->only(['name', 'email']);
-        
-            if ($request->filled('password')) {
-                $data['password'] = Hash::make($request->password);
-            }
-        
-            $user->update($data);
-        
-            return response()->json([
-                'message' => 'User profile updated successfully',
-                'user' => $user
-            ]);
+    {
+        $user = Auth::user();
+
+        $rules = [
+            'name' => 'string|max:255',
+            'email' => 'string|email|max:255|unique:users,email,'.$user->id,
+        ];
+
+        // If user is trying to change password, add password + old_password rules
+        if ($request->filled('password')) {
+            $rules['password'] = 'required|string|min:8|confirmed';
+            $rules['old_password'] = 'required|string';
         }
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Check old password
+        if ($request->filled('password') && ! Hash::check($request->old_password, $user->password)) {
+            return response()->json(['old_password' => ['Old password is incorrect']], 422);
+        }
+
+        $data = $request->only(['name', 'email']);
+
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+
+        $user->update($data);
+
+        return response()->json([
+            'message' => 'User profile updated successfully',
+            'user' => $user,
+        ]);
+    }
 
     /**
      * @OA\Get(
@@ -692,6 +719,7 @@ class SchoolController extends Controller
      *     summary="Get the authenticated School Admin's profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\Response(response=200, description="User profile returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -787,29 +815,29 @@ class SchoolController extends Controller
         ]);
     }
 
-
     /**
      * @OA\Get(
      *     path="/api/v1/school",
      *     summary="Get the authenticated school's profile",
      *     tags={"school-v1.0"},
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\Response(response=200, description="School profile returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
      */
     public function showSchoolProfile(Request $request)
-        {
-            $user = $request->user();            // same as Auth::user()
-            $school = $user->school;             // eager-load if you want
+    {
+        $user = $request->user();            // same as Auth::user()
+        $school = $user->school;             // eager-load if you want
 
-            return response()->json([
-                'school' => $school->loadMissing([
-                    'currentSession:id,name,slug,start_date,end_date,status',
-                    'currentTerm:id,name,session_id,start_date,end_date,status',
-                ]),
-            ]);
-        }
+        return response()->json([
+            'school' => $school->loadMissing([
+                'currentSession:id,name,slug,start_date,end_date,status',
+                'currentTerm:id,name,session_id,start_date,end_date,status',
+            ]),
+        ]);
+    }
 
     private function formatStoredFileUrl(string $path): string
     {
@@ -909,6 +937,7 @@ class SchoolController extends Controller
                         'password' => Hash::make($password),
                     ])->save();
                 }
+
                 return true;
             }
         } catch (\RuntimeException $exception) {
@@ -998,7 +1027,7 @@ class SchoolController extends Controller
             'expires_at' => $expiresAt,
         ]);
 
-        $verificationUrl = url('/api/v1/email/verify?token=' . $tokenValue);
+        $verificationUrl = url('/api/v1/email/verify?token='.$tokenValue);
 
         try {
             Mail::to($user->email)->send(new VerifyEmail($user, $verificationUrl, $expiresAt));
@@ -1020,7 +1049,7 @@ class SchoolController extends Controller
 
             // Create default session for current academic year
             $currentYear = date('Y');
-            $sessionName = $currentYear . '/' . ($currentYear + 1);
+            $sessionName = $currentYear.'/'.($currentYear + 1);
 
             $session = Session::create([
                 'id' => Str::uuid(),
@@ -1028,7 +1057,7 @@ class SchoolController extends Controller
                 'name' => $sessionName,
                 'slug' => Str::slug($sessionName),
                 'start_date' => date('Y-09-01'),
-                'end_date' => date('Y-m-d', strtotime(($currentYear + 1) . '-08-31')),
+                'end_date' => date('Y-m-d', strtotime(($currentYear + 1).'-08-31')),
                 'status' => 'active',
             ]);
 
@@ -1039,9 +1068,9 @@ class SchoolController extends Controller
                 'session_id' => $session->id,
                 'name' => '1st Term',
                 'term_number' => 1,
-                'slug' => Str::slug('1st-term-' . $sessionName),
+                'slug' => Str::slug('1st-term-'.$sessionName),
                 'start_date' => date('Y-09-01'),
-                'end_date' => date('Y-m-d', strtotime('first Sunday of November ' . $currentYear)),
+                'end_date' => date('Y-m-d', strtotime('first Sunday of November '.$currentYear)),
                 'status' => 'active',
             ]);
 

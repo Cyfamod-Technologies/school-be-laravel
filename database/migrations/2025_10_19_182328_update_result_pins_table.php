@@ -79,10 +79,10 @@ return new class extends Migration
             }
             if (Schema::hasColumn('result_pins', 'session_id')) {
                 try {
-                $table->dropForeign(['session_id']);
-            } catch (\Exception $e) {
-                // ignore if constraint doesn't exist
-            }
+                    $table->dropForeign(['session_id']);
+                } catch (\Exception $e) {
+                    // ignore if constraint doesn't exist
+                }
             }
             if (Schema::hasColumn('result_pins', 'term_id')) {
                 $table->dropForeign(['term_id']);

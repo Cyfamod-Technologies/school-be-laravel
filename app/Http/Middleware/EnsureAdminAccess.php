@@ -20,7 +20,7 @@ class EnsureAdminAccess
         }
 
         $role = strtolower((string) ($user->role ?? ''));
-        
+
         // Strict Check: Only 'super_admin' or 'owner' roles are permitted for platform management
         $isAdmin = in_array($role, ['super_admin', 'owner'], true)
             || $user->hasAnyRole(['super_admin', 'owner']);

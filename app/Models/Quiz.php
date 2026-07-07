@@ -33,86 +33,85 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
- *
  * @property School $school
  * @property Subject|null $subject
  * @property SchoolClass|null $class
  * @property User $creator
  * @property Collection|QuizQuestion[] $questions
  * @property Collection|QuizAttempt[] $attempts
- *
- * @package App\Models
  */
 class Quiz extends Model
 {
-	use SoftDeletes;
+    use SoftDeletes;
 
-	protected $table = 'quizzes';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'quizzes';
 
-	protected $fillable = [
-		'id',
-		'school_id',
-		'title',
-		'description',
-		'subject_id',
-		'class_id',
-		'created_by',
-		'duration_minutes',
-		'total_questions',
-		'passing_score',
-		'show_answers',
-		'show_score',
-		'shuffle_questions',
-		'shuffle_options',
-		'allow_review',
-		'allow_multiple_attempts',
-		'max_attempts',
-		'status',
-		'start_time',
-		'end_time',
-	];
+    public $incrementing = false;
 
-	protected $casts = [
-		'show_answers' => 'boolean',
-		'show_score' => 'boolean',
-		'shuffle_questions' => 'boolean',
-		'shuffle_options' => 'boolean',
-		'allow_review' => 'boolean',
-		'allow_multiple_attempts' => 'boolean',
-		'max_attempts' => 'integer',
-		'start_time' => 'datetime',
-		'end_time' => 'datetime',
-	];
+    protected $keyType = 'string';
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'id',
+        'school_id',
+        'title',
+        'description',
+        'subject_id',
+        'class_id',
+        'created_by',
+        'duration_minutes',
+        'total_questions',
+        'passing_score',
+        'show_answers',
+        'show_score',
+        'shuffle_questions',
+        'shuffle_options',
+        'allow_review',
+        'allow_multiple_attempts',
+        'max_attempts',
+        'status',
+        'start_time',
+        'end_time',
+    ];
 
-	public function subject()
-	{
-		return $this->belongsTo(Subject::class);
-	}
+    protected $casts = [
+        'show_answers' => 'boolean',
+        'show_score' => 'boolean',
+        'shuffle_questions' => 'boolean',
+        'shuffle_options' => 'boolean',
+        'allow_review' => 'boolean',
+        'allow_multiple_attempts' => 'boolean',
+        'max_attempts' => 'integer',
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+    ];
 
-	public function class()
-	{
-		return $this->belongsTo(SchoolClass::class, 'class_id');
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function creator()
-	{
-		return $this->belongsTo(User::class, 'created_by');
-	}
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
+    }
 
-	public function questions()
-	{
-		return $this->hasMany(QuizQuestion::class, 'quiz_id')->orderBy('order');
-	}
+    public function class()
+    {
+        return $this->belongsTo(SchoolClass::class, 'class_id');
+    }
 
-	public function attempts()
-	{
-		return $this->hasMany(QuizAttempt::class, 'quiz_id');
-	}
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function questions()
+    {
+        return $this->hasMany(QuizQuestion::class, 'quiz_id')->orderBy('order');
+    }
+
+    public function attempts()
+    {
+        return $this->hasMany(QuizAttempt::class, 'quiz_id');
+    }
 }

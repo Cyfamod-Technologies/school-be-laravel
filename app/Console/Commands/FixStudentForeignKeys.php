@@ -27,13 +27,15 @@ class FixStudentForeignKeys extends Command
     public function handle()
     {
         $this->info('Fixing invalid student foreign keys...');
-        
+
         try {
             Student::fixLegacyForeignKeys();
             $this->info('✓ Successfully fixed student foreign keys.');
+
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $this->error('✗ Failed to fix student foreign keys: ' . $e->getMessage());
+            $this->error('✗ Failed to fix student foreign keys: '.$e->getMessage());
+
             return Command::FAILURE;
         }
     }

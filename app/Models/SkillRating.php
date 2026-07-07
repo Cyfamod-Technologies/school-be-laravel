@@ -20,51 +20,49 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $rating_value
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Session $session
  * @property SkillType $skill_type
  * @property Student $student
  * @property Term $term
- *
- * @package App\Models
  */
 class SkillRating extends Model
 {
-	protected $table = 'skill_ratings';
-	public $incrementing = false;
+    protected $table = 'skill_ratings';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'rating_value' => 'int'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'id',
-		'student_id',
-		'term_id',
-		'session_id',
-		'skill_type_id',
-		'rating_value'
-	];
+    protected $casts = [
+        'rating_value' => 'int',
+    ];
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    protected $fillable = [
+        'id',
+        'student_id',
+        'term_id',
+        'session_id',
+        'skill_type_id',
+        'rating_value',
+    ];
 
-	public function skill_type()
-	{
-		return $this->belongsTo(SkillType::class);
-	}
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class);
-	}
+    public function skill_type()
+    {
+        return $this->belongsTo(SkillType::class);
+    }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
-	}
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
 }

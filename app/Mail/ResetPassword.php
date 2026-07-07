@@ -17,8 +17,7 @@ class ResetPassword extends Mailable
         public User $user,
         public string $resetUrl,
         public CarbonInterface $expiresAt,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {
@@ -33,4 +32,3 @@ class ResetPassword extends Mailable
             ]);
     }
 }
-

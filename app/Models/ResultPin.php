@@ -8,9 +8,6 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Session;
-use App\Models\Term;
-use App\Models\User;
 
 /**
  * Class ResultPin
@@ -28,20 +25,18 @@ use App\Models\User;
  * @property int|null $max_usage
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Student $student
  * @property Session $session
  * @property Term $term
  * @property User|null $creator
- *
- * @package App\Models
  */
 class ResultPin extends Model
 {
-	protected $table = 'result_pins';
-	public $incrementing = false;
+    protected $table = 'result_pins';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $casts = [
         'expires_at' => 'datetime',
