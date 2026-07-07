@@ -36,4 +36,31 @@ class PublicSchoolWebsiteController extends Controller
 
         return response()->json($payload);
     }
+
+    /**
+     * Return a school's current website configuration regardless of
+     * publication status, for a signed, short-lived preview link only.
+     * The `signed` route middleware rejects any request with a missing,
+     * expired, or tampered signature before this method ever runs.
+     */
+    public function preview(
+        Request $request,
+        string $schoolSlug
+    ): JsonResponse {
+        $website = SchoolWebsite::query()
+            ->with('school')
+            ->whereHas(
+                'school',
+                function (Builder $query) use ($schoolSlug): void {
+                    $query->where('slug', $schoolSlug);
+                }
+            )
+            ->firstOrFail();
+
+        $payload = (
+            new PublicSchoolWebsiteResource($website)
+        )->resolve($request);
+
+        return response()->json($payload);
+    }
 }
