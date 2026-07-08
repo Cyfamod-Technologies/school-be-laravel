@@ -23,8 +23,6 @@ use Illuminate\Support\Str;
  * @property Carbon|null $paid_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class Invoice extends Model
 {
@@ -40,7 +38,9 @@ class Invoice extends Model
     }
 
     protected $table = 'invoices';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -104,6 +104,7 @@ class Invoice extends Model
     {
         $this->status = 'paid';
         $this->paid_at = now();
+
         return $this->save();
     }
 }

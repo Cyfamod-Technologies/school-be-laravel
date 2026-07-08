@@ -32,10 +32,10 @@ class AgentAdminService
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
                     $builder
-                        ->where('full_name', 'like', '%' . $search . '%')
-                        ->orWhere('email', 'like', '%' . $search . '%')
-                        ->orWhere('phone', 'like', '%' . $search . '%')
-                        ->orWhere('company_name', 'like', '%' . $search . '%');
+                        ->where('full_name', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%')
+                        ->orWhere('phone', 'like', '%'.$search.'%')
+                        ->orWhere('company_name', 'like', '%'.$search.'%');
                 });
             })
             ->orderByDesc('created_at')

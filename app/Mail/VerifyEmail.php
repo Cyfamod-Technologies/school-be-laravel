@@ -17,8 +17,7 @@ class VerifyEmail extends Mailable
         public User $user,
         public string $verificationUrl,
         public CarbonInterface $expiresAt,
-    ) {
-    }
+    ) {}
 
     /**
      * Build the message.

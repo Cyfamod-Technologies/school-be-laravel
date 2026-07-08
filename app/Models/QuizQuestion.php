@@ -19,50 +19,49 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $explanation
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Quiz $quiz
  * @property Collection|QuizOption[] $options
  * @property Collection|QuizAnswer[] $answers
- *
- * @package App\Models
  */
 class QuizQuestion extends Model
 {
-	protected $table = 'quiz_questions';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'quiz_questions';
 
-	protected $fillable = [
-		'id',
-		'quiz_id',
-		'question_text',
-		'question_type',
-		'marks',
-		'order',
-		'image_url',
-		'explanation',
-		'short_answer_answers',
-		'short_answer_keywords',
-		'short_answer_match',
-	];
+    public $incrementing = false;
 
-	protected $casts = [
-		'short_answer_answers' => 'array',
-		'short_answer_keywords' => 'array',
-	];
+    protected $keyType = 'string';
 
-	public function quiz()
-	{
-		return $this->belongsTo(Quiz::class);
-	}
+    protected $fillable = [
+        'id',
+        'quiz_id',
+        'question_text',
+        'question_type',
+        'marks',
+        'order',
+        'image_url',
+        'explanation',
+        'short_answer_answers',
+        'short_answer_keywords',
+        'short_answer_match',
+    ];
 
-	public function options()
-	{
-		return $this->hasMany(QuizOption::class, 'question_id')->orderBy('order');
-	}
+    protected $casts = [
+        'short_answer_answers' => 'array',
+        'short_answer_keywords' => 'array',
+    ];
 
-	public function answers()
-	{
-		return $this->hasMany(QuizAnswer::class, 'question_id');
-	}
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class);
+    }
+
+    public function options()
+    {
+        return $this->hasMany(QuizOption::class, 'question_id')->orderBy('order');
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(QuizAnswer::class, 'question_id');
+    }
 }

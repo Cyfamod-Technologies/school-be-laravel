@@ -14,12 +14,14 @@ class ReferralService
     public function getMaxCodesPerAgent(): int
     {
         $max = (int) config('referral.max_codes_per_agent', 10);
+
         return $max > 0 ? $max : 10;
     }
 
     public function getRemainingCodes(Agent $agent): int
     {
         $used = $agent->referrals()->count();
+
         return max($this->getMaxCodesPerAgent() - $used, 0);
     }
 
@@ -34,7 +36,7 @@ class ReferralService
     public function generateCode(): string
     {
         do {
-            $code = 'AGT-' . strtoupper(Str::random(8));
+            $code = 'AGT-'.strtoupper(Str::random(8));
         } while (Referral::where('referral_code', $code)->exists());
 
         return $code;
@@ -46,7 +48,8 @@ class ReferralService
     public function generateLink(Agent $agent, string $code): string
     {
         $frontendBase = (string) env('FRONTEND_URL', rtrim((string) config('app.url'), '/'));
-        return rtrim($frontendBase, '/') . '/register?ref=' . urlencode($code);
+
+        return rtrim($frontendBase, '/').'/register?ref='.urlencode($code);
     }
 
     /**

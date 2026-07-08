@@ -3,21 +3,21 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Mail\AgentVerifyEmail;
 use App\Mail\AgentResetPassword;
+use App\Mail\AgentVerifyEmail;
 use App\Models\Agent;
 use App\Models\AgentEmailVerificationToken;
 use App\Models\Referral;
-use App\Services\ReferralService;
 use App\Services\CommissionService;
 use App\Services\PayoutService;
+use App\Services\ReferralService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -25,7 +25,9 @@ use Illuminate\Validation\ValidationException;
 class AgentController extends Controller
 {
     private ReferralService $referralService;
+
     private CommissionService $commissionService;
+
     private PayoutService $payoutService;
 
     public function __construct(
@@ -248,7 +250,7 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
@@ -393,7 +395,7 @@ class AgentController extends Controller
         );
 
         $frontendBase = (string) env('FRONTEND_URL', rtrim((string) config('app.url'), '/'));
-        $resetUrl = rtrim($frontendBase, '/') . '/agent/reset-password?token=' . urlencode($token) . '&email=' . urlencode($agent->email);
+        $resetUrl = rtrim($frontendBase, '/').'/agent/reset-password?token='.urlencode($token).'&email='.urlencode($agent->email);
 
         try {
             Mail::to($agent->email)->send(new AgentResetPassword($agent, $resetUrl, $expiresAt));
@@ -519,11 +521,11 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
-        if (!$agent->isApproved()) {
+        if (! $agent->isApproved()) {
             return response()->json(['message' => 'Agent not approved'], 403);
         }
 
@@ -569,7 +571,7 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
@@ -590,7 +592,7 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
@@ -615,7 +617,7 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json(['message' => 'Agent not found'], 404);
         }
 
@@ -634,7 +636,7 @@ class AgentController extends Controller
     {
         $agent = $this->resolveAgent($request);
 
-        if (!$agent || $referral->agent_id !== $agent->id) {
+        if (! $agent || $referral->agent_id !== $agent->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -720,7 +722,7 @@ class AgentController extends Controller
                 'expires_at' => $expiresAt,
             ]);
 
-            $verificationUrl = url('/api/v1/agents/email/verify?token=' . $tokenValue);
+            $verificationUrl = url('/api/v1/agents/email/verify?token='.$tokenValue);
 
             Mail::to($agent->email)->send(new AgentVerifyEmail($agent, $verificationUrl, $expiresAt));
         } catch (\Throwable $exception) {

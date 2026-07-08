@@ -9,9 +9,7 @@ use Illuminate\Http\Request;
 
 class PayoutManagementController extends Controller
 {
-    public function __construct(private readonly PayoutAdminService $payoutAdminService)
-    {
-    }
+    public function __construct(private readonly PayoutAdminService $payoutAdminService) {}
 
     public function index(Request $request)
     {

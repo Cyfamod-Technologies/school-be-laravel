@@ -32,7 +32,7 @@ class CommissionCoolingOffTest extends TestCase
             'referral_link' => 'http://localhost/ref/TESTCODE',
             'status' => 'active',
         ]);
-        
+
         // Create a commission that was just created (within 72h window)
         $commission = AgentCommission::create([
             'agent_id' => $agent->id,
@@ -63,7 +63,7 @@ class CommissionCoolingOffTest extends TestCase
             'referral_link' => 'http://localhost/ref/TESTCODE2',
             'status' => 'active',
         ]);
-        
+
         // Create a commission whose release time has passed
         $commission = AgentCommission::create([
             'agent_id' => $agent->id,

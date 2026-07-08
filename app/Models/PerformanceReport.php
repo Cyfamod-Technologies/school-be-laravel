@@ -17,25 +17,23 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $report_data
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- *
  * @property Student $student
- *
- * @package App\Models
  */
 class PerformanceReport extends Model
 {
-	protected $table = 'performance_reports';
-	public $incrementing = false;
+    protected $table = 'performance_reports';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'student_id',
-		'report_data'
-	];
+    protected $keyType = 'string';
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class);
-	}
+    protected $fillable = [
+        'student_id',
+        'report_data',
+    ];
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
 }

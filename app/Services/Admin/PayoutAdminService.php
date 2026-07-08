@@ -8,9 +8,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class PayoutAdminService
 {
-    public function __construct(private readonly PayoutService $payoutService)
-    {
-    }
+    public function __construct(private readonly PayoutService $payoutService) {}
 
     public function listPayouts(?string $status = null, ?string $search = null, int $perPage = 20): LengthAwarePaginator
     {
@@ -24,14 +22,14 @@ class PayoutAdminService
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
                     $builder
-                        ->where('id', 'like', '%' . $search . '%')
+                        ->where('id', 'like', '%'.$search.'%')
                         ->orWhereHas('agent', function ($agentQuery) use ($search) {
                             $agentQuery
-                                ->where('full_name', 'like', '%' . $search . '%')
-                                ->orWhere('email', 'like', '%' . $search . '%')
-                                ->orWhere('phone', 'like', '%' . $search . '%')
-                                ->orWhere('bank_account_number', 'like', '%' . $search . '%')
-                                ->orWhere('bank_name', 'like', '%' . $search . '%');
+                                ->where('full_name', 'like', '%'.$search.'%')
+                                ->orWhere('email', 'like', '%'.$search.'%')
+                                ->orWhere('phone', 'like', '%'.$search.'%')
+                                ->orWhere('bank_account_number', 'like', '%'.$search.'%')
+                                ->orWhere('bank_name', 'like', '%'.$search.'%');
                         });
                 });
             })

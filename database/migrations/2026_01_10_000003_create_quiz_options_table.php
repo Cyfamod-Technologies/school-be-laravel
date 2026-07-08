@@ -19,7 +19,7 @@ return new class extends Migration
             $table->boolean('is_correct')->default(false);
             $table->string('image_url')->nullable();
             $table->timestamps();
-            
+
             $table->foreign('question_id')->references('id')->on('quiz_questions')->onDelete('cascade');
             $table->index(['question_id', 'order']);
         });

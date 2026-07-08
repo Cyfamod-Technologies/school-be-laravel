@@ -5,15 +5,15 @@ namespace App\Services\Admin;
 use App\Models\Agent;
 use App\Models\School;
 use App\Models\SchoolParent;
+use App\Models\Session as SchoolSession;
 use App\Models\Staff;
 use App\Models\Student;
-use App\Models\Session as SchoolSession;
 use App\Models\Term;
-use App\Models\TermSummary;
 use App\Models\TermPaymentTransaction;
+use App\Models\TermSummary;
 use App\Models\User;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class SchoolAdminService
@@ -51,9 +51,9 @@ class SchoolAdminService
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
                     $builder
-                        ->where('name', 'like', '%' . $search . '%')
-                        ->orWhere('subdomain', 'like', '%' . $search . '%')
-                        ->orWhere('email', 'like', '%' . $search . '%');
+                        ->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('subdomain', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%');
                 });
             })
             ->orderByDesc('created_at')
@@ -248,8 +248,7 @@ class SchoolAdminService
         School $school,
         ?Term $currentTerm,
         ?SchoolSession $summarySession = null,
-    ): ?SchoolSession
-    {
+    ): ?SchoolSession {
         $session = $school->currentSession;
         if ($session) {
             return $session;
@@ -321,6 +320,7 @@ class SchoolAdminService
         $term = $school->currentTerm;
         if ($term) {
             $term->loadMissing('session:id,name');
+
             return $term;
         }
 
@@ -376,6 +376,7 @@ class SchoolAdminService
 
         if ($summaryTerm) {
             $summaryTerm->loadMissing('session:id,name');
+
             return $summaryTerm;
         }
 

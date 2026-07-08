@@ -27,4 +27,3 @@ return [
         explode(',', (string) env('SKILL_RATING_LOCK_STATUSES', 'archived'))
     )),
 ];
-

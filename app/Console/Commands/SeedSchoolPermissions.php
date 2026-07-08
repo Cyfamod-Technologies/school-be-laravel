@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\School;
 use Database\Seeders\FrontendPermissionSeeder;
 use Illuminate\Console\Command;
-use App\Models\School;
 
 class SeedSchoolPermissions extends Command
 {
@@ -35,15 +35,16 @@ class SeedSchoolPermissions extends Command
         if ($schoolId) {
             // Seed for a specific school
             $school = School::find($schoolId);
-            
-            if (!$school) {
+
+            if (! $school) {
                 $this->error("School with ID '{$schoolId}' not found.");
+
                 return self::FAILURE;
             }
 
             $this->info("Seeding permissions for school: {$school->name}");
             $result = FrontendPermissionSeeder::seedForSchool($schoolId, $guardName);
-            
+
             $this->table(
                 ['Metric', 'Count'],
                 [
@@ -60,6 +61,7 @@ class SeedSchoolPermissions extends Command
 
             if ($schools->isEmpty()) {
                 $this->warn('No schools found in the database.');
+
                 return self::SUCCESS;
             }
 

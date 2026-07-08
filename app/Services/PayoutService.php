@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Agent;
-use App\Models\AgentPayout;
 use App\Models\AgentCommission;
+use App\Models\AgentPayout;
 use Illuminate\Support\Facades\DB;
 
 class PayoutService
@@ -47,9 +47,9 @@ class PayoutService
         if ($totalAmount < $minThreshold) {
             throw new \Exception(
                 'Minimum payout threshold not met. Required: ₦'
-                . number_format($minThreshold, 2)
-                . ', Available: ₦'
-                . number_format($totalAmount, 2)
+                .number_format($minThreshold, 2)
+                .', Available: ₦'
+                .number_format($totalAmount, 2)
             );
         }
 
@@ -98,7 +98,7 @@ class PayoutService
         }
 
         if ($status !== 'pending') {
-            throw new \Exception('Only pending payouts can be approved. Current status: ' . ($status !== '' ? $status : 'unknown'));
+            throw new \Exception('Only pending payouts can be approved. Current status: '.($status !== '' ? $status : 'unknown'));
         }
 
         return $payout->approve();
@@ -116,7 +116,7 @@ class PayoutService
         }
 
         if ($status !== 'approved') {
-            throw new \Exception('Only approved payouts can be processed. Current status: ' . ($status !== '' ? $status : 'unknown'));
+            throw new \Exception('Only approved payouts can be processed. Current status: '.($status !== '' ? $status : 'unknown'));
         }
 
         return $payout->markAsProcessing();
@@ -134,7 +134,7 @@ class PayoutService
         }
 
         if ($status !== 'processing') {
-            throw new \Exception('Only processing payouts can be completed. Current status: ' . ($status !== '' ? $status : 'unknown'));
+            throw new \Exception('Only processing payouts can be completed. Current status: '.($status !== '' ? $status : 'unknown'));
         }
 
         return DB::transaction(function () use ($payout) {
@@ -162,7 +162,7 @@ class PayoutService
         $allowed = ['approved', 'processing', 'completed', 'failed'];
 
         if (! in_array($target, $allowed, true)) {
-            throw new \Exception('Invalid payout status: ' . $targetStatus);
+            throw new \Exception('Invalid payout status: '.$targetStatus);
         }
 
         if ($target === $current) {

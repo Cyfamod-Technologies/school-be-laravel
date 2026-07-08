@@ -47,7 +47,7 @@ return new class extends Migration
                         DB::table('results')->where('assessment_component_id', $component->id)->update(['assessment_component_id' => $primary->id]);
                     }
                 }
-                $duplicateIds = array_map(fn($c) => $c->id, array_filter($groupComponents, fn($c) => $c->id !== $primary->id));
+                $duplicateIds = array_map(fn ($c) => $c->id, array_filter($groupComponents, fn ($c) => $c->id !== $primary->id));
                 if (! empty($duplicateIds)) {
                     DB::table('assessment_components')->whereIn('id', $duplicateIds)->delete();
                 }
@@ -56,21 +56,21 @@ return new class extends Migration
 
         // Disable foreign key checks to allow dropping constraints and indexes
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        
+
         // Drop the foreign key from results table
         Schema::table('results', function (Blueprint $table) {
             $table->dropForeign(['assessment_component_id']);
         });
-        
+
         $this->dropAssessmentComponentSubjectForeignKey();
-        
+
         // Drop the index directly using raw SQL to bypass Laravel's checks
         try {
             DB::statement('ALTER TABLE assessment_components DROP INDEX assessment_components_unique_per_context');
         } catch (\Exception $e) {
             // Index might already be gone or have a different name
         }
-        
+
         // Re-enable foreign key checks
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
@@ -129,13 +129,15 @@ return new class extends Migration
         });
 
         Schema::dropIfExists('assessment_component_subject');
-        
+
         Schema::enableForeignKeyConstraints();
     }
 
     private function dropAssessmentComponentSubjectForeignKey(): void
     {
-        if (! $this->tableHasColumn('assessment_components', 'subject_id')) return;
+        if (! $this->tableHasColumn('assessment_components', 'subject_id')) {
+            return;
+        }
         $possibleNames = ['assessment_components_subject_id_foreign', 'assessment_components_subject_id_foreign_key'];
         foreach ($possibleNames as $name) {
             if ($this->hasForeignKey('assessment_components', $name)) {
@@ -148,7 +150,8 @@ return new class extends Migration
             Schema::table('assessment_components', function (Blueprint $table) {
                 $table->dropIndex('assessment_components_subject_id_foreign');
             });
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
     }
 
     private function hasForeignKey(string $table, string $foreignKey): bool
@@ -160,11 +163,13 @@ return new class extends Migration
                     return true;
                 }
             }
+
             return false;
         }
 
         $schema = Schema::getConnection()->getDatabaseName();
-        $result = Schema::getConnection()->selectOne("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1", [$schema, $table, $foreignKey]);
+        $result = Schema::getConnection()->selectOne('SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1', [$schema, $table, $foreignKey]);
+
         return $result !== null;
     }
 
@@ -177,11 +182,13 @@ return new class extends Migration
                     return true;
                 }
             }
+
             return false;
         }
 
         $schema = Schema::getConnection()->getDatabaseName();
-        $result = Schema::getConnection()->selectOne("SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ? LIMIT 1", [$schema, $table, $index]);
+        $result = Schema::getConnection()->selectOne('SELECT 1 FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ? LIMIT 1', [$schema, $table, $index]);
+
         return $result !== null;
     }
 
@@ -189,7 +196,7 @@ return new class extends Migration
     {
         return Schema::hasColumn($table, $column);
     }
-    
+
     private function dropAllForeignKeysReferencingAssessmentComponents(): void
     {
         if (DB::getDriverName() === 'sqlite') {
@@ -215,7 +222,7 @@ return new class extends Migration
         } else {
             // For MySQL/PostgreSQL, we can query the information schema
             $schema = Schema::getConnection()->getDatabaseName();
-            $constraints = DB::select("
+            $constraints = DB::select('
                 SELECT 
                     TABLE_NAME, 
                     CONSTRAINT_NAME 
@@ -224,8 +231,8 @@ return new class extends Migration
                 WHERE 
                     REFERENCED_TABLE_SCHEMA = ? AND 
                     REFERENCED_TABLE_NAME = ?
-            ", [$schema, 'assessment_components']);
-            
+            ', [$schema, 'assessment_components']);
+
             foreach ($constraints as $constraint) {
                 try {
                     Schema::table($constraint->TABLE_NAME, function (Blueprint $table) use ($constraint) {

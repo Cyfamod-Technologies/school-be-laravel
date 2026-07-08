@@ -44,8 +44,8 @@ class UserController extends Controller
             if ($searchTerm !== '') {
                 $query->where(function ($builder) use ($searchTerm) {
                     $builder
-                        ->where('name', 'like', '%' . $searchTerm . '%')
-                        ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                        ->where('name', 'like', '%'.$searchTerm.'%')
+                        ->orWhere('email', 'like', '%'.$searchTerm.'%');
                 });
             }
 
@@ -78,6 +78,7 @@ class UserController extends Controller
 
     /**
      * @template TReturn
+     *
      * @param  callable():TReturn  $callback
      * @return TReturn
      */

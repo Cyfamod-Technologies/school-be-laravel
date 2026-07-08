@@ -6,14 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class BloodGroup extends Model
 {
-	protected $table = 'blood_groups';
-	public $incrementing = false;
+    protected $table = 'blood_groups';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'name',
-		'description',
-	];
+    protected $keyType = 'string';
+
+    protected $fillable = [
+        'name',
+        'description',
+    ];
 }
-

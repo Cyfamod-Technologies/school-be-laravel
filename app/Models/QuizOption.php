@@ -16,32 +16,31 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $image_url
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property QuizQuestion $question
- *
- * @package App\Models
  */
 class QuizOption extends Model
 {
-	protected $table = 'quiz_options';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'quiz_options';
 
-	protected $fillable = [
-		'id',
-		'question_id',
-		'option_text',
-		'order',
-		'is_correct',
-		'image_url',
-	];
+    public $incrementing = false;
 
-	protected $casts = [
-		'is_correct' => 'boolean',
-	];
+    protected $keyType = 'string';
 
-	public function question()
-	{
-		return $this->belongsTo(QuizQuestion::class);
-	}
+    protected $fillable = [
+        'id',
+        'question_id',
+        'option_text',
+        'order',
+        'is_correct',
+        'image_url',
+    ];
+
+    protected $casts = [
+        'is_correct' => 'boolean',
+    ];
+
+    public function question()
+    {
+        return $this->belongsTo(QuizQuestion::class);
+    }
 }

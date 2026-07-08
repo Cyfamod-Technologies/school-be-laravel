@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolClass;
 use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\Request;
-
-use App\Models\SchoolClass;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -34,9 +33,7 @@ use Illuminate\Validation\Rule;
  */
 class ClassController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * @OA\Get(
@@ -45,6 +42,7 @@ class ClassController extends Controller
      *      tags={"school-v1.2","school-v1.7","school-v1.8","school-v1.9","school-v2.0"},
      *      summary="Get list of classes",
      *      description="Returns list of classes",
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -55,17 +53,17 @@ class ClassController extends Controller
     {
         $user = $request->user();
         $schoolId = $user->school_id;
-        
+
         // Check permission - teachers can view classes they're assigned to even without classes.view
         $scope = $this->teacherAccess->forUser($user);
         $isTeacher = $scope->isTeacher();
-        
+
         if (! $isTeacher) {
             $this->ensurePermission($request, 'classes.view');
         }
-        
+
         $query = SchoolClass::where('school_id', $schoolId);
-        
+
         // For teachers, filter to only show classes they're assigned to
         if ($isTeacher) {
             $allowedClassIds = $scope->allowedClassIds();
@@ -75,7 +73,7 @@ class ClassController extends Controller
             }
             $query->whereIn('id', $allowedClassIds->toArray());
         }
-        
+
         $classes = $query->orderBy('order')->get();
 
         return response()->json($classes);
@@ -88,14 +86,18 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Store new class",
      *      description="Stores a new class and returns the created class",
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name", "school_id"},
+     *
      *              @OA\Property(property="name", type="string", example="JSS1"),
      *              @OA\Property(property="school_id", type="string", format="uuid", example="9a7a7b0e-0b1c-4f0e-8c1a-0b1c4f0e8c1a")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="Successful operation"
@@ -137,15 +139,18 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Get session information",
      *      description="Returns class data",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -155,6 +160,7 @@ class ClassController extends Controller
     public function show(SchoolClass $schoolClass)
     {
         $this->ensurePermission(request(), 'classes.view');
+
         return $schoolClass;
     }
 
@@ -165,22 +171,28 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Update existing class",
      *      description="Updates a class and returns the updated class",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name"},
+     *
      *              @OA\Property(property="name", type="string", example="JSS1")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -195,7 +207,7 @@ class ClassController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('classes')->where(function ($query) use ($request, $schoolClass) {
+                Rule::unique('classes')->where(function ($query) use ($schoolClass) {
                     return $query->where('school_id', $schoolClass->school_id)->where('id', '!=', $schoolClass->id);
                 }),
             ],
@@ -218,15 +230,18 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Delete existing class",
      *      description="Deletes a class and returns no content",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=204,
      *          description="Successful operation"
@@ -252,15 +267,18 @@ class ClassController extends Controller
      *      tags={"school-v1.2","school-v1.7","school-v1.8","school-v1.9","school-v2.0"},
      *      summary="Get list of class arms",
      *      description="Returns list of class arms for a given class",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -271,42 +289,43 @@ class ClassController extends Controller
     {
         $request = request();
         $user = $request->user();
-        
+
         // Check permission - teachers can view class arms for classes they're assigned to
         $scope = $this->teacherAccess->forUser($user);
         $isTeacher = $scope->isTeacher();
-        
+
         if (! $isTeacher) {
             $this->ensurePermission($request, 'classes.view');
+
             return $schoolClass->class_arms;
         }
-        
+
         // Teachers can only view arms for their assigned classes
         $allowedClassIds = $scope->allowedClassIds();
         if (! $allowedClassIds->contains($schoolClass->id)) {
             abort(403, 'You do not have access to this class.');
         }
-        
+
         // For teachers, filter to only show arms they're assigned to
         $assignments = $scope->subjectAssignments()
             ->concat($scope->classAssignments())
             ->where('school_class_id', $schoolClass->id)
             ->unique(fn ($assignment) => $assignment->class_arm_id ?? 'all');
-        
+
         $allowedArmIds = $assignments
             ->filter(fn ($assignment) => $assignment->class_arm_id)
             ->pluck('class_arm_id')
             ->unique()
             ->values();
-        
+
         // If teacher has class assignments without specific arm restrictions, return all arms
         $hasUnrestrictedClassAssignment = $assignments
             ->first(fn ($assignment) => ! $assignment->class_arm_id);
-        
+
         if ($hasUnrestrictedClassAssignment) {
             return $schoolClass->class_arms;
         }
-        
+
         // Return only the arms the teacher is assigned to
         return $schoolClass->class_arms
             ->filter(fn ($arm) => $allowedArmIds->contains($arm->id))
@@ -320,22 +339,28 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Store new class arm",
      *      description="Stores a new class arm and returns the created class arm",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name"},
+     *
      *              @OA\Property(property="name", type="string", example="A")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="Successful operation"
@@ -372,24 +397,29 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Get class arm information",
      *      description="Returns class arm data",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -399,6 +429,7 @@ class ClassController extends Controller
     public function showArm(SchoolClass $schoolClass, string $armId)
     {
         $this->ensurePermission(request(), 'classes.view');
+
         return $schoolClass->class_arms()->findOrFail($armId);
     }
 
@@ -409,32 +440,40 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Update existing class arm",
      *      description="Updates a class arm and returns the updated class arm",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name"},
+     *
      *              @OA\Property(property="name", type="string", example="A"),
      *              @OA\Property(property="color", type="string", example="Blue")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -472,24 +511,29 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Delete existing class arm",
      *      description="Deletes a class arm and returns no content",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=204,
      *          description="Successful operation"
@@ -517,24 +561,29 @@ class ClassController extends Controller
      *      tags={"school-v1.2","school-v1.7","school-v1.8","school-v1.9","school-v2.0"},
      *      summary="Get list of class arm sections",
      *      description="Returns list of class arm sections for a given class arm",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -555,31 +604,39 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Store new class arm section",
      *      description="Stores a new class arm section and returns the created class arm section",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name"},
+     *
      *              @OA\Property(property="name", type="string", example="Science")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="Successful operation"
@@ -600,33 +657,40 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Get class arm section information",
      *      description="Returns class arm section data",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="sectionId",
      *          description="Class Arm Section id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -647,40 +711,50 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Update existing class arm section",
      *      description="Updates a class arm section and returns the updated class arm section",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="sectionId",
      *          description="Class Arm Section id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              required={"name"},
+     *
      *              @OA\Property(property="name", type="string", example="Science")
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -701,33 +775,40 @@ class ClassController extends Controller
      *      tags={"school-v1.2"},
      *      summary="Delete existing class arm section",
      *      description="Deletes a class arm section and returns no content",
+     *
      *      @OA\Parameter(
      *          name="classId",
      *          description="Class id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="armId",
      *          description="Class Arm id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Parameter(
      *          name="sectionId",
      *          description="Class Arm Section id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=204,
      *          description="Successful operation"

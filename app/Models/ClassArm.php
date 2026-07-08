@@ -20,52 +20,51 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Class $class
  * @property Collection|ClassSection[] $class_sections
  * @property Collection|Student[] $students
- *
- * @package App\Models
  */
 class ClassArm extends Model
 {
-	protected $table = 'class_arms';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'class_arms';
 
-	protected $fillable = [
-		'id',
-		'school_class_id',
-		'name',
-		'slug',
-		'description',
-		'color'
-	];
+    public $incrementing = false;
 
-	public function school_class()
-	{
-		return $this->belongsTo(SchoolClass::class, 'school_class_id');
-	}
+    protected $keyType = 'string';
 
-	public function class_sections()
-	{
-		return $this->hasMany(ClassSection::class);
-	}
+    protected $fillable = [
+        'id',
+        'school_class_id',
+        'name',
+        'slug',
+        'description',
+        'color',
+    ];
 
-	public function students()
-	{
-		return $this->hasMany(Student::class);
-	}
+    public function school_class()
+    {
+        return $this->belongsTo(SchoolClass::class, 'school_class_id');
+    }
 
-	public function assignments()
-	{
-		return $this->hasMany(SubjectAssignment::class, 'class_arm_id');
-	}
+    public function class_sections()
+    {
+        return $this->hasMany(ClassSection::class);
+    }
 
-	public function subjects()
-	{
-		return $this->belongsToMany(Subject::class, 'subject_school_class_assignments', 'class_arm_id', 'subject_id')
-			->withPivot(['id', 'school_class_id', 'class_section_id'])
-			->withTimestamps();
-	}
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
+
+    public function assignments()
+    {
+        return $this->hasMany(SubjectAssignment::class, 'class_arm_id');
+    }
+
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_school_class_assignments', 'class_arm_id', 'subject_id')
+            ->withPivot(['id', 'school_class_id', 'class_section_id'])
+            ->withTimestamps();
+    }
 }

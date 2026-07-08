@@ -20,7 +20,7 @@ return new class extends Migration
         });
 
         $driver = DB::getDriverName();
-        $table = DB::getTablePrefix() . 'students';
+        $table = DB::getTablePrefix().'students';
 
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE {$table} MODIFY parent_id CHAR(36) NULL");
@@ -53,7 +53,7 @@ return new class extends Migration
         });
 
         $driver = DB::getDriverName();
-        $table = DB::getTablePrefix() . 'students';
+        $table = DB::getTablePrefix().'students';
 
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE {$table} MODIFY parent_id CHAR(36) NOT NULL");
@@ -76,7 +76,7 @@ return new class extends Migration
     private function foreignKeyExists(string $table, string $key): bool
     {
         $database = DB::getDatabaseName();
-        $prefixedTable = DB::getTablePrefix() . $table;
+        $prefixedTable = DB::getTablePrefix().$table;
 
         $result = DB::selectOne(
             'SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?',

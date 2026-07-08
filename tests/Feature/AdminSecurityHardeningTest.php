@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Agent;
-use App\Models\User;
 use App\Models\School;
-use Spatie\Permission\Models\Role;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AdminSecurityHardeningTest extends TestCase
@@ -15,12 +15,13 @@ class AdminSecurityHardeningTest extends TestCase
     use RefreshDatabase;
 
     private Role $superAdminRole;
+
     private Role $adminRole;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Ensure roles exist for testing
         $this->superAdminRole = Role::create(['name' => 'super_admin', 'guard_name' => 'sanctum']);
         $this->adminRole = Role::create(['name' => 'admin', 'guard_name' => 'sanctum']);
@@ -32,7 +33,7 @@ class AdminSecurityHardeningTest extends TestCase
             'role_id' => $role->id,
             'model_type' => 'App\Models\User',
             'model_id' => $user->id,
-            'school_id' => $user->school_id
+            'school_id' => $user->school_id,
         ]);
     }
 
@@ -42,7 +43,7 @@ class AdminSecurityHardeningTest extends TestCase
         $school = School::factory()->create();
         $schoolAdmin = User::factory()->create([
             'school_id' => $school->id,
-            'role' => 'admin'
+            'role' => 'admin',
         ]);
         $this->manuallyAssignRole($schoolAdmin, $this->adminRole);
 
@@ -59,7 +60,7 @@ class AdminSecurityHardeningTest extends TestCase
         $hqSchool = School::factory()->create(['slug' => 'cyfamod-hq']);
         $superAdmin = User::factory()->create([
             'school_id' => $hqSchool->id,
-            'role' => 'super_admin'
+            'role' => 'super_admin',
         ]);
         $this->manuallyAssignRole($superAdmin, $this->superAdminRole);
 
@@ -79,14 +80,14 @@ class AdminSecurityHardeningTest extends TestCase
         $agent = Agent::factory()->create([
             'status' => 'inactive',
             'approved_at' => now(),
-            'approved_by' => (string) \Illuminate\Support\Str::uuid()
+            'approved_by' => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         $response = $this->actingAs($superAdmin, 'sanctum')
             ->postJson("/api/v1/admin/agents/{$agent->id}/reset-pending");
 
         $response->assertOk();
-        
+
         $agent = $agent->fresh();
         $this->assertEquals('pending', $agent->status);
         $this->assertNull($agent->approved_at);

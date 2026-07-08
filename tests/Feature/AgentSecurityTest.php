@@ -37,7 +37,7 @@ describe('AgentController Security — resolveAgent()', function () {
         Sanctum::actingAs($this->admin, [], 'sanctum');
 
         // Try to access agent dashboard by passing agent_id in query string
-        $response = getJson(route('agents.dashboard') . '?agent_id=' . $this->agent->id);
+        $response = getJson(route('agents.dashboard').'?agent_id='.$this->agent->id);
 
         // Should be rejected — school admin is NOT an agent
         $response->assertUnauthorized();

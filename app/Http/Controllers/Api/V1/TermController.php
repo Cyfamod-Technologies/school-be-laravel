@@ -16,22 +16,22 @@ use App\Services\SubscriptionService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Collection;
 
 class TermController extends Controller
 {
     private SubscriptionService $subscriptionService;
+
     private CommissionService $commissionService;
 
     public function __construct(
         SubscriptionService $subscriptionService,
         CommissionService $commissionService
-    )
-    {
+    ) {
         $this->subscriptionService = $subscriptionService;
         $this->commissionService = $commissionService;
     }
@@ -90,12 +90,12 @@ class TermController extends Controller
             ->orderBy('term_number')
             ->first();
 
-        if (!$nextTerm) {
+        if (! $nextTerm) {
             return response()->json(['message' => 'No next term found'], 404);
         }
 
         // Generate invoice for next term if needed
-        if ($school->requiresSubscription() && !$nextTerm->invoice_id) {
+        if ($school->requiresSubscription() && ! $nextTerm->invoice_id) {
             $this->subscriptionService->generateTermInvoice($nextTerm);
             $nextTerm = Term::query()
                 ->with(['school', 'invoices', 'session'])
@@ -108,7 +108,7 @@ class TermController extends Controller
         $nextTermOutstanding = round((float) $nextTerm->getOutstandingBalance(), 2);
         if ($school->requiresSubscription() && ! $this->subscriptionService->isFreeTrialTerm($nextTerm) && $nextTermOutstanding > 0) {
             throw ValidationException::withMessages([
-                'term_switch' => 'Cannot switch to ' . $nextTerm->name . ' until payment is cleared. Outstanding: ₦' . number_format($nextTermOutstanding, 2) . '.',
+                'term_switch' => 'Cannot switch to '.$nextTerm->name.' until payment is cleared. Outstanding: ₦'.number_format($nextTermOutstanding, 2).'.',
             ]);
         }
 
@@ -272,7 +272,7 @@ class TermController extends Controller
             $paymentLockReason = $this->getPaymentOrderLockReason($term);
             throw ValidationException::withMessages([
                 'term_id' => ($paymentLockReason ?? 'Please settle previous term before paying this term.')
-                    . ' Or use the "Pay Outstanding + Selected Term" option.',
+                    .' Or use the "Pay Outstanding + Selected Term" option.',
             ]);
         }
 
@@ -420,6 +420,7 @@ class TermController extends Controller
             }
 
             $term = Term::query()->where('id', $transaction->term_id)->first();
+
             return response()->json([
                 'message' => 'Payment already verified.',
                 'term' => $term ? $this->formatTerm($term->load('invoices', 'school')) : null,
@@ -437,7 +438,7 @@ class TermController extends Controller
 
         try {
             $response = $this->paystackHttpClient($secretKey)
-                ->get($baseUrl . '/transaction/verify/' . urlencode($transaction->reference));
+                ->get($baseUrl.'/transaction/verify/'.urlencode($transaction->reference));
         } catch (ConnectionException $exception) {
             $transaction->update([
                 'gateway_response' => [
@@ -496,7 +497,7 @@ class TermController extends Controller
             throw ValidationException::withMessages([
                 'payment' => $gatewayStatus === ''
                     ? 'Payment is not yet successful.'
-                    : 'Payment status is ' . $gatewayStatus . '.',
+                    : 'Payment status is '.$gatewayStatus.'.',
             ]);
         }
 
@@ -734,7 +735,7 @@ class TermController extends Controller
         $reference = $this->generatePaystackReference($referencePrefix);
         $totalOutstanding = round($terms->sum(fn (array $row) => $row['outstanding']), 2);
         $frontendBase = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
-        $callbackUrl = $frontendBase . '/settings/payment';
+        $callbackUrl = $frontendBase.'/settings/payment';
         $amountInKobo = (int) round($totalOutstanding * 100);
         $termIds = $terms->map(fn (array $row) => $row['term']->id)->values()->all();
         $termBreakdown = $terms->map(fn (array $row) => [
@@ -768,7 +769,7 @@ class TermController extends Controller
 
         try {
             $response = $this->paystackHttpClient($secretKey)
-                ->post($baseUrl . '/transaction/initialize', [
+                ->post($baseUrl.'/transaction/initialize', [
                     'email' => $email,
                     'amount' => $amountInKobo,
                     'reference' => $reference,
@@ -942,7 +943,7 @@ class TermController extends Controller
     private function generatePaystackReference(string $prefix = 'TERM'): string
     {
         do {
-            $reference = strtoupper($prefix) . '-' . strtoupper(Str::random(16));
+            $reference = strtoupper($prefix).'-'.strtoupper(Str::random(16));
         } while (TermPaymentTransaction::where('reference', $reference)->exists());
 
         return $reference;
@@ -1153,11 +1154,11 @@ class TermController extends Controller
 
         $previousSessionName = $previousUnpaidTerm->session?->name;
         $context = $previousSessionName
-            ? $previousUnpaidTerm->name . ' (' . $previousSessionName . ')'
+            ? $previousUnpaidTerm->name.' ('.$previousSessionName.')'
             : $previousUnpaidTerm->name;
         $outstanding = number_format($previousUnpaidTerm->getOutstandingBalance(), 2);
 
-        return 'Please settle ' . $context . ' before paying ' . $term->name . '. Outstanding: ₦' . $outstanding . '.';
+        return 'Please settle '.$context.' before paying '.$term->name.'. Outstanding: ₦'.$outstanding.'.';
     }
 
     private function getPreviousUnpaidTerms(Term $term): Collection

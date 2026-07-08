@@ -22,42 +22,40 @@ use Illuminate\Database\Eloquent\Model;
  * @property float|null $grade_point
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property GradingScale $grading_scale
  * @property Collection|Result[] $results
- *
- * @package App\Models
  */
 class GradeRange extends Model
 {
-	protected $table = 'grade_ranges';
-	public $incrementing = false;
+    protected $table = 'grade_ranges';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'min_score' => 'float',
-		'max_score' => 'float',
-		'grade_point' => 'float'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'id',
-		'grading_scale_id',
-		'min_score',
-		'max_score',
-		'grade_label',
-		'description',
-		'grade_point'
-	];
+    protected $casts = [
+        'min_score' => 'float',
+        'max_score' => 'float',
+        'grade_point' => 'float',
+    ];
 
-	public function grading_scale()
-	{
-		return $this->belongsTo(GradingScale::class);
-	}
+    protected $fillable = [
+        'id',
+        'grading_scale_id',
+        'min_score',
+        'max_score',
+        'grade_label',
+        'description',
+        'grade_point',
+    ];
 
-	public function results()
-	{
-		return $this->hasMany(Result::class, 'grade_id');
-	}
+    public function grading_scale()
+    {
+        return $this->belongsTo(GradingScale::class);
+    }
+
+    public function results()
+    {
+        return $this->hasMany(Result::class, 'grade_id');
+    }
 }

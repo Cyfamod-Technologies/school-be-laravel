@@ -54,4 +54,3 @@ return new class extends Migration
         // Intentionally no-op: normalization migration.
     }
 };
-

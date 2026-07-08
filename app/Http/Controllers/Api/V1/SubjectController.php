@@ -21,9 +21,7 @@ use Illuminate\Validation\Rule;
  */
 class SubjectController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * @OA\Get(
@@ -31,10 +29,12 @@ class SubjectController extends Controller
      *     tags={"school-v1.6","school-v1.7"},
      *     summary="List subjects",
      *     description="Paginated list of subjects for the school. Teachers see only subjects they are assigned to.",
+     *
      *     @OA\Parameter(name="search", in="query", required=false, description="Filter by name or code", @OA\Schema(type="string")),
      *     @OA\Parameter(name="sortBy", in="query", required=false, @OA\Schema(type="string", enum={"name","code","created_at"})),
      *     @OA\Parameter(name="sortDirection", in="query", required=false, @OA\Schema(type="string", enum={"asc","desc"})),
      *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", minimum=1)),
+     *
      *     @OA\Response(response=200, description="Subjects returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -118,15 +118,19 @@ class SubjectController extends Controller
      *     path="/api/v1/settings/subjects",
      *     tags={"school-v1.6"},
      *     summary="Create subject",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"name"},
+     *
      *             @OA\Property(property="name", type="string", example="Mathematics"),
      *             @OA\Property(property="code", type="string", example="MTH101"),
      *             @OA\Property(property="description", type="string", example="Core math curriculum")
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Subject created"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -238,27 +242,32 @@ class SubjectController extends Controller
      *     path="/api/v1/settings/subjects/{id}",
      *     tags={"school-v1.6"},
      *     summary="Update subject",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Subject ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="name", type="string", example="Mathematics"),
      *             @OA\Property(property="code", type="string", example="MTH101"),
      *             @OA\Property(property="description", type="string", example="Core math curriculum")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Subject updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error")
      * )
      */
-
     public function destroy(Request $request, Subject $subject)
     {
         $this->ensurePermission($request, 'subjects.delete');
@@ -286,19 +295,21 @@ class SubjectController extends Controller
      *     path="/api/v1/settings/subjects/{id}",
      *     tags={"school-v1.6"},
      *     summary="Delete subject",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Subject ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Subject deleted"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Cannot delete subject with dependencies")
      * )
      */
-
     protected function authorizeSubjectAccess(Request $request, Subject $subject): void
     {
         abort_unless($subject->school_id === $request->user()->school_id, 404);

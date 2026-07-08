@@ -81,8 +81,8 @@ describe('Result PIN management', function () {
             return Student::create([
                 'id' => (string) Str::uuid(),
                 'school_id' => $this->school->id,
-                'admission_no' => '2024/0' . $index,
-                'first_name' => 'Student ' . $index,
+                'admission_no' => '2024/0'.$index,
+                'first_name' => 'Student '.$index,
                 'last_name' => 'Example',
                 'gender' => 'M',
                 'date_of_birth' => now()->subYears(10 + $index),

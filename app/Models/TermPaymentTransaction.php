@@ -21,7 +21,9 @@ class TermPaymentTransaction extends Model
     }
 
     protected $table = 'term_payment_transactions';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

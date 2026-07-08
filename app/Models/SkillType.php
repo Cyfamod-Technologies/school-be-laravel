@@ -21,53 +21,51 @@ use Illuminate\Database\Eloquent\Model;
  * @property float|null $weight
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property SkillCategory $skill_category
  * @property School $school
  * @property Collection|School[] $schools
  * @property Collection|SkillRating[] $skill_ratings
- *
- * @package App\Models
  */
 class SkillType extends Model
 {
-	protected $table = 'skill_types';
-	public $incrementing = false;
+    protected $table = 'skill_types';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'weight' => 'float'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'id',
-		'skill_category_id',
-		'school_id',
-		'name',
-		'description',
-		'weight'
-	];
+    protected $casts = [
+        'weight' => 'float',
+    ];
 
-	public function skill_category()
-	{
-		return $this->belongsTo(SkillCategory::class);
-	}
+    protected $fillable = [
+        'id',
+        'skill_category_id',
+        'school_id',
+        'name',
+        'description',
+        'weight',
+    ];
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    public function skill_category()
+    {
+        return $this->belongsTo(SkillCategory::class);
+    }
 
-	public function schools()
-	{
-		return $this->belongsToMany(School::class, 'school_skill_types')
-					->withPivot('id', 'skill_category_id')
-					->withTimestamps();
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function skill_ratings()
-	{
-		return $this->hasMany(SkillRating::class);
-	}
+    public function schools()
+    {
+        return $this->belongsToMany(School::class, 'school_skill_types')
+            ->withPivot('id', 'skill_category_id')
+            ->withTimestamps();
+    }
+
+    public function skill_ratings()
+    {
+        return $this->hasMany(SkillRating::class);
+    }
 }

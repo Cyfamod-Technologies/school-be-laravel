@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Student;
 
 /**
  * Class QuizResult
@@ -25,53 +24,52 @@ use App\Models\Student;
  * @property Carbon|null $graded_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property QuizAttempt $attempt
  * @property Quiz $quiz
  * @property Student $student
- *
- * @package App\Models
  */
 class QuizResult extends Model
 {
-	protected $table = 'quiz_results';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'quiz_results';
 
-	protected $fillable = [
-		'id',
-		'attempt_id',
-		'quiz_id',
-		'student_id',
-		'total_questions',
-		'attempted_questions',
-		'correct_answers',
-		'total_marks',
-		'marks_obtained',
-		'percentage',
-		'grade',
-		'status',
-		'submitted_at',
-		'graded_at',
-	];
+    public $incrementing = false;
 
-	protected $casts = [
-		'submitted_at' => 'datetime',
-		'graded_at' => 'datetime',
-	];
+    protected $keyType = 'string';
 
-	public function attempt()
-	{
-		return $this->belongsTo(QuizAttempt::class);
-	}
+    protected $fillable = [
+        'id',
+        'attempt_id',
+        'quiz_id',
+        'student_id',
+        'total_questions',
+        'attempted_questions',
+        'correct_answers',
+        'total_marks',
+        'marks_obtained',
+        'percentage',
+        'grade',
+        'status',
+        'submitted_at',
+        'graded_at',
+    ];
 
-	public function quiz()
-	{
-		return $this->belongsTo(Quiz::class);
-	}
+    protected $casts = [
+        'submitted_at' => 'datetime',
+        'graded_at' => 'datetime',
+    ];
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class, 'student_id');
-	}
+    public function attempt()
+    {
+        return $this->belongsTo(QuizAttempt::class);
+    }
+
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class, 'student_id');
+    }
 }

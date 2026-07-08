@@ -24,6 +24,7 @@ class FeeItemController extends Controller
      *     path="/api/v1/fees/items",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="List fee items",
+     *
      *     @OA\Response(response=200, description="Fee items returned")
      * )
      */
@@ -58,6 +59,7 @@ class FeeItemController extends Controller
      *     path="/api/v1/fees/items",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Create fee item",
+     *
      *     @OA\Response(response=201, description="Created")
      * )
      */
@@ -65,7 +67,7 @@ class FeeItemController extends Controller
     {
         $school = $request->user()->school;
 
-        if (!$school) {
+        if (! $school) {
             return response()->json([
                 'message' => 'Authenticated user is not associated with any school.',
             ], 422);
@@ -76,7 +78,7 @@ class FeeItemController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('fee_items')->where('school_id', $school->id)
+                Rule::unique('fee_items')->where('school_id', $school->id),
             ],
             'description' => 'nullable|string',
             'category' => 'nullable|string|max:255',
@@ -98,7 +100,9 @@ class FeeItemController extends Controller
      *     path="/api/v1/fees/items/{feeItem}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Get fee item",
+     *
      *     @OA\Parameter(name="feeItem", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Fee item returned"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -119,7 +123,9 @@ class FeeItemController extends Controller
      *     path="/api/v1/fees/items/{feeItem}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Update fee item",
+     *
      *     @OA\Parameter(name="feeItem", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Updated"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -135,7 +141,7 @@ class FeeItemController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('fee_items')->where('school_id', $feeItem->school_id)->ignore($feeItem->id)
+                Rule::unique('fee_items')->where('school_id', $feeItem->school_id)->ignore($feeItem->id),
             ],
             'description' => 'nullable|string',
             'category' => 'nullable|string|max:255',
@@ -151,15 +157,17 @@ class FeeItemController extends Controller
     }
 
     /**
-    * @OA\Delete(
-    *     path="/api/v1/fees/items/{feeItem}",
-    *     tags={"school-v2.4","school-v2.0"},
-    *     summary="Delete fee item",
-    *     @OA\Parameter(name="feeItem", in="path", required=true, @OA\Schema(type="string", format="uuid")),
-    *     @OA\Response(response=204, description="Deleted"),
-    *     @OA\Response(response=404, description="Not found")
-    * )
-    */
+     * @OA\Delete(
+     *     path="/api/v1/fees/items/{feeItem}",
+     *     tags={"school-v2.4","school-v2.0"},
+     *     summary="Delete fee item",
+     *
+     *     @OA\Parameter(name="feeItem", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
+     *     @OA\Response(response=204, description="Deleted"),
+     *     @OA\Response(response=404, description="Not found")
+     * )
+     */
     public function destroy(Request $request, FeeItem $feeItem)
     {
         if ($feeItem->school_id !== $request->user()->school_id) {

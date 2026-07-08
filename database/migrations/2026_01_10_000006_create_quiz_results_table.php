@@ -27,7 +27,7 @@ return new class extends Migration
             $table->timestamp('submitted_at');
             $table->timestamp('graded_at')->nullable();
             $table->timestamps();
-            
+
             $table->foreign('attempt_id')->references('id')->on('quiz_attempts')->onDelete('cascade');
             $table->foreign('quiz_id')->references('id')->on('quizzes')->onDelete('cascade');
             $table->foreign('student_id')->references('id')->on('users')->onDelete('cascade');

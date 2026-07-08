@@ -7,8 +7,8 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class Attendance
@@ -21,17 +21,16 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
  * @property string $status
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Session $session
  * @property Student $student
  * @property Term $term
- *
- * @package App\Models
  */
 class Attendance extends Model
 {
-	protected $table = 'attendances';
+    protected $table = 'attendances';
+
     use HasUuids;
+
     public $incrementing = false;
 
     protected $keyType = 'string';

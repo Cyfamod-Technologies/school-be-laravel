@@ -9,7 +9,9 @@ use Illuminate\Support\Str;
 class PromotionLog extends Model
 {
     protected $table = 'promotion_logs';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [

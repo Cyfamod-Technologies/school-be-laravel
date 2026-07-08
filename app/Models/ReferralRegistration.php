@@ -35,7 +35,9 @@ class ReferralRegistration extends Model
     }
 
     protected $table = 'referral_registrations';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -67,4 +69,3 @@ class ReferralRegistration extends Model
         return $this->belongsTo(School::class);
     }
 }
-

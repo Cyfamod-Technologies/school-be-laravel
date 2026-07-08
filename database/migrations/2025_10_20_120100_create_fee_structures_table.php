@@ -29,7 +29,7 @@ return new class extends Migration
             $table->foreign('session_id')->references('id')->on('sessions')->onDelete('cascade');
             $table->foreign('term_id')->references('id')->on('terms')->onDelete('cascade');
             $table->foreign('fee_item_id')->references('id')->on('fee_items')->onDelete('cascade');
-            
+
             // Prevent duplicate structures for the same class/session/term/fee_item combination
             $table->unique(['class_id', 'session_id', 'term_id', 'fee_item_id'], 'unique_fee_structure');
         });

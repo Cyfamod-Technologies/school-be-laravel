@@ -9,9 +9,7 @@ use Illuminate\Http\Request;
 
 class AdminDashboardController extends Controller
 {
-    public function __construct(private readonly SchoolAdminService $schoolAdminService)
-    {
-    }
+    public function __construct(private readonly SchoolAdminService $schoolAdminService) {}
 
     public function summary()
     {

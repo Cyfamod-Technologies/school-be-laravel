@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class CbtScoreImport extends Model
 {
     use HasUuids;
 
     protected $table = 'cbt_score_imports';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

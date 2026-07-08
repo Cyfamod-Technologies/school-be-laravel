@@ -10,9 +10,7 @@ use Illuminate\Http\Request;
 
 class TeacherDashboardController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * @OA\Get(
@@ -20,6 +18,7 @@ class TeacherDashboardController extends Controller
      *     tags={"school-v1.5"},
      *     summary="Staff dashboard (teacher view)",
      *     description="Returns teacher dashboard data for the authenticated staff member.",
+     *
      *     @OA\Response(response=200, description="Dashboard returned"),
      *     @OA\Response(response=403, description="Forbidden")
      * )

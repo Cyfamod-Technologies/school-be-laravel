@@ -17,8 +17,7 @@ class AgentVerifyEmail extends Mailable
         public Agent $agent,
         public string $verificationUrl,
         public CarbonInterface $expiresAt,
-    ) {
-    }
+    ) {}
 
     public function build(): self
     {

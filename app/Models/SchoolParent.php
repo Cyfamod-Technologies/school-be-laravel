@@ -27,46 +27,45 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $local_government_area
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property User $user
  * @property Collection|Student[] $students
- *
- * @package App\Models
  */
 class SchoolParent extends Model
 {
-	protected $table = 'parents';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'parents';
 
-	protected $fillable = [
-		'id',
-		'school_id',
-		'user_id',
-		'first_name',
-		'last_name',
-		'middle_name',
-		'phone',
-		'address',
-		'occupation',
-		'nationality',
-		'state_of_origin',
-		'local_government_area'
-	];
+    public $incrementing = false;
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $keyType = 'string';
 
-	public function user()
-	{
-		return $this->belongsTo(User::class);
-	}
+    protected $fillable = [
+        'id',
+        'school_id',
+        'user_id',
+        'first_name',
+        'last_name',
+        'middle_name',
+        'phone',
+        'address',
+        'occupation',
+        'nationality',
+        'state_of_origin',
+        'local_government_area',
+    ];
 
-	public function students()
-	{
-		return $this->hasMany(Student::class, 'parent_id');
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function students()
+    {
+        return $this->hasMany(Student::class, 'parent_id');
+    }
 }

@@ -20,8 +20,6 @@ use Illuminate\Support\Str;
  * @property Carbon $admission_date
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class MidtermStudentAddition extends Model
 {
@@ -37,7 +35,9 @@ class MidtermStudentAddition extends Model
     }
 
     protected $table = 'midterm_student_additions';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -84,6 +84,7 @@ class MidtermStudentAddition extends Model
     public function markAsPaid()
     {
         $this->status = 'paid';
+
         return $this->save();
     }
 }

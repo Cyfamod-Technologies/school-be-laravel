@@ -240,9 +240,10 @@ class RbacService
             $carry[] = $permission;
             if (isset($permission['children'])) {
                 foreach ($permission['children'] as $childPermissionName) {
-                    $carry[] = ['name' => $childPermissionName, 'description' => 'Child permission for ' . $permission['name']];
+                    $carry[] = ['name' => $childPermissionName, 'description' => 'Child permission for '.$permission['name']];
                 }
             }
+
             return $carry;
         }, []);
 
@@ -349,7 +350,7 @@ class RbacService
 
     private function getAllPermissionsWithChildren(Collection $permissions): Collection
     {
-        $allPermissions = new Collection();
+        $allPermissions = new Collection;
 
         foreach ($permissions as $permission) {
             $allPermissions->push($permission);

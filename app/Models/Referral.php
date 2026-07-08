@@ -25,8 +25,6 @@ use Illuminate\Support\Str;
  * @property Carbon|null $active_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class Referral extends Model
 {
@@ -39,13 +37,15 @@ class Referral extends Model
                 $model->id = (string) Str::uuid();
             }
             if (empty($model->referral_code)) {
-                $model->referral_code = 'AGT-' . strtoupper(Str::random(8));
+                $model->referral_code = 'AGT-'.strtoupper(Str::random(8));
             }
         });
     }
 
     protected $table = 'referrals';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -96,7 +96,7 @@ class Referral extends Model
 
     public function recordVisit()
     {
-        if (!$this->visited_at) {
+        if (! $this->visited_at) {
             $this->visited_at = now();
             $this->status = 'visited';
             $this->save();
@@ -107,6 +107,7 @@ class Referral extends Model
     {
         $this->registered_at = now();
         $this->status = 'registered';
+
         return $this->save();
     }
 
@@ -115,6 +116,7 @@ class Referral extends Model
         $this->paid_at = now();
         $this->first_payment_amount = $amount;
         $this->status = 'paid';
+
         return $this->save();
     }
 
@@ -122,6 +124,7 @@ class Referral extends Model
     {
         $this->active_at = now();
         $this->status = 'active';
+
         return $this->save();
     }
 

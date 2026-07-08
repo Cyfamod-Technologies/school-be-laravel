@@ -10,6 +10,7 @@ class MigrateController extends Controller
     {
         try {
             Artisan::call('migrate');
+
             return response()->json(['message' => 'Migrations run successfully']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Migrations failed', 'error' => $e->getMessage()], 500);

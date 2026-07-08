@@ -4,14 +4,15 @@ namespace App\Services;
 
 use App\Models\Agent;
 use App\Models\AgentCommission;
+use App\Models\Invoice;
 use App\Models\Referral;
 use App\Models\ReferralRegistration;
-use App\Models\Invoice;
 use Illuminate\Support\Facades\DB;
 
 class CommissionService
 {
     private SubscriptionService $subscriptionService;
+
     private ReferralService $referralService;
 
     public function __construct(

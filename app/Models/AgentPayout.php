@@ -23,8 +23,6 @@ use Illuminate\Support\Str;
  * @property string|null $failure_reason
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class AgentPayout extends Model
 {
@@ -47,7 +45,9 @@ class AgentPayout extends Model
     }
 
     protected $table = 'agent_payouts';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [

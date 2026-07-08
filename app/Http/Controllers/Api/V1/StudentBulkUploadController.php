@@ -18,35 +18,35 @@ use Illuminate\Support\Facades\Response;
  */
 class StudentBulkUploadController extends Controller
 {
-    public function __construct(private readonly StudentBulkUploadService $service)
-    {
-    }
+    public function __construct(private readonly StudentBulkUploadService $service) {}
 
     /**
      * @OA\Get(
      *     path="/api/v1/students/bulk/template",
      *     tags={"school-v2.0"},
      *     summary="Download student bulk upload template",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string")),
      *     @OA\Parameter(name="class_id", in="query", required=false, @OA\Schema(type="string")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string")),
+     *
      *     @OA\Response(response=200, description="CSV template")
      * )
      */
     public function template(Request $request)
     {
         $school = $request->user()->school;
-        
+
         // Get preselected context from query params
         $preselected = [
             'session_id' => $request->query('session_id'),
             'class_id' => $request->query('class_id'),
             'class_arm_id' => $request->query('class_arm_id'),
         ];
-        
+
         $csv = $this->service->generateTemplate($school, $preselected);
 
-        $fileName = 'student-bulk-upload-template-' . now()->format('Ymd_His') . '.csv';
+        $fileName = 'student-bulk-upload-template-'.now()->format('Ymd_His').'.csv';
 
         return Response::make($csv, 200, [
             'Content-Type' => 'text/csv',
@@ -59,11 +59,15 @@ class StudentBulkUploadController extends Controller
      *     path="/api/v1/students/bulk/preview",
      *     tags={"school-v2.0"},
      *     summary="Preview student bulk upload",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\MediaType(
      *             mediaType="multipart/form-data",
+     *
      *             @OA\Schema(
+     *
      *                 @OA\Property(property="file", type="string", format="binary"),
      *                 @OA\Property(property="session_id", type="string"),
      *                 @OA\Property(property="class_id", type="string"),
@@ -71,6 +75,7 @@ class StudentBulkUploadController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Preview generated"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -123,7 +128,9 @@ class StudentBulkUploadController extends Controller
      *     path="/api/v1/students/bulk/{batch}/commit",
      *     tags={"school-v2.0"},
      *     summary="Commit student bulk upload",
+     *
      *     @OA\Parameter(name="batch", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Upload committed"),
      *     @OA\Response(response=404, description="Batch not found")
      * )

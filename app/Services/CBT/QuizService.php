@@ -3,7 +3,6 @@
 namespace App\Services\CBT;
 
 use App\Models\Quiz;
-use App\Models\QuizAttempt;
 use App\Models\Student;
 use App\Models\User;
 use Carbon\Carbon;
@@ -13,311 +12,311 @@ use Illuminate\Support\Str;
 
 class QuizService
 {
-	public function closeExpiredQuizzes(?string $schoolId = null): void
-	{
-		$query = Quiz::query()
-			->where('status', 'published')
-			->whereNotNull('end_time')
-			->where('end_time', '<', Carbon::now());
+    public function closeExpiredQuizzes(?string $schoolId = null): void
+    {
+        $query = Quiz::query()
+            ->where('status', 'published')
+            ->whereNotNull('end_time')
+            ->where('end_time', '<', Carbon::now());
 
-		if ($schoolId) {
-			$query->where('school_id', $schoolId);
-		}
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
 
-		$query->update(['status' => 'closed']);
-	}
+        $query->update(['status' => 'closed']);
+    }
 
-	public function publishScheduledQuizzes(?string $schoolId = null): void
-	{
-		$query = Quiz::query()
-			->where('status', 'draft')
-			->whereNotNull('start_time')
-			->where('start_time', '<=', Carbon::now());
+    public function publishScheduledQuizzes(?string $schoolId = null): void
+    {
+        $query = Quiz::query()
+            ->where('status', 'draft')
+            ->whereNotNull('start_time')
+            ->where('start_time', '<=', Carbon::now());
 
-		if ($schoolId) {
-			$query->where('school_id', $schoolId);
-		}
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
 
-		$query->update(['status' => 'published']);
-	}
+        $query->update(['status' => 'published']);
+    }
 
-	/**
-	 * Get all quizzes for a student
-	 */
-	public function getStudentQuizzes(User|Student $student): Collection
-	{
-		$this->publishScheduledQuizzes($student->school_id ?? null);
-		$this->closeExpiredQuizzes($student->school_id ?? null);
+    /**
+     * Get all quizzes for a student
+     */
+    public function getStudentQuizzes(User|Student $student): Collection
+    {
+        $this->publishScheduledQuizzes($student->school_id ?? null);
+        $this->closeExpiredQuizzes($student->school_id ?? null);
 
-		$studentClassIds = $this->resolveStudentClassIds($student);
+        $studentClassIds = $this->resolveStudentClassIds($student);
 
-		$query = Quiz::where('status', 'published');
+        $query = Quiz::where('status', 'published');
 
-		if (!empty($student->school_id)) {
-			$query->where('school_id', $student->school_id);
-		}
+        if (! empty($student->school_id)) {
+            $query->where('school_id', $student->school_id);
+        }
 
-		return $query->where(function ($query) use ($studentClassIds) {
-				// Quiz assigned to student's class
-				if ($studentClassIds->count() > 0) {
-					$query->whereIn('class_id', $studentClassIds)
-						// Or quiz has no specific class (available to all)
-						->orWhereNull('class_id');
-				} else {
-					// If student has no class enrollments, only show quizzes available to all
-					$query->whereNull('class_id');
-				}
-			})
-			->with(['subject:id,name', 'questions', 'attempts' => function ($query) use ($student) {
-				$query->where('student_id', $student->id);
-			}])
-			->orderBy('created_at', 'desc')
-			->get();
-	}
+        return $query->where(function ($query) use ($studentClassIds) {
+            // Quiz assigned to student's class
+            if ($studentClassIds->count() > 0) {
+                $query->whereIn('class_id', $studentClassIds)
+                    // Or quiz has no specific class (available to all)
+                    ->orWhereNull('class_id');
+            } else {
+                // If student has no class enrollments, only show quizzes available to all
+                $query->whereNull('class_id');
+            }
+        })
+            ->with(['subject:id,name', 'questions', 'attempts' => function ($query) use ($student) {
+                $query->where('student_id', $student->id);
+            }])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
 
-	/**
-	 * Get quiz details with questions and options
-	 */
-	public function getQuizDetails(Quiz $quiz, User|Student $student): array
-	{
-		$attempt = $quiz->attempts()
-			->where('student_id', $student->id)
-			->latest()
-			->first();
-		$attemptCount = $quiz->attempts()
-			->where('student_id', $student->id)
-			->where('status', '!=', 'in_progress')
-			->count();
+    /**
+     * Get quiz details with questions and options
+     */
+    public function getQuizDetails(Quiz $quiz, User|Student $student): array
+    {
+        $attempt = $quiz->attempts()
+            ->where('student_id', $student->id)
+            ->latest()
+            ->first();
+        $attemptCount = $quiz->attempts()
+            ->where('student_id', $student->id)
+            ->where('status', '!=', 'in_progress')
+            ->count();
 
-		return [
-			'id' => $quiz->id,
-			'title' => $quiz->title,
-			'description' => $quiz->description,
-			'subject_id' => $quiz->subject_id,
-			'subject_name' => $quiz->subject?->name,
-			'class_id' => $quiz->class_id,
-			'duration_minutes' => $quiz->duration_minutes,
-			'total_questions' => $quiz->total_questions,
-			'passing_score' => $quiz->passing_score,
-			'show_answers' => $quiz->show_answers,
-			'show_score' => $quiz->show_score,
-			'shuffle_questions' => $quiz->shuffle_questions,
-			'shuffle_options' => $quiz->shuffle_options,
-			'allow_review' => $quiz->allow_review,
-			'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
-			'max_attempts' => $quiz->max_attempts,
-			'status' => $quiz->status,
-			'start_time' => $quiz->start_time,
-			'end_time' => $quiz->end_time,
-			'attempted' => $attempt ? true : false,
-			'attempt_count' => $attemptCount,
-			'questions' => $quiz->questions->map(function ($question) {
-				return [
-					'id' => $question->id,
-					'question_text' => $question->question_text,
-					'question_type' => $question->question_type,
-					'marks' => $question->marks,
-					'order' => $question->order,
-					'image_url' => $question->image_url,
-					'explanation' => $question->explanation,
-					'options' => $question->options->map(function ($option) {
-						return [
-							'id' => $option->id,
-							'option_text' => $option->option_text,
-							'order' => $option->order,
-							'image_url' => $option->image_url,
-						];
-					}),
-				];
-			}),
-		];
-	}
+        return [
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'description' => $quiz->description,
+            'subject_id' => $quiz->subject_id,
+            'subject_name' => $quiz->subject?->name,
+            'class_id' => $quiz->class_id,
+            'duration_minutes' => $quiz->duration_minutes,
+            'total_questions' => $quiz->total_questions,
+            'passing_score' => $quiz->passing_score,
+            'show_answers' => $quiz->show_answers,
+            'show_score' => $quiz->show_score,
+            'shuffle_questions' => $quiz->shuffle_questions,
+            'shuffle_options' => $quiz->shuffle_options,
+            'allow_review' => $quiz->allow_review,
+            'allow_multiple_attempts' => $quiz->allow_multiple_attempts,
+            'max_attempts' => $quiz->max_attempts,
+            'status' => $quiz->status,
+            'start_time' => $quiz->start_time,
+            'end_time' => $quiz->end_time,
+            'attempted' => $attempt ? true : false,
+            'attempt_count' => $attemptCount,
+            'questions' => $quiz->questions->map(function ($question) {
+                return [
+                    'id' => $question->id,
+                    'question_text' => $question->question_text,
+                    'question_type' => $question->question_type,
+                    'marks' => $question->marks,
+                    'order' => $question->order,
+                    'image_url' => $question->image_url,
+                    'explanation' => $question->explanation,
+                    'options' => $question->options->map(function ($option) {
+                        return [
+                            'id' => $option->id,
+                            'option_text' => $option->option_text,
+                            'order' => $option->order,
+                            'image_url' => $option->image_url,
+                        ];
+                    }),
+                ];
+            }),
+        ];
+    }
 
-	/**
-	 * Check if student can take quiz
-	 */
-	public function canStudentTakeQuiz(User|Student $student, Quiz $quiz): bool
-	{
-		// Check if quiz is published
-		if ($quiz->status !== 'published') {
-			return false;
-		}
+    /**
+     * Check if student can take quiz
+     */
+    public function canStudentTakeQuiz(User|Student $student, Quiz $quiz): bool
+    {
+        // Check if quiz is published
+        if ($quiz->status !== 'published') {
+            return false;
+        }
 
-		if ($this->hasStudentReachedAttemptLimit($student, $quiz)) {
-			return false;
-		}
+        if ($this->hasStudentReachedAttemptLimit($student, $quiz)) {
+            return false;
+        }
 
-		// Check if quiz is within time window
-		if ($quiz->start_time && $quiz->start_time->isFuture()) {
-			return false;
-		}
+        // Check if quiz is within time window
+        if ($quiz->start_time && $quiz->start_time->isFuture()) {
+            return false;
+        }
 
-		if ($quiz->end_time && $quiz->end_time->isPast()) {
-			return false;
-		}
+        if ($quiz->end_time && $quiz->end_time->isPast()) {
+            return false;
+        }
 
-		// Check if student is in correct class
-		if ($quiz->class_id) {
-			$studentClassIds = $this->resolveStudentClassIds($student);
-			
-			if (!$studentClassIds->contains($quiz->class_id)) {
-				return false;
-			}
-		}
+        // Check if student is in correct class
+        if ($quiz->class_id) {
+            $studentClassIds = $this->resolveStudentClassIds($student);
 
-		return true;
-	}
+            if (! $studentClassIds->contains($quiz->class_id)) {
+                return false;
+            }
+        }
 
-	/**
-	 * Check if student has attempted quiz
-	 */
-	public function hasStudentAttempted(User|Student $student, Quiz $quiz): bool
-	{
-		return $quiz->attempts()
-			->where('student_id', $student->id)
-			->where('status', '!=', 'in_progress')
-			->exists();
-	}
+        return true;
+    }
 
-	public function getStudentAttemptCount(User|Student $student, Quiz $quiz): int
-	{
-		return $quiz->attempts()
-			->where('student_id', $student->id)
-			->where('status', '!=', 'in_progress')
-			->count();
-	}
+    /**
+     * Check if student has attempted quiz
+     */
+    public function hasStudentAttempted(User|Student $student, Quiz $quiz): bool
+    {
+        return $quiz->attempts()
+            ->where('student_id', $student->id)
+            ->where('status', '!=', 'in_progress')
+            ->exists();
+    }
 
-	public function hasStudentReachedAttemptLimit(User|Student $student, Quiz $quiz): bool
-	{
-		if (! $quiz->allow_multiple_attempts) {
-			return $this->hasStudentAttempted($student, $quiz);
-		}
+    public function getStudentAttemptCount(User|Student $student, Quiz $quiz): int
+    {
+        return $quiz->attempts()
+            ->where('student_id', $student->id)
+            ->where('status', '!=', 'in_progress')
+            ->count();
+    }
 
-		if (! $quiz->max_attempts) {
-			return false;
-		}
+    public function hasStudentReachedAttemptLimit(User|Student $student, Quiz $quiz): bool
+    {
+        if (! $quiz->allow_multiple_attempts) {
+            return $this->hasStudentAttempted($student, $quiz);
+        }
 
-		return $this->getStudentAttemptCount($student, $quiz) >= $quiz->max_attempts;
-	}
+        if (! $quiz->max_attempts) {
+            return false;
+        }
 
-	/**
-	 * Resolve the student's class ids from current class or enrollments.
-	 */
-	private function resolveStudentClassIds(User|Student $student): SupportCollection
-	{
-		$classIds = collect();
+        return $this->getStudentAttemptCount($student, $quiz) >= $quiz->max_attempts;
+    }
 
-		if (!empty($student->school_class_id)) {
-			$classIds->push($student->school_class_id);
-		}
+    /**
+     * Resolve the student's class ids from current class or enrollments.
+     */
+    private function resolveStudentClassIds(User|Student $student): SupportCollection
+    {
+        $classIds = collect();
 
-		if (method_exists($student, 'enrollments')) {
-			$enrollments = $student->enrollments()
-				->with('class_section.class_arm')
-				->get()
-				->pluck('class_section.class_arm.school_class_id');
-			$classIds = $classIds->merge($enrollments);
-		} elseif (method_exists($student, 'student_enrollments')) {
-			$enrollments = $student->student_enrollments()
-				->with('class_section.class_arm')
-				->get()
-				->pluck('class_section.class_arm.school_class_id');
-			$classIds = $classIds->merge($enrollments);
-		}
+        if (! empty($student->school_class_id)) {
+            $classIds->push($student->school_class_id);
+        }
 
-		return $classIds->filter()->unique()->values();
-	}
+        if (method_exists($student, 'enrollments')) {
+            $enrollments = $student->enrollments()
+                ->with('class_section.class_arm')
+                ->get()
+                ->pluck('class_section.class_arm.school_class_id');
+            $classIds = $classIds->merge($enrollments);
+        } elseif (method_exists($student, 'student_enrollments')) {
+            $enrollments = $student->student_enrollments()
+                ->with('class_section.class_arm')
+                ->get()
+                ->pluck('class_section.class_arm.school_class_id');
+            $classIds = $classIds->merge($enrollments);
+        }
 
-	/**
-	 * Create a new quiz
-	 */
-	public function createQuiz(array $data, User $creator): Quiz
-	{
-		if (!array_key_exists('total_questions', $data)) {
-			$data['total_questions'] = 0;
-		}
+        return $classIds->filter()->unique()->values();
+    }
 
-		if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
-			$data['max_attempts'] = 1;
-		}
+    /**
+     * Create a new quiz
+     */
+    public function createQuiz(array $data, User $creator): Quiz
+    {
+        if (! array_key_exists('total_questions', $data)) {
+            $data['total_questions'] = 0;
+        }
 
-		$data['id'] = Str::uuid();
-		$data['created_by'] = $creator->id;
-		$data['school_id'] = $creator->school_id;
-		$data['status'] = 'draft';
+        if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
+            $data['max_attempts'] = 1;
+        }
 
-		return Quiz::create($data);
-	}
+        $data['id'] = Str::uuid();
+        $data['created_by'] = $creator->id;
+        $data['school_id'] = $creator->school_id;
+        $data['status'] = 'draft';
 
-	/**
-	 * Update quiz
-	 */
-	public function updateQuiz(Quiz $quiz, array $data): bool
-	{
-		unset($data['total_questions']);
+        return Quiz::create($data);
+    }
 
-		if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
-			$data['max_attempts'] = 1;
-		}
+    /**
+     * Update quiz
+     */
+    public function updateQuiz(Quiz $quiz, array $data): bool
+    {
+        unset($data['total_questions']);
 
-		return $quiz->update($data);
-	}
+        if (array_key_exists('allow_multiple_attempts', $data) && ! $data['allow_multiple_attempts']) {
+            $data['max_attempts'] = 1;
+        }
 
-	/**
-	 * Publish quiz
-	 */
-	public function publishQuiz(Quiz $quiz): bool
-	{
-		return $quiz->update(['status' => 'published']);
-	}
+        return $quiz->update($data);
+    }
 
-	/**
-	 * Unpublish quiz
-	 */
-	public function unpublishQuiz(Quiz $quiz): bool
-	{
-		return $quiz->update(['status' => 'draft']);
-	}
+    /**
+     * Publish quiz
+     */
+    public function publishQuiz(Quiz $quiz): bool
+    {
+        return $quiz->update(['status' => 'published']);
+    }
 
-	/**
-	 * Close quiz
-	 */
-	public function closeQuiz(Quiz $quiz): bool
-	{
-		return $quiz->update(['status' => 'closed']);
-	}
+    /**
+     * Unpublish quiz
+     */
+    public function unpublishQuiz(Quiz $quiz): bool
+    {
+        return $quiz->update(['status' => 'draft']);
+    }
 
-	/**
-	 * Delete quiz
-	 */
-	public function deleteQuiz(Quiz $quiz): bool
-	{
-		return $quiz->delete();
-	}
+    /**
+     * Close quiz
+     */
+    public function closeQuiz(Quiz $quiz): bool
+    {
+        return $quiz->update(['status' => 'closed']);
+    }
 
-	/**
-	 * Get quiz statistics
-	 */
-	public function getQuizStatistics(Quiz $quiz): array
-	{
-		$attempts = $quiz->attempts()->where('status', '!=', 'in_progress')->get();
-		$results = $quiz->attempts()
-			->whereHas('result')
-			->with('result')
-			->get();
+    /**
+     * Delete quiz
+     */
+    public function deleteQuiz(Quiz $quiz): bool
+    {
+        return $quiz->delete();
+    }
 
-		$totalAttempts = $attempts->count();
-		$passedAttempts = $results->filter(fn($a) => $a->result && $a->result->status === 'pass')->count();
+    /**
+     * Get quiz statistics
+     */
+    public function getQuizStatistics(Quiz $quiz): array
+    {
+        $attempts = $quiz->attempts()->where('status', '!=', 'in_progress')->get();
+        $results = $quiz->attempts()
+            ->whereHas('result')
+            ->with('result')
+            ->get();
 
-		return [
-			'total_attempts' => $totalAttempts,
-			'total_students' => $attempts->pluck('student_id')->unique()->count(),
-			'passed' => $passedAttempts,
-			'failed' => $totalAttempts - $passedAttempts,
-			'average_score' => $results->count() > 0
-				? $results->average('result.percentage')
-				: 0,
-			'pass_rate' => $totalAttempts > 0 ? ($passedAttempts / $totalAttempts) * 100 : 0,
-		];
-	}
+        $totalAttempts = $attempts->count();
+        $passedAttempts = $results->filter(fn ($a) => $a->result && $a->result->status === 'pass')->count();
+
+        return [
+            'total_attempts' => $totalAttempts,
+            'total_students' => $attempts->pluck('student_id')->unique()->count(),
+            'passed' => $passedAttempts,
+            'failed' => $totalAttempts - $passedAttempts,
+            'average_score' => $results->count() > 0
+                ? $results->average('result.percentage')
+                : 0,
+            'pass_rate' => $totalAttempts > 0 ? ($passedAttempts / $totalAttempts) * 100 : 0,
+        ];
+    }
 }

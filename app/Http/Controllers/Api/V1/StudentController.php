@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use App\Services\Teachers\TeacherAccessService;
 
 /**
  * @OA\Tag(
@@ -29,9 +29,7 @@ use App\Services\Teachers\TeacherAccessService;
  */
 class StudentController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * Display a listing of the resource.
@@ -45,24 +43,31 @@ class StudentController extends Controller
      *      tags={"school-v1.4","school-v1.9","school-v2.0"},
      *      summary="Get list of students",
      *      description="Returns list of students",
+     *
      *      @OA\Parameter(
      *          name="search",
      *          description="Search by name or admission number",
      *          in="query",
+     *
      *          @OA\Schema(type="string")
      *      ),
+     *
      *      @OA\Parameter(
      *          name="school_class_id",
      *          description="Filter by class",
      *          in="query",
+     *
      *          @OA\Schema(type="string")
      *      ),
+     *
      *      @OA\Parameter(
      *          name="parent_id",
      *          description="Filter by parent",
      *          in="query",
+     *
      *          @OA\Schema(type="string")
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -149,7 +154,6 @@ class StudentController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     /**
@@ -159,10 +163,13 @@ class StudentController extends Controller
      *      tags={"school-v1.4","school-v1.9","school-v2.0"},
      *      summary="Store new student",
      *      description="Returns student data",
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              type="object",
+     *
      *              @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
@@ -185,6 +192,7 @@ class StudentController extends Controller
      *              @OA\Property(property="status", type="string", example="active"),
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="Successful operation",
@@ -314,7 +322,6 @@ class StudentController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param  \App\Models\Student  $student
      * @return \Illuminate\Http\Response
      */
     /**
@@ -324,15 +331,18 @@ class StudentController extends Controller
      *      tags={"school-v1.4","school-v1.9","school-v2.0"},
      *      summary="Get student information",
      *      description="Returns student data",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Student id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -369,8 +379,6 @@ class StudentController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Student  $student
      * @return \Illuminate\Http\Response
      */
     /**
@@ -380,19 +388,24 @@ class StudentController extends Controller
      *      tags={"school-v1.4","school-v1.9","school-v2.0"},
      *      summary="Update existing student",
      *      description="Returns updated student data",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Student id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              type="object",
+     *
      *              @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="middle_name", type="string", example=""),
@@ -415,6 +428,7 @@ class StudentController extends Controller
      *              @OA\Property(property="status", type="string", example="active"),
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -533,7 +547,6 @@ class StudentController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Models\Student  $student
      * @return \Illuminate\Http\Response
      */
     /**
@@ -543,15 +556,18 @@ class StudentController extends Controller
      *      tags={"school-v1.4","school-v1.9","school-v2.0"},
      *      summary="Delete existing student",
      *      description="Deletes a record and returns no content",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Student id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=204,
      *          description="Successful operation",
@@ -600,7 +616,6 @@ class StudentController extends Controller
 
         return response()->json(null, 204);
     }
-
 
     protected function studentRelations(): array
     {

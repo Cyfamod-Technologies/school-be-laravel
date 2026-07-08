@@ -11,7 +11,6 @@ use App\Models\QuizResult;
 use App\Models\Result;
 use App\Models\SchoolClass;
 use App\Models\Session;
-use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Term;
 use Illuminate\Http\Request;
@@ -232,6 +231,7 @@ class CbtAssessmentLinkController extends Controller
 
                 if ($existing && $existing->status === 'synced') {
                     $skipped++;
+
                     continue;
                 }
 
