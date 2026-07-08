@@ -15,6 +15,8 @@ class SchoolWebsiteController extends Controller
      */
     public function show(Request $request): SchoolWebsiteResource
     {
+        $this->ensurePermission($request, 'settings.school.view');
+
         $schoolId = $this->resolveSchoolId($request);
 
         $website = SchoolWebsite::query()
@@ -30,6 +32,8 @@ class SchoolWebsiteController extends Controller
     public function upsert(
         UpsertSchoolWebsiteRequest $request
     ): SchoolWebsiteResource {
+        $this->ensurePermission($request, 'settings.school.update');
+
         $schoolId = $this->resolveSchoolId($request);
         $validated = $request->validated();
 
