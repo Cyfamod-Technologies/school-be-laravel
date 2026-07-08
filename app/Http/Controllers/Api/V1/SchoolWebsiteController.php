@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertSchoolWebsiteRequest;
 use App\Http\Resources\SchoolWebsiteResource;
 use App\Models\SchoolWebsite;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 
 class SchoolWebsiteController extends Controller
 {
@@ -75,6 +77,53 @@ class SchoolWebsiteController extends Controller
         return new SchoolWebsiteResource(
             $website->refresh()
         );
+    }
+
+    /**
+     * Issue a short-lived signed URL that previews the authenticated
+     * school's current website configuration -- draft or published --
+     * through the same public rendering pipeline real visitors use.
+     *
+     * Deliberately scoped to the requesting admin's own school only: the
+     * signature is generated against this school's slug specifically, so
+     * it cannot be reused to preview a different school's draft.
+     */
+    public function previewLink(Request $request): JsonResponse
+    {
+        $this->ensurePermission($request, 'settings.school.view');
+
+        $schoolId = $this->resolveSchoolId($request);
+
+        $exists = SchoolWebsite::query()
+            ->where('school_id', $schoolId)
+            ->exists();
+
+        abort_if(
+            ! $exists,
+            404,
+            'Save a draft before requesting a preview link.'
+        );
+
+        $school = $request->user()?->school;
+
+        abort_if(
+            ! $school || ! $school->slug,
+            422,
+            'Authenticated user is not associated with a school.'
+        );
+
+        $expiresAt = now()->addMinutes(10);
+
+        $url = URL::temporarySignedRoute(
+            'public.schools.website.preview',
+            $expiresAt,
+            ['schoolSlug' => $school->slug],
+        );
+
+        return response()->json([
+            'url' => $url,
+            'expiresAt' => $expiresAt->toISOString(),
+        ]);
     }
 
     /**

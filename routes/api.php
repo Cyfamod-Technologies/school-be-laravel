@@ -64,6 +64,9 @@ Route::prefix('api/v1')->group(function () {
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
     Route::get('/public/schools/{schoolSlug}/website', [PublicSchoolWebsiteController::class, 'show'])->name('public.schools.website.show');
+    Route::get('/public/schools/{schoolSlug}/website/preview', [PublicSchoolWebsiteController::class, 'preview'])
+        ->middleware('signed')
+        ->name('public.schools.website.preview');
 
     Route::prefix('student')->group(function () {
         Route::post('login', [StudentAuthController::class, 'login']);
@@ -104,6 +107,7 @@ Route::prefix('api/v1')->group(function () {
         Route::put('/user', [SchoolController::class, 'updateSchoolAdminProfile']);
         Route::get('/school/website', [SchoolWebsiteController::class, 'show'])->name('school.website.show');
         Route::put('/school/website', [SchoolWebsiteController::class, 'upsert'])->name('school.website.upsert');
+        Route::post('/school/website/preview-link', [SchoolWebsiteController::class, 'previewLink'])->name('school.website.preview-link');
 
         // RBAC - Permissions
         Route::get('permissions', [PermissionController::class, 'index'])
