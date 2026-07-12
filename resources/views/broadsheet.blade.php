@@ -100,7 +100,7 @@
         col.col-admno  { width: 46px; }
         col.col-name   { width: 120px; }
         col.col-sex    { width: 22px; }
-        col.col-subj   { width: 22px; }
+        col.col-subj   { width: 26px; }
         col.col-passes { width: 34px; }
         col.col-remark { width: 44px; }
 
@@ -118,15 +118,16 @@
             left: 50%;
             display: block;
             width: 84px;
+            max-height: 24px;
             transform: translate(-50%, -50%) rotate(-90deg);
             transform-origin: center;
             text-align: center;
             font-size: 7px;
-            line-height: 1;
+            line-height: 1.1;
             font-weight: bold;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: normal;
         }
 
         th.header-main {
