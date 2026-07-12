@@ -107,18 +107,22 @@
         th.rotated {
             height: 92px;
             white-space: nowrap;
-            vertical-align: bottom;
+            position: relative;
             padding: 0;
+            overflow: hidden;
         }
 
         th.rotated > span {
-            display: inline-block;
-            transform: rotate(-90deg);
-            transform-origin: bottom center;
-            width: 86px;
-            text-align: left;
-            padding-left: 4px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            display: block;
+            width: 84px;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            transform-origin: center;
+            text-align: center;
             font-size: 7px;
+            line-height: 1;
             font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
@@ -171,7 +175,22 @@
 
 <div class="page">
     <div class="school-header">
-        <h1>{{ strtoupper($school?->name ?? 'School Name') }}</h1>
+        @php
+            $schoolName = (string) ($school?->name ?? 'School Name');
+            $schoolLines = preg_split('/<br\s*\/?>/i', $schoolName) ?: [];
+            $schoolLines = array_values(array_filter(array_map('trim', $schoolLines), fn ($line) => $line !== ''));
+            if (empty($schoolLines)) {
+                $schoolLines = [$schoolName];
+            }
+        @endphp
+        <h1>
+            @foreach ($schoolLines as $index => $line)
+                @if ($index > 0)
+                    <br>
+                @endif
+                {{ strtoupper($line) }}
+            @endforeach
+        </h1>
         <h2>{{ strtoupper($term?->name ?? '') }} TERM BROADSHEET {{ $session?->name ?? '' }} ACADEMIC SESSION</h2>
         <div class="class-label">
             CLASS:&nbsp;
