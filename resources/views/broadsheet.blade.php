@@ -139,10 +139,16 @@
             display: table-header-group;
         }
 
+        td.admission-cell,
+        td.name-cell {
+            font-size: 8px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
         td.name-cell {
             text-align: left;
             padding-left: 3px;
-            font-size: 7px;
         }
 
         td.score-cell {
@@ -246,7 +252,7 @@
                 @endphp
                 <tr>
                     <td>{{ $row['sno'] }}</td>
-                    <td>{{ $student->admission_no ?? '' }}</td>
+                    <td class="admission-cell">{{ $student->admission_no ?? '' }}</td>
                     <td class="name-cell">{{ $fullName }}</td>
                     <td>{{ $sex }}</td>
                     @foreach ($row['scores'] as $score)
