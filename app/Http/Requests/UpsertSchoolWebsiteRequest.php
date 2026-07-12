@@ -46,7 +46,9 @@ class UpsertSchoolWebsiteRequest extends FormRequest
                 'required',
                 'string',
                 Rule::in([
+                    'kidza-home-1',
                     'kidza-home-2',
+                    'kidza-home-3',
                 ]),
             ],
 
