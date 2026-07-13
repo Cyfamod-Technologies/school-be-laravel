@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,6 +20,24 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureAdminAccess::class,
         ]);
+
+        // Trust the reverse proxy (Dokploy) in front of this app. Without
+        // this, Laravel has no way to know the public-facing request was
+        // HTTPS -- it only sees the internal http:// hop the proxy forwards
+        // to. That silently breaks anything that signs the full URL
+        // (temporary signed routes for the website preview-link feature):
+        // the signature gets stamped with the wrong scheme at generation
+        // time and can never validate, on any link, ever, regardless of
+        // freshness. `at: '*'` trusts any proxy IP, which is fine since
+        // this container only ever receives traffic through our own
+        // reverse proxy -- tighten to a specific IP/CIDR if that changes.
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
 
         $middleware->redirectGuestsTo(function () {
             $fallback = '/school-fe-template/update/v10/login.html';
