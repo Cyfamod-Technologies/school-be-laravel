@@ -120,3 +120,33 @@ it('renders the session result print layout without affecting term result printi
         ->assertSeeText('243')
         ->assertSeeText('81.00');
 });
+
+it('shows the first term resumption date from the next session on a third term result', function () {
+    $nextSession = Session::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'name' => '2026/2027 Session',
+        'slug' => '2026-2027-session',
+        'start_date' => now()->addMonths(2),
+        'end_date' => now()->addYear(),
+        'status' => 'pending',
+    ]);
+
+    $resumptionDate = now()->addMonths(2)->startOfDay();
+
+    Term::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'session_id' => $nextSession->id,
+        'name' => '1st Term',
+        'term_number' => 1,
+        'slug' => '1st-term-2026-2027',
+        'start_date' => $resumptionDate,
+        'end_date' => $resumptionDate->copy()->addMonths(3),
+        'status' => 'pending',
+    ]);
+
+    get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$this->terms->last()->id}")
+        ->assertOk()
+        ->assertSeeText('Next term begins: ' . $resumptionDate->format('jS F Y'));
+});

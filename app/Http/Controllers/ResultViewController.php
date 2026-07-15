@@ -660,15 +660,7 @@ class ResultViewController extends Controller
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
 
-        $nextTerm = null;
-        if ($term && $session) {
-            $nextTerm = Term::query()
-                ->where('school_id', $student->school_id)
-                ->where('session_id', $session->id)
-                ->when($term->end_date, fn ($query) => $query->where('start_date', '>', $term->end_date))
-                ->orderBy('start_date')
-                ->first();
-        }
+        $nextTerm = $term ? $this->resolveNextTerm($term) : null;
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
@@ -1122,15 +1114,7 @@ class ResultViewController extends Controller
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
 
-        $nextTerm = null;
-        if ($term && $session) {
-            $nextTerm = Term::query()
-                ->where('school_id', $student->school_id)
-                ->where('session_id', $session->id)
-                ->when($term->end_date, fn ($query) => $query->where('start_date', '>', $term->end_date))
-                ->orderBy('start_date')
-                ->first();
-        }
+        $nextTerm = $term ? $this->resolveNextTerm($term) : null;
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
@@ -2062,6 +2046,21 @@ class ResultViewController extends Controller
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
             'signatory_title' => $school?->result_signatory_title ?? 'principal',
         ];
+    }
+
+    private function resolveNextTerm(Term $term): ?Term
+    {
+        $currentTermBoundary = $term->end_date ?? $term->start_date;
+
+        return Term::query()
+            ->where('school_id', $term->school_id)
+            ->whereKeyNot($term->getKey())
+            ->when(
+                $currentTermBoundary,
+                fn ($query) => $query->where('start_date', '>', $currentTermBoundary)
+            )
+            ->orderBy('start_date')
+            ->first();
     }
 
     private function resolveClassTeacher(Student $student, ?string $sessionId, ?string $termId): ?ClassTeacher
