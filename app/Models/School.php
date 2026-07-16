@@ -66,6 +66,7 @@ class School extends Model
     protected $casts = [
         'established_at' => 'datetime',
         'code_sequence' => 'integer',
+        'activated' => 'boolean',
         'enable_free_trial' => 'boolean',
         'result_show_grade' => 'boolean',
         'result_show_position' => 'boolean',
@@ -85,6 +86,8 @@ class School extends Model
         'code_sequence',
         'slug',
         'subdomain',
+        'custom_domain',
+        'activated',
         'address',
         'email',
         'phone',
