@@ -158,6 +158,14 @@ class ComprehensiveSchoolSeeder extends Seeder
                 'name' => 'Demo International School',
                 'slug' => 'demo-international-school',
                 'subdomain' => 'demo',
+                // Test values for the Website Management Go Live/custom
+                // domain feature -- not a real domain, just something to
+                // resolve against locally. Pre-activated so the demo
+                // school's public site works immediately after seeding,
+                // without needing to run the full Go Live/approval flow
+                // every time the database gets reset.
+                'custom_domain' => 'demo-international-school.test',
+                'activated' => true,
                 'acronym' => 'DIS',
                 'address' => '123 Education Avenue, Ikeja, Lagos State, Nigeria',
                 'email' => 'info@demointernational.edu.ng',
