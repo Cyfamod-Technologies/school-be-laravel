@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertSchoolWebsiteRequest;
 use App\Http\Resources\SchoolWebsiteResource;
 use App\Models\SchoolWebsite;
+use App\Services\EnterpriseEditionClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 
 class SchoolWebsiteController extends Controller
 {
+    public function __construct(private readonly EnterpriseEditionClient $enterpriseEdition) {}
+
     /**
      * Return the authenticated school's website configuration.
      */
@@ -124,6 +127,55 @@ class SchoolWebsiteController extends Controller
             'url' => $url,
             'expiresAt' => $expiresAt->toISOString(),
         ]);
+    }
+
+    /**
+     * The authenticated school admin clicks "Go Live" -- creates a new
+     * activation request, or resends the existing pending one if the
+     * resend cooldown has passed. Forwards to sms-enterprise-edition
+     * server-to-server; the frontend never talks to that service directly.
+     */
+    public function goLive(Request $request): JsonResponse
+    {
+        $this->ensurePermission($request, 'settings.school.update');
+
+        $school = $request->user()?->school;
+
+        abort_if(
+            ! $school,
+            422,
+            'Authenticated user is not associated with a school.'
+        );
+
+        abort_if(
+            ! $school->custom_domain,
+            422,
+            'This school has no custom domain on file yet.'
+        );
+
+        $response = $this->enterpriseEdition->requestGoLive(
+            (string) $school->id,
+            (string) $school->name,
+            (string) $school->custom_domain,
+        );
+
+        return response()->json($response->json(), $response->status());
+    }
+
+    /**
+     * Current Go Live status for the authenticated school -- pending/
+     * activated, whether resend is available yet, whether to show the
+     * direct-contact escalation.
+     */
+    public function goLiveStatus(Request $request): JsonResponse
+    {
+        $this->ensurePermission($request, 'settings.school.view');
+
+        $schoolId = $this->resolveSchoolId($request);
+
+        $response = $this->enterpriseEdition->goLiveStatus($schoolId);
+
+        return response()->json($response->json(), $response->status());
     }
 
     /**

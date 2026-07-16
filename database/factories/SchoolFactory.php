@@ -23,6 +23,12 @@ class SchoolFactory extends Factory
             'address' => $this->faker->address,
             'email' => $this->faker->unique()->safeEmail,
             'phone' => $this->faker->phoneNumber,
+            // Defaults to true here so existing tests that aren't about
+            // the Go Live/activation gate itself don't all need updating
+            // to opt in -- the real production default (a brand new
+            // school hasn't gone live yet) is `false`, set explicitly in
+            // the migration, not here.
+            'activated' => true,
         ];
     }
 }

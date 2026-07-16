@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\V1\StudentTermSummaryController;
 use App\Http\Controllers\Api\V1\SubjectAssignmentController;
 use App\Http\Controllers\Api\V1\SubjectController;
 use App\Http\Controllers\Api\V1\SubjectTeacherAssignmentController;
+use App\Http\Controllers\Api\V1\Internal\SchoolActivationController;
 use App\Http\Controllers\Api\V1\TeacherDashboardController;
 use App\Http\Controllers\Api\V1\TermController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -63,6 +64,7 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+    Route::get('/public/schools/resolve-domain', [PublicSchoolWebsiteController::class, 'resolveDomain'])->name('public.schools.resolve-domain');
     Route::get('/public/schools/{schoolSlug}/website', [PublicSchoolWebsiteController::class, 'show'])->name('public.schools.website.show');
     Route::get('/public/schools/{schoolSlug}/website/preview', [PublicSchoolWebsiteController::class, 'preview'])
         ->middleware('signed')
@@ -98,6 +100,14 @@ Route::prefix('api/v1')->group(function () {
 
     Route::get('cbt/public-quizzes', [QuizController::class, 'publicIndex']);
 
+    // Called only by sms-enterprise-edition (server-to-server), guarded by
+    // the shared-secret middleware, never reachable from a browser.
+    Route::middleware('internal-secret')->prefix('internal')->group(function () {
+        Route::post('/schools/{schoolId}/activate', [SchoolActivationController::class, 'activate'])
+            ->whereUuid('schoolId')
+            ->name('internal.schools.activate');
+    });
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [SchoolController::class, 'logout']);
         Route::post('/logout/other-devices', [SchoolController::class, 'logoutOtherDevices']);
@@ -108,6 +118,8 @@ Route::prefix('api/v1')->group(function () {
         Route::get('/school/website', [SchoolWebsiteController::class, 'show'])->name('school.website.show');
         Route::put('/school/website', [SchoolWebsiteController::class, 'upsert'])->name('school.website.upsert');
         Route::post('/school/website/preview-link', [SchoolWebsiteController::class, 'previewLink'])->name('school.website.preview-link');
+        Route::post('/school/website/go-live', [SchoolWebsiteController::class, 'goLive'])->name('school.website.go-live');
+        Route::get('/school/website/go-live', [SchoolWebsiteController::class, 'goLiveStatus'])->name('school.website.go-live.status');
 
         // RBAC - Permissions
         Route::get('permissions', [PermissionController::class, 'index'])

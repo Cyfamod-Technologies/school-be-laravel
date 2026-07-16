@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureAdminAccess::class,
+            'internal-secret' => \App\Http\Middleware\VerifyInternalSecret::class,
         ]);
 
         // Trust whatever reverse proxy sits in front of this app. Without

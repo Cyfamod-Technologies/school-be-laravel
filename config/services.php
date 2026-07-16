@@ -49,4 +49,15 @@ return [
         'retry_sleep_ms' => (int) env('PAYSTACK_RETRY_SLEEP_MS', 400),
     ],
 
+    // sms-enterprise-edition -- the private service handling Website
+    // Management's Go Live / domain activation workflow. This backend
+    // calls out to it (school website admin clicks Go Live) and it calls
+    // back in (once domain automation succeeds, to flip `activated`) --
+    // INTERNAL_SHARED_SECRET must match exactly in both apps' .env files.
+    'enterprise_edition' => [
+        'base_url' => env('ENTERPRISE_EDITION_BASE_URL', 'http://127.0.0.1:8001'),
+    ],
+
+    'internal_shared_secret' => env('INTERNAL_SHARED_SECRET'),
+
 ];
