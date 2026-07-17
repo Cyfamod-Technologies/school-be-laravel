@@ -18,7 +18,14 @@ class EnterpriseEditionClient
     {
         return Http::withHeaders([
             'X-Internal-Secret' => config('services.internal_shared_secret'),
-        ])->baseUrl(rtrim(config('services.enterprise_edition.base_url'), '/'));
+        ])
+            ->baseUrl(rtrim(config('services.enterprise_edition.base_url'), '/'))
+            ->connectTimeout(3)
+            // requestGoLive sends real Discord + SMTP email synchronously
+            // server-side before responding -- a real SMTP handshake alone
+            // can take several seconds, so this needs real headroom, not
+            // just enough for a fast JSON round trip.
+            ->timeout(20);
     }
 
     public function requestGoLive(string $schoolId, string $schoolName, string $schoolDomain): Response

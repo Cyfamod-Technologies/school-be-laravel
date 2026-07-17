@@ -153,11 +153,17 @@ class SchoolWebsiteController extends Controller
             'This school has no custom domain on file yet.'
         );
 
-        $response = $this->enterpriseEdition->requestGoLive(
-            (string) $school->id,
-            (string) $school->name,
-            (string) $school->custom_domain,
-        );
+        try {
+            $response = $this->enterpriseEdition->requestGoLive(
+                (string) $school->id,
+                (string) $school->name,
+                (string) $school->custom_domain,
+            );
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json([
+                'message' => 'The Go Live service is currently unreachable. Please try again in a moment.',
+            ], 503);
+        }
 
         return response()->json($response->json(), $response->status());
     }
@@ -173,7 +179,13 @@ class SchoolWebsiteController extends Controller
 
         $schoolId = $this->resolveSchoolId($request);
 
-        $response = $this->enterpriseEdition->goLiveStatus($schoolId);
+        try {
+            $response = $this->enterpriseEdition->goLiveStatus($schoolId);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json([
+                'message' => 'The Go Live service is currently unreachable. Please try again in a moment.',
+            ], 503);
+        }
 
         return response()->json($response->json(), $response->status());
     }
