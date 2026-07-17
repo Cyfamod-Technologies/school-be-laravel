@@ -48,5 +48,16 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Raw database exceptions (e.g. "Connection refused", the actual
+        // SQL query, table/column names) should never reach a client --
+        // that's an internal detail, not something a user or the frontend
+        // can act on, and it leaks schema information. Laravel already
+        // logs the real exception; this only changes what's rendered.
+        $exceptions->render(function (\Illuminate\Database\QueryException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'A server error occurred. Please try again in a moment.',
+                ], 503);
+            }
+        });
     })->create();
