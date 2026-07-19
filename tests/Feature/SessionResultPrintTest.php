@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\GradingScale;
+use App\Models\PositionRange;
 use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
@@ -149,4 +151,60 @@ it('shows the first term resumption date from the next session on a third term r
     get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$this->terms->last()->id}")
         ->assertOk()
         ->assertSeeText('Next term begins: ' . $resumptionDate->format('jS F Y'));
+});
+
+it('allows each term to opt out of configured position ranges', function () {
+    $competitor = Student::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'admission_no' => 'JSS-002',
+        'first_name' => 'Binta',
+        'last_name' => 'Musa',
+        'gender' => 'F',
+        'date_of_birth' => now()->subYears(12),
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->terms->last()->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+        'admission_date' => now()->subYear(),
+        'status' => 'active',
+    ]);
+
+    Result::create([
+        'id' => (string) Str::uuid(),
+        'student_id' => $competitor->id,
+        'subject_id' => $this->subject->id,
+        'assessment_component_id' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->terms->last()->id,
+        'total_score' => 70,
+        'remarks' => 'Pass',
+    ]);
+
+    $scale = GradingScale::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'session_id' => $this->session->id,
+        'name' => 'Term position range test',
+    ]);
+
+    PositionRange::create([
+        'id' => (string) Str::uuid(),
+        'grading_scale_id' => $scale->id,
+        'min_score' => 80,
+        'max_score' => 100,
+        'position' => 2,
+    ]);
+
+    $term = $this->terms->last();
+
+    get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$term->id}")
+        ->assertOk()
+        ->assertSeeText('Position: 2 of 2');
+
+    $term->update(['use_position_ranges' => false]);
+
+    get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$term->id}")
+        ->assertOk()
+        ->assertSeeText('Position: 1 of 2');
 });

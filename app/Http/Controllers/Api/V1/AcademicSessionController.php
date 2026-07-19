@@ -399,6 +399,7 @@ class AcademicSessionController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'slug' => 'nullable|string|max:120',
+            'use_position_ranges' => 'sometimes|boolean',
         ]);
     
         if ($validator->fails()) {
@@ -536,6 +537,7 @@ class AcademicSessionController extends Controller
             'slug' => 'nullable|string|max:120',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'use_position_ranges' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
