@@ -197,6 +197,7 @@ it('allows each term to opt out of configured position ranges', function () {
     ]);
 
     $term = $this->terms->last();
+    $term->update(['use_position_ranges' => true]);
 
     get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$term->id}")
         ->assertOk()

@@ -569,7 +569,7 @@ class ResultViewController extends Controller
 
         $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
-        $positionRanges = ($term?->use_position_ranges ?? true)
+        $positionRanges = ($term?->use_position_ranges ?? false)
             ? ($gradeScale?->position_ranges?->sortBy('position')->values() ?? collect())
             : collect();
         $componentColumns = $this->buildComponentColumns($results, $student, $term);
@@ -888,7 +888,7 @@ class ResultViewController extends Controller
         $termRows = $this->buildSessionSubjectRows($termSections, $gradeRanges);
 
         $positionRangeTerm = $terms->firstWhere('term_number', 3) ?? $terms->last();
-        $sessionPositionRanges = ($positionRangeTerm?->use_position_ranges ?? true)
+        $sessionPositionRanges = ($positionRangeTerm?->use_position_ranges ?? false)
             ? $positionRanges
             : collect();
 
@@ -1527,7 +1527,7 @@ class ResultViewController extends Controller
                     (string) $term->session_id,
                     (string) $term->id,
                     $termResults,
-                    ($term->use_position_ranges ?? true) ? $positionRanges : collect(),
+                    ($term->use_position_ranges ?? false) ? $positionRanges : collect(),
                     $classSize
                 );
                 $subjectRows = $this->buildSubjectRows(
