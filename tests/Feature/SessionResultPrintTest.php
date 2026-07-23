@@ -153,8 +153,8 @@ it('renders the session result print layout without affecting term result printi
         ->assertDontSee('<th>CONTINUOUS ASSESSMENT 2</th>', false)
         ->assertSee('<td>20</td>', false)
         ->assertSee('<th>Grade</th>', false)
-        ->assertSee('<th>High</th>', false)
-        ->assertSee('<th>Low</th>', false)
+        ->assertSee('<th>Highest</th>', false)
+        ->assertSee('<th>Lowest</th>', false)
         ->assertSee('<th>Avg</th>', false)
         ->assertSeeText('243')
         ->assertSeeText('81.00');
