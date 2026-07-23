@@ -76,6 +76,7 @@ class School extends Model
 		'result_hide_student_identity' => 'boolean',
 		'result_allow_shared_pin_access' => 'boolean',
 		'result_enable_session_print' => 'boolean',
+		'result_collapse_session_ca' => 'boolean',
 		'skill_categories_separate_by_class' => 'boolean',
 		'skill_types_separate_by_class' => 'boolean',
 	];
@@ -108,6 +109,7 @@ class School extends Model
 		'result_hide_student_identity',
 		'result_allow_shared_pin_access',
 		'result_enable_session_print',
+		'result_collapse_session_ca',
 		'result_comment_mode',
 		'result_signatory_title',
 		'skill_categories_separate_by_class',

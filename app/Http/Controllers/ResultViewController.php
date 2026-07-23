@@ -883,7 +883,8 @@ class ResultViewController extends Controller
             $student,
             $gradeRanges,
             $positionRanges,
-            $classSize
+            $classSize,
+            $resultPageSettings['collapse_session_ca'] ?? false
         );
         $termRows = $this->buildSessionSubjectRows($termSections, $gradeRanges);
 
@@ -1372,6 +1373,7 @@ class ResultViewController extends Controller
 
                 return [
                     'id' => $component->id,
+                    'name' => (string) ($component->name ?? ''),
                     'label' => strtoupper($label),
                     'order' => $component->order ?? PHP_INT_MAX,
                 ];
@@ -1512,16 +1514,20 @@ class ResultViewController extends Controller
         Student $student,
         Collection $gradeRanges,
         Collection $positionRanges,
-        int $classSize
+        int $classSize,
+        bool $collapseCa
     ): Collection
     {
         return $terms
-            ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize) {
+            ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize, $collapseCa) {
                 $termResults = $results
                     ->filter(fn (Result $result) => (string) $result->term_id === (string) $term->id)
                     ->values();
 
                 $componentColumns = $this->buildComponentColumns($termResults, $student, $term);
+                $sessionComponentColumns = $collapseCa
+                    ? $this->buildSessionComponentColumns($componentColumns)
+                    : $componentColumns;
                 $subjectStatisticsData = $this->computeSubjectStatistics(
                     $student,
                     (string) $term->session_id,
@@ -1536,12 +1542,15 @@ class ResultViewController extends Controller
                     $gradeRanges,
                     $subjectStatisticsData['subjects']
                 );
+                if ($collapseCa) {
+                    $subjectRows = $this->collapseSessionComponentScores($subjectRows, $sessionComponentColumns);
+                }
 
                 return [
                     'id' => (string) $term->id,
                     'number' => (int) $term->term_number,
                     'label' => trim((string) $term->name) !== '' ? (string) $term->name : "{$term->term_number} Term",
-                    'columns' => $componentColumns
+                    'columns' => $sessionComponentColumns
                         ->map(fn (array $column) => [
                             'id' => $column['id'],
                             'label' => $column['label'],
@@ -1555,6 +1564,66 @@ class ResultViewController extends Controller
             })
             ->values()
             ->values();
+    }
+
+    private function buildSessionComponentColumns(Collection $componentColumns): Collection
+    {
+        $caColumns = $componentColumns
+            ->reject(fn (array $column) => $this->isExamComponent($column))
+            ->values();
+
+        if ($caColumns->isEmpty()) {
+            return $componentColumns
+                ->map(fn (array $column) => array_merge($column, ['source_ids' => [$column['id']]]))
+                ->values();
+        }
+
+        $columns = collect([[
+            'id' => 'combined_ca',
+            'label' => 'CA',
+            'order' => $caColumns->min('order') ?? 0,
+            'source_ids' => $caColumns->pluck('id')->all(),
+        ]]);
+
+        return $columns
+            ->concat(
+                $componentColumns
+                    ->filter(fn (array $column) => $this->isExamComponent($column))
+                    ->map(fn (array $column) => array_merge($column, ['source_ids' => [$column['id']]]))
+            )
+            ->sortBy('order')
+            ->values();
+    }
+
+    private function collapseSessionComponentScores(Collection $subjectRows, Collection $sessionComponentColumns): Collection
+    {
+        return $subjectRows
+            ->map(function (array $row) use ($sessionComponentColumns) {
+                $sourceValues = $row['component_values'] ?? [];
+                $componentValues = [];
+
+                foreach ($sessionComponentColumns as $column) {
+                    $values = collect($column['source_ids'] ?? [$column['id']])
+                        ->map(fn ($sourceId) => $sourceValues[$sourceId] ?? null)
+                        ->filter(fn ($value) => $value !== null);
+
+                    $componentValues[$column['id']] = $values->isEmpty()
+                        ? null
+                        : round((float) $values->sum(), 2);
+                }
+
+                $row['component_values'] = $componentValues;
+
+                return $row;
+            })
+            ->values();
+    }
+
+    private function isExamComponent(array $column): bool
+    {
+        $nameAndLabel = trim(($column['name'] ?? '').' '.($column['label'] ?? ''));
+
+        return preg_match('/\bexam(?:s|ination)?\b/i', $nameAndLabel) === 1;
     }
 
     private function buildSessionSubjectRows(Collection $termSections, Collection $gradeRanges): Collection
@@ -2050,6 +2119,7 @@ class ResultViewController extends Controller
             'hide_student_identity' => $school?->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school?->result_allow_shared_pin_access ?? false,
             'enable_session_result_print' => $school?->result_enable_session_print ?? false,
+            'collapse_session_ca' => $school?->result_collapse_session_ca ?? false,
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
             'signatory_title' => $school?->result_signatory_title ?? 'principal',
         ];

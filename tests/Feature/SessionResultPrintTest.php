@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AssessmentComponent;
 use App\Models\ClassArm;
 use App\Models\GradingScale;
 use App\Models\PositionRange;
@@ -111,6 +112,33 @@ beforeEach(function () {
 });
 
 it('renders the session result print layout without affecting term result printing', function () {
+    $this->school->update(['result_collapse_session_ca' => true]);
+
+    collect([
+        ['name' => 'CA1', 'label' => 'Continuous Assessment 1', 'order' => 1, 'score' => 8],
+        ['name' => 'CA2', 'label' => 'Continuous Assessment 2', 'order' => 2, 'score' => 12],
+        ['name' => 'EXAM', 'label' => 'Examination', 'order' => 3, 'score' => 55],
+    ])->each(function (array $componentData) {
+        $component = AssessmentComponent::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'name' => $componentData['name'],
+            'label' => $componentData['label'],
+            'weight' => $componentData['score'],
+            'order' => $componentData['order'],
+        ]);
+
+        Result::create([
+            'id' => (string) Str::uuid(),
+            'student_id' => $this->student->id,
+            'subject_id' => $this->subject->id,
+            'assessment_component_id' => $component->id,
+            'session_id' => $this->session->id,
+            'term_id' => $this->terms->first()->id,
+            'total_score' => $componentData['score'],
+        ]);
+    });
+
     get("/api/v1/results/session/print?session_id={$this->session->id}&school_class_id={$this->class->id}")
         ->assertOk()
         ->assertSeeText('Session Result Sheet')
@@ -119,6 +147,11 @@ it('renders the session result print layout without affecting term result printi
         ->assertSeeText('1st Term')
         ->assertSeeText('2nd Term')
         ->assertSeeText('3rd Term')
+        ->assertSee('<th>CA</th>', false)
+        ->assertSee('<th>EXAMINATION</th>', false)
+        ->assertDontSee('<th>CONTINUOUS ASSESSMENT 1</th>', false)
+        ->assertDontSee('<th>CONTINUOUS ASSESSMENT 2</th>', false)
+        ->assertSee('<td>20</td>', false)
         ->assertSee('<th>Grade</th>', false)
         ->assertSee('<th>High</th>', false)
         ->assertSee('<th>Low</th>', false)
