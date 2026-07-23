@@ -92,7 +92,7 @@
                     @endforeach
                     <th>Total</th>
                     @if($showGrade)
-                        <th>Gr</th>
+                        <th>Grade</th>
                     @endif
                     @if($showHighest)
                         <th>High</th>

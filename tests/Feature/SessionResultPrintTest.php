@@ -119,7 +119,7 @@ it('renders the session result print layout without affecting term result printi
         ->assertSeeText('1st Term')
         ->assertSeeText('2nd Term')
         ->assertSeeText('3rd Term')
-        ->assertSee('<th>Gr</th>', false)
+        ->assertSee('<th>Grade</th>', false)
         ->assertSee('<th>High</th>', false)
         ->assertSee('<th>Low</th>', false)
         ->assertSee('<th>Avg</th>', false)
