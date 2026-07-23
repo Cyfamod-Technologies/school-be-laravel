@@ -176,6 +176,68 @@
             gap: 16px;
         }
 
+        .session-skills-section {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            background: #ffffff;
+            text-align: center;
+        }
+
+        .session-skills-section h2 {
+            margin: 0 0 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .session-skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 6px;
+            align-items: start;
+        }
+
+        .session-skill-category {
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            min-width: 0;
+            background: #ffffff;
+        }
+
+        .session-skill-category-title {
+            margin-bottom: 3px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 3px;
+            color: #1e293b;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .skill-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .skill-table td {
+            padding: 2px;
+            color: #334155;
+            font-size: 10px;
+            line-height: 1.2;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
+
+        .skill-table td:last-child {
+            width: 24px;
+            color: #0f172a;
+            font-weight: 700;
+            text-align: right;
+        }
+
         .session-summary-card {
             border: 1px solid #cbd5e1;
             border-radius: 8px;
@@ -219,6 +281,7 @@
                 page-break-after: always !important;
                 break-after: page !important;
                 margin: 0 !important;
+                padding: 0 !important;
                 border-radius: 0;
             }
 
@@ -232,6 +295,82 @@
                 color: #111827 !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+
+            .session-header {
+                margin-bottom: 8px;
+            }
+
+            .session-meta-grid {
+                gap: 4px 12px;
+                margin-bottom: 8px;
+            }
+
+            .session-table {
+                margin-bottom: 8px;
+            }
+
+            .session-table th,
+            .session-table td {
+                padding: 3px 4px;
+                font-size: 9px;
+                line-height: 1.15;
+            }
+
+            .session-table th {
+                font-size: 9px;
+            }
+
+            .session-skills-section {
+                margin-bottom: 6px;
+                padding: 6px;
+            }
+
+            .session-skills-section,
+            .session-skill-category,
+            .session-final-summary,
+            .session-summary-card {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .session-skills-section h2 {
+                margin-bottom: 5px;
+                font-size: 11px;
+            }
+
+            .session-skills-grid {
+                grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+                gap: 4px;
+            }
+
+            .session-skill-category {
+                padding: 4px 6px;
+            }
+
+            .session-summary-grid {
+                gap: 8px;
+            }
+
+            .session-summary-card {
+                padding: 7px 9px;
+                border-radius: 0;
+            }
+
+            .session-summary-card h2 {
+                margin-bottom: 4px;
+                font-size: 11px;
+            }
+
+            .session-summary-card p {
+                margin: 2px 0;
+                font-size: 9px;
+                line-height: 1.25;
+            }
+
+            .session-signature img {
+                max-height: 34px;
+                margin-top: 3px;
             }
 
             @page {
