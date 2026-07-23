@@ -95,13 +95,13 @@
                         <th>Grade</th>
                     @endif
                     @if($showHighest)
-                        <th>Highest</th>
+                        <th>High</th>
                     @endif
                     @if($showLowest)
-                        <th>Lowest</th>
+                        <th>Low</th>
                     @endif
                     @if($showClassAverage)
-                        <th>Average</th>
+                        <th>Avg</th>
                     @endif
                     @if($showPosition)
                         <th>Position</th>

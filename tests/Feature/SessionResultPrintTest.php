@@ -119,6 +119,9 @@ it('renders the session result print layout without affecting term result printi
         ->assertSeeText('1st Term')
         ->assertSeeText('2nd Term')
         ->assertSeeText('3rd Term')
+        ->assertSee('<th>High</th>', false)
+        ->assertSee('<th>Low</th>', false)
+        ->assertSee('<th>Avg</th>', false)
         ->assertSeeText('243')
         ->assertSeeText('81.00');
 });
