@@ -1,11 +1,15 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\CommentRange;
+use App\Models\GradingScale;
+use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
@@ -122,6 +126,63 @@ it('retrieves class teacher and principal comments', function () {
         ->assertOk()
         ->assertJsonPath('data.class_teacher_comment', 'Hardworking student.')
         ->assertJsonPath('data.principal_comment', 'Keep up the great work.');
+});
+
+it('uses live result averages for automatic comments instead of unscoped manual templates', function () {
+    $this->school->update(['result_comment_mode' => 'range']);
+
+    $manualTemplateScale = GradingScale::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'session_id' => $this->session->id,
+        'name' => 'Manual template scale',
+    ]);
+
+    CommentRange::create([
+        'id' => (string) Str::uuid(),
+        'grading_scale_id' => $manualTemplateScale->id,
+        'min_score' => 0,
+        'max_score' => 100,
+        'teacher_comment' => 'Unscoped manual teacher template.',
+        'principal_comment' => 'Unscoped manual principal template.',
+    ]);
+
+    collect([
+        ['name' => 'English Language', 'code' => 'ENG', 'score' => 68],
+        ['name' => 'Mathematics', 'code' => 'MTH', 'score' => 60],
+    ])->each(function (array $entry) {
+        $subject = Subject::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'name' => $entry['name'],
+            'code' => $entry['code'],
+        ]);
+
+        Result::create([
+            'id' => (string) Str::uuid(),
+            'student_id' => $this->student->id,
+            'subject_id' => $subject->id,
+            'assessment_component_id' => null,
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'total_score' => $entry['score'],
+        ]);
+    });
+
+    getJson(route('students.term-summary.show', [
+        'student' => $this->student->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]))
+        ->assertOk()
+        ->assertJsonPath(
+            'data.class_teacher_comment',
+            'A very good performance. The student shows good understanding and participates well but can improve with more consistency.'
+        )
+        ->assertJsonPath(
+            'data.principal_comment',
+            'A commendable performance. With a little more effort, you can achieve even greater success.'
+        );
 });
 
 it('updates class teacher and principal comments', function () {

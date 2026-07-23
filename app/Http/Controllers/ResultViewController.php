@@ -675,12 +675,12 @@ class ResultViewController extends Controller
         $useAutomaticComments = ($resultPageSettings['comment_mode'] ?? 'manual') === 'range';
         if ($useAutomaticComments) {
             $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $overallStats['average'] ?? $termSummary?->average_score,
                 $student,
                 $session?->id
             );
             $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $overallStats['average'] ?? $termSummary?->average_score,
                 $student,
                 $session?->id
             );
@@ -690,7 +690,7 @@ class ResultViewController extends Controller
 
             if ($teacherComment === null || trim((string) $teacherComment) === '') {
                 $teacherComment = $this->generateTeacherComment(
-                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $overallStats['average'] ?? $termSummary?->average_score,
                     $student,
                     $session?->id
                 );
@@ -698,7 +698,7 @@ class ResultViewController extends Controller
 
             if ($principalComment === null || trim((string) $principalComment) === '') {
                 $principalComment = $this->generatePrincipalComment(
-                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $overallStats['average'] ?? $termSummary?->average_score,
                     $student,
                     $session?->id
                 );
@@ -1277,9 +1277,18 @@ class ResultViewController extends Controller
 
     private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
     {
+        $boundedRange = fn ($query) => $query->where(
+            fn ($rangeQuery) => $rangeQuery
+                ->where('min_score', '>', 0)
+                ->orWhere('max_score', '<', 100)
+        );
+
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
-            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+            ->whereHas('comment_ranges', $boundedRange)
+            ->with([
+                'comment_ranges' => fn ($query) => $boundedRange($query)->orderBy('min_score'),
+            ]);
 
         $gradeScale = null;
 

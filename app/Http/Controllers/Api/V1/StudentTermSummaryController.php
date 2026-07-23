@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\CommentRange;
 use App\Models\GradingScale;
+use App\Models\Result;
 use App\Models\Student;
 use App\Models\TermSummary;
 use App\Services\Teachers\TeacherAccessService;
@@ -285,23 +286,24 @@ class StudentTermSummaryController extends Controller
             ->first();
 
         $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+        $average = $this->resolveStudentAverage($student, $sessionId, $termId, $termSummary);
         $commentTemplates = $useAutomaticComments
             ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
             : $this->resolveCommentTemplates($student, $sessionId);
 
         if ($useAutomaticComments) {
-            $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
-            $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+            $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
+            $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
         } else {
             $teacherComment = $termSummary?->overall_comment;
             $principalComment = $termSummary?->principal_comment;
 
             if ($teacherComment === null || trim((string) $teacherComment) === '') {
-                $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
+                $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
             }
 
             if ($principalComment === null || trim((string) $principalComment) === '') {
-                $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+                $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
             }
         }
 
@@ -413,11 +415,17 @@ class StudentTermSummaryController extends Controller
                 $validated['session_id'] ?? null
             );
 
+        $average = $this->resolveStudentAverage(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $termSummary
+        );
         $teacherComment = $useAutomaticComments
-            ? $this->generateTeacherComment($termSummary, $student, $validated['session_id'])
+            ? $this->generateTeacherComment($average, $student, $validated['session_id'])
             : $termSummary->overall_comment;
         $principalComment = $useAutomaticComments
-            ? $this->generatePrincipalComment($termSummary, $student, $validated['session_id'])
+            ? $this->generatePrincipalComment($average, $student, $validated['session_id'])
             : $termSummary->principal_comment;
 
         return response()->json([
@@ -452,13 +460,55 @@ class StudentTermSummaryController extends Controller
         return ($student->school?->result_comment_mode ?? 'manual') === 'range';
     }
 
-    private function generateTeacherComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
+    private function resolveStudentAverage(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        ?TermSummary $summary
+    ): ?float
     {
-        if (! $summary || $summary->average_score === null) {
-            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        $subjectTotals = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->where('term_id', $termId)
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function (Collection $entries) {
+                $overall = $entries->first(
+                    fn (Result $result) => $result->assessment_component_id === null
+                        && $result->total_score !== null
+                );
+
+                if ($overall) {
+                    return (float) $overall->total_score;
+                }
+
+                $componentScores = $entries
+                    ->filter(fn (Result $result) => $result->assessment_component_id !== null)
+                    ->pluck('total_score')
+                    ->filter(fn ($score) => $score !== null);
+
+                return $componentScores->isEmpty()
+                    ? null
+                    : (float) $componentScores->sum();
+            })
+            ->filter(fn ($total) => $total !== null)
+            ->values();
+
+        if ($subjectTotals->isNotEmpty()) {
+            return round((float) $subjectTotals->average(), 2);
         }
 
-        $average = (float) $summary->average_score;
+        return $summary?->average_score !== null
+            ? round((float) $summary->average_score, 2)
+            : null;
+    }
+
+    private function generateTeacherComment(?float $average, ?Student $student, ?string $sessionId): string
+    {
+        if ($average === null) {
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        }
 
         // Get comment ranges from database
         if ($student && $sessionId) {
@@ -492,13 +542,11 @@ class StudentTermSummaryController extends Controller
         return 'A poor performance. The student needs serious improvement, more practice, and closer academic guidance.';
     }
 
-    private function generatePrincipalComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
+    private function generatePrincipalComment(?float $average, ?Student $student, ?string $sessionId): string
     {
-        if (! $summary || $summary->average_score === null) {
+        if ($average === null) {
             return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
-
-        $average = (float) $summary->average_score;
 
         // Get comment ranges from database
         if ($student && $sessionId) {
@@ -534,9 +582,18 @@ class StudentTermSummaryController extends Controller
 
     private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
     {
+        $boundedRange = fn ($query) => $query->where(
+            fn ($rangeQuery) => $rangeQuery
+                ->where('min_score', '>', 0)
+                ->orWhere('max_score', '<', 100)
+        );
+
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
-            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+            ->whereHas('comment_ranges', $boundedRange)
+            ->with([
+                'comment_ranges' => fn ($query) => $boundedRange($query)->orderBy('min_score'),
+            ]);
 
         $gradeScale = null;
 
@@ -573,6 +630,7 @@ class StudentTermSummaryController extends Controller
     {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
+            ->whereHas('comment_ranges')
             ->with(['comment_ranges' => fn ($query) => $query->orderBy('created_at')]);
 
         $gradeScale = null;
