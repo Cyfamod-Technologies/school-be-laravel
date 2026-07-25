@@ -307,6 +307,75 @@ class StudentController extends Controller
         ], 201);
     }
 
+    public function regenerateAdmissionNumbers(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = strtolower(trim((string) ($user->role ?? '')));
+        $isAdmin = in_array($role, ['admin', 'super_admin', 'superadmin', 'administrator'], true)
+            || $user->hasAnyRole(['admin', 'super_admin']);
+
+        if (! $isAdmin) {
+            abort(403, 'Only administrators can regenerate admission numbers.');
+        }
+
+        $this->ensurePermission($request, ['students.update', 'students.edit']);
+
+        $school = $user->school;
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'student_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'student_ids.*' => [
+                'required',
+                'uuid',
+                'distinct',
+                Rule::exists('students', 'id')->where('school_id', $school->id),
+            ],
+        ]);
+
+        $regenerated = DB::transaction(function () use ($validated, $school) {
+            $students = Student::query()
+                ->where('school_id', $school->id)
+                ->whereIn('id', $validated['student_ids'])
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            return collect($validated['student_ids'])->map(function (string $studentId) use ($students, $school) {
+                /** @var Student $student */
+                $student = $students->get($studentId);
+                $session = \App\Models\Session::query()
+                    ->where('school_id', $school->id)
+                    ->find($student->current_session_id);
+
+                if (! $session) {
+                    abort(422, "A current session is required to regenerate {$student->first_name} {$student->last_name}'s admission number.");
+                }
+
+                $previousAdmissionNo = $student->admission_no;
+                $student->admission_no = Student::generateAdmissionNumber($school, $session);
+                $student->save();
+
+                return [
+                    'id' => $student->id,
+                    'previous_admission_no' => $previousAdmissionNo,
+                    'admission_no' => $student->admission_no,
+                ];
+            })->values();
+        });
+
+        $count = $regenerated->count();
+
+        return response()->json([
+            'message' => "Regenerated admission numbers for {$count} student".($count === 1 ? '.' : 's.'),
+            'data' => $regenerated,
+        ]);
+    }
+
     /**
      * Display the specified resource.
      *

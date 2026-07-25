@@ -106,6 +106,70 @@ it('allows clearing class arm by sending none in update payload', function () {
     expect($this->student->fresh()->class_arm_id)->toBeNull();
 });
 
+it('regenerates admission numbers only for selected students', function () {
+    $secondStudent = Student::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'admission_no' => 'ADM-1002',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'gender' => 'male',
+        'date_of_birth' => Carbon::parse('2014-04-20'),
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->arm->id,
+        'admission_date' => Carbon::parse('2023-09-01'),
+        'status' => 'active',
+    ]);
+
+    $oldFirstAdmissionNo = $this->student->admission_no;
+    $oldSecondAdmissionNo = $secondStudent->admission_no;
+
+    postJson(route('students.admission-numbers.regenerate'), [
+        'student_ids' => [$this->student->id],
+    ])
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $this->student->id)
+        ->assertJsonPath('data.0.previous_admission_no', $oldFirstAdmissionNo);
+
+    expect($this->student->fresh()->admission_no)->not()->toBe($oldFirstAdmissionNo)
+        ->and($secondStudent->fresh()->admission_no)->toBe($oldSecondAdmissionNo);
+});
+
+it('does not regenerate admission numbers for students from another school', function () {
+    $otherSchool = School::factory()->create(['status' => 'active']);
+    $otherStudent = $this->student->replicate();
+    $otherStudent->id = (string) Str::uuid();
+    $otherStudent->school_id = $otherSchool->id;
+    $otherStudent->admission_no = 'OTHER-1001';
+    $otherStudent->save();
+
+    postJson(route('students.admission-numbers.regenerate'), [
+        'student_ids' => [$otherStudent->id],
+    ])->assertUnprocessable();
+
+    expect($otherStudent->fresh()->admission_no)->toBe('OTHER-1001');
+});
+
+it('does not allow non-admin users to regenerate admission numbers', function () {
+    $staffUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'staff',
+        'status' => 'active',
+    ]);
+    Sanctum::actingAs($staffUser, [], 'sanctum');
+
+    postJson(route('students.admission-numbers.regenerate'), [
+        'student_ids' => [$this->student->id],
+    ])
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Only administrators can regenerate admission numbers.');
+
+    expect($this->student->fresh()->admission_no)->toBe('ADM-1001');
+});
+
 it('prevents deleting a student with dependent records', function () {
     DB::table('attendances')->insert([
         'id' => (string) Str::uuid(),

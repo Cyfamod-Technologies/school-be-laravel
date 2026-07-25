@@ -183,6 +183,11 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('parents', \App\Http\Controllers\Api\V1\ParentController::class);
 
         // Student Routes
+        Route::post('students/regenerate-admission-numbers', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'regenerateAdmissionNumbers',
+        ])
+            ->name('students.admission-numbers.regenerate');
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
         Route::get('student-term-summaries', [StudentTermSummaryController::class, 'batchIndex'])
             ->name('student-term-summaries.index');
