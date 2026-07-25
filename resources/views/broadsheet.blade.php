@@ -163,6 +163,78 @@
             color: #555;
         }
 
+        @media screen {
+            body.embedded {
+                overflow: auto;
+                background: #f8fafc;
+            }
+
+            body.embedded .page {
+                width: max-content;
+                min-width: 100%;
+                padding: 24px;
+                background: #fff;
+            }
+
+            body.embedded .school-header h1 {
+                font-size: 20px;
+            }
+
+            body.embedded .school-header h2,
+            body.embedded .school-header .class-label {
+                font-size: 15px;
+            }
+
+            body.embedded .broadsheet-meta,
+            body.embedded .footer {
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            body.embedded table {
+                width: max-content;
+                min-width: 100%;
+            }
+
+            body.embedded th,
+            body.embedded td {
+                padding: 5px 6px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            body.embedded col.col-sno    { width: 48px; }
+            body.embedded col.col-admno  { width: 100px; }
+            body.embedded col.col-name   { width: 220px; }
+            body.embedded col.col-sex    { width: 48px; }
+            body.embedded col.col-subj   { width: 54px; }
+            body.embedded col.col-passes { width: 70px; }
+            body.embedded col.col-remark { width: 90px; }
+
+            body.embedded th.rotated {
+                height: 145px;
+            }
+
+            body.embedded th.rotated > span {
+                width: 132px;
+                max-height: 44px;
+                font-size: 11px;
+                font-weight: 800;
+            }
+
+            body.embedded th.header-main,
+            body.embedded td.admission-cell,
+            body.embedded td.name-cell,
+            body.embedded td.score-cell {
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            body.embedded td.score-cell {
+                height: 30px;
+            }
+        }
+
         @media print {
             .no-print { display: none !important; }
             body { background: #fff; }
@@ -173,12 +245,14 @@
         }
     </style>
 </head>
-<body>
+<body @class(['embedded' => request()->boolean('embedded')])>
 
-<div class="no-print">
-    <button onclick="window.print()">&#128438; Print Broadsheet</button>
-    <button onclick="window.close()">Close</button>
-</div>
+@unless(request()->boolean('embedded'))
+    <div class="no-print">
+        <button onclick="window.print()">&#128438; Print Broadsheet</button>
+        <button onclick="window.close()">Close</button>
+    </div>
+@endunless
 
 <div class="page">
     <div class="school-header">
