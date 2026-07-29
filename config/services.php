@@ -2,6 +2,10 @@
 
 return [
 
+    'account_lookup' => [
+        'key' => env('ACCOUNT_LOOKUP_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
