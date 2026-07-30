@@ -79,6 +79,7 @@ Route::prefix('api/v1')->group(function () {
                 Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
+                Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
                 Route::get('parent', [StudentAuthController::class, 'getParent']);
                 Route::post('parent', [StudentAuthController::class, 'updateParent']);
 

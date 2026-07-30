@@ -3,18 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ResultViewController;
+use App\Models\Result;
+use App\Models\ResultPin;
 use App\Models\Session;
 use App\Models\Student;
 use App\Models\Term;
-use App\Models\ResultPin;
-use App\Models\Result;
-use App\Http\Controllers\ResultViewController;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * @OA\Tag(
@@ -339,6 +341,81 @@ class StudentAuthController extends Controller
 
         return response($view->render())
             ->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * Download a student's result as a PDF for mobile clients.
+     */
+    public function downloadResultPdf(Request $request)
+    {
+        $student = $this->resolveStudentUser($request);
+
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+        ]);
+
+        $hasResults = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->exists();
+
+        if (! $hasResults) {
+            abort(404, 'No results found for the selected session/term.');
+        }
+
+        $session = Session::query()
+            ->where('school_id', $student->school_id)
+            ->find($validated['session_id']);
+        $term = Term::query()
+            ->where('school_id', $student->school_id)
+            ->where('session_id', $validated['session_id'])
+            ->find($validated['term_id']);
+
+        if (! $session || ! $term) {
+            abort(404, 'Session or term not found.');
+        }
+
+        $page = app(ResultViewController::class)->buildResultPageData(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $student->school_id
+        );
+
+        $html = View::make('student-result-pdf', $page)->render();
+
+        $options = new Options;
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', true);
+
+        $pdf = new Dompdf($options);
+        $pdf->loadHtml($html, 'UTF-8');
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->render();
+
+        $studentName = trim(collect([
+            $student->first_name,
+            $student->middle_name,
+            $student->last_name,
+        ])->filter()->implode(' '));
+
+        $filename = collect([
+            Str::slug($studentName) ?: 'student',
+            Str::slug($session->name) ?: 'session',
+            Str::slug($term->name) ?: 'term',
+            'result',
+        ])->implode('-').'.pdf';
+
+        $content = $pdf->output();
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Content-Length' => (string) strlen($content),
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
     }
 
     private function resolveStudentUser(Request $request): Student
