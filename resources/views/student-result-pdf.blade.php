@@ -8,26 +8,7 @@
 
         @page {
             size: A4 portrait;
-            margin: 8mm;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            height: auto;
-            overflow: visible;
-        }
-
-        .page {
-            width: 100%;
-            max-width: none;
-            min-height: 0;
-            max-height: none;
-            margin: 0;
-            padding: 0;
-            overflow: visible;
-            box-shadow: none;
+            margin: 5mm;
         }
 
         .print-actions {

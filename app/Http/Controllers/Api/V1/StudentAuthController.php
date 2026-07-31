@@ -382,6 +382,7 @@ class StudentAuthController extends Controller
 
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('defaultMediaType', 'print');
         $options->set('isRemoteEnabled', true);
 
         $pdf = new Dompdf($options);
@@ -403,10 +404,13 @@ class StudentAuthController extends Controller
         ])->implode('-').'.pdf';
 
         $content = $pdf->output();
+        $encodedFilename = rawurlencode($filename);
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"; filename*=UTF-8''{$encodedFilename}",
+            'X-Download-Filename' => $filename,
+            'Access-Control-Expose-Headers' => 'Content-Disposition, X-Download-Filename',
             'Content-Length' => (string) strlen($content),
             'Cache-Control' => 'private, no-store, max-age=0',
         ]);
