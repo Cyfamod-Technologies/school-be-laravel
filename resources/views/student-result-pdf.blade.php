@@ -11,6 +11,22 @@
             margin: 5mm;
         }
 
+        @media print {
+            html,
+            body {
+                height: auto !important;
+            }
+
+            .page {
+                min-height: 0 !important;
+                height: auto !important;
+            }
+
+            .page-spacer {
+                display: none !important;
+            }
+        }
+
         .print-actions {
             display: none;
         }
