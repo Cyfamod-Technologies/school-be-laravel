@@ -191,33 +191,12 @@ class StudentAuthController extends Controller
             'pin_code' => ['required', 'string'],
         ]);
 
-        $normalizedPin = $this->normalizePinCode($validated['pin_code']);
-        $pin = $this->resolveAccessibleResultPin(
+        $this->validateResultPinAccess(
             $student,
             $validated['session_id'],
             $validated['term_id'],
-            $normalizedPin,
+            $validated['pin_code'],
         );
-
-        if (! $pin) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['Invalid or inactive PIN for the selected session/term.'],
-            ]);
-        }
-
-        if ($pin->expires_at && $pin->expires_at->isPast()) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['This PIN has expired.'],
-            ]);
-        }
-
-        if ($pin->max_usage && $pin->use_count >= $pin->max_usage) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['PIN usage limit reached.'],
-            ]);
-        }
-
-        $pin->increment('use_count');
 
         $results = Result::query()
             ->where('student_id', $student->id)
@@ -348,12 +327,9 @@ class StudentAuthController extends Controller
      */
     public function downloadResultPdf(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentUser($request)->loadMissing('school');
 
-        $validated = $request->validate([
-            'session_id' => ['required', 'uuid'],
-            'term_id' => ['required', 'uuid'],
-        ]);
+        $validated = $this->validateResultPdfDownloadRequest($request);
 
         $hasResults = Result::query()
             ->where('student_id', $student->id)
@@ -376,6 +352,13 @@ class StudentAuthController extends Controller
         if (! $session || ! $term) {
             abort(404, 'Session or term not found.');
         }
+
+        $this->validateResultPinAccess(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $validated['pin_code'],
+        );
 
         $page = app(ResultViewController::class)->buildResultPageData(
             $student,
@@ -415,6 +398,19 @@ class StudentAuthController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             'Content-Length' => (string) strlen($content),
             'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
+    }
+
+    private function validateResultPdfDownloadRequest(Request $request): array
+    {
+        $request->merge([
+            'pin_code' => $request->header('X-Result-PIN', $request->input('pin_code')),
+        ]);
+
+        return $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'pin_code' => ['required', 'string'],
         ]);
     }
 
@@ -467,6 +463,42 @@ class StudentAuthController extends Controller
         return hash_equals($this->normalizePinCode((string) $pin->pin_code), $normalizedPin)
             ? $pin
             : null;
+    }
+
+    private function validateResultPinAccess(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        string $pinCode,
+    ): ResultPin {
+        $pin = $this->resolveAccessibleResultPin(
+            $student,
+            $sessionId,
+            $termId,
+            $this->normalizePinCode($pinCode),
+        );
+
+        if (! $pin) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['Invalid or inactive PIN for the selected session/term.'],
+            ]);
+        }
+
+        if ($pin->expires_at && $pin->expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['This PIN has expired.'],
+            ]);
+        }
+
+        if ($pin->max_usage && $pin->use_count >= $pin->max_usage) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['PIN usage limit reached.'],
+            ]);
+        }
+
+        $pin->increment('use_count');
+
+        return $pin;
     }
 
     private function normalizePinCode(string $pinCode): string

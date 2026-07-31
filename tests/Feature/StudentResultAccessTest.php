@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
+use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
 beforeEach(function () {
@@ -151,4 +152,23 @@ it('allows another students scratch card when shared access is enabled for the s
     $this->pin->refresh();
 
     expect($this->pin->use_count)->toBe(1);
+});
+
+it('requires a result PIN for PDF downloads', function () {
+    Sanctum::actingAs($this->viewer, [], 'student');
+
+    getJson("/api/v1/student/results/download.pdf?session_id={$this->session->id}&term_id={$this->term->id}")
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('pin_code');
+});
+
+it('rejects an invalid result PIN for PDF downloads', function () {
+    Sanctum::actingAs($this->viewer, [], 'student');
+
+    getJson(
+        "/api/v1/student/results/download.pdf?session_id={$this->session->id}&term_id={$this->term->id}",
+        ['X-Result-PIN' => 'WRONG-PIN'],
+    )
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('pin_code');
 });
