@@ -592,21 +592,25 @@ class ResultViewController extends Controller
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
+        $subjectCount = $this->resolveSubjectCount($student);
+        if ($subjectCount <= 0) {
+            $subjectCount = $subjectRows->count();
+        }
+
         $overallStats = $this->computeOverallStatistics(
             $subjectStats,
             $subjectStatisticsData['overall_totals'],
             $student,
             $classSize,
-            $positionRanges
+            $positionRanges,
+            $subjectCount
         );
-        $subjectCount = $this->resolveSubjectCount($student);
+
         if ($subjectCount > 0) {
-            if ($overallStats['total_possible'] === null) {
-                $overallStats['total_possible'] = $subjectCount * 100;
-            }
-            if ($overallStats['average'] === null && $overallStats['total_obtained'] !== null) {
-                $overallStats['average'] = round($overallStats['total_obtained'] / $subjectCount, 2);
-            }
+            $overallStats['total_possible'] = $subjectCount * 100;
+            $overallStats['average'] = $overallStats['total_obtained'] !== null
+                ? round($overallStats['total_obtained'] / $subjectCount, 2)
+                : null;
         }
 
         $termSummary = TermSummary::query()
@@ -1910,24 +1914,20 @@ class ResultViewController extends Controller
         Collection $overallTotals,
         Student $student,
         int $existingClassSize,
-        Collection $positionRanges
+        Collection $positionRanges,
+        int $offeredSubjectCount = 0
     ): array
     {
-        $subjectCount = max(1, $subjectStats->count());
+        $subjectCount = max(1, $offeredSubjectCount ?: $subjectStats->count());
 
         $studentTotal = $overallTotals->get($student->id);
 
-        $classAverage = $subjectStats
-            ->pluck('average')
-            ->filter(fn ($value) => $value !== null)
-            ->average();
-
-        $totalPossible = $subjectStats
-            ->pluck('total_possible')
-            ->filter(fn ($value) => $value !== null)
-            ->sum();
-
+        $studentAverages = $overallTotals
+            ->map(fn ($total) => (float) $total / $subjectCount);
         $classSize = $existingClassSize > 0 ? $existingClassSize : $overallTotals->count();
+        $classAverage = $studentAverages->isEmpty() || $classSize <= 0
+            ? null
+            : $studentAverages->sum() / $classSize;
 
         $scoreSource = $overallTotals->map(fn ($total) => (float) $total);
         $studentScore = $studentTotal !== null ? (float) $studentTotal : null;
@@ -1949,8 +1949,8 @@ class ResultViewController extends Controller
         );
 
         return [
-            'total_obtained' => $studentTotal ?: null,
-            'total_possible' => $totalPossible ?: null,
+            'total_obtained' => $studentTotal !== null ? (float) $studentTotal : null,
+            'total_possible' => $studentTotal !== null ? $subjectCount * 100 : null,
             'average' => ($studentTotal !== null && $subjectCount > 0) ? round($studentTotal / $subjectCount, 2) : null,
             'class_average' => $classAverage !== null ? round($classAverage, 2) : null,
             'position' => $position,
