@@ -151,7 +151,7 @@ class StudentAuthController extends Controller
 
     public function sessions(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentUser($request)->loadMissing('school');
 
         $admissionDate = $student->admission_date;
 
@@ -178,25 +178,33 @@ class StudentAuthController extends Controller
             ];
         });
 
-        return response()->json(['data' => $sessionPayload]);
+        return response()->json([
+            'data' => $sessionPayload,
+            'meta' => [
+                'require_pin_for_pdf_download' => $student->school?->result_pdf_requires_pin ?? true,
+            ],
+        ]);
     }
 
     public function previewResult(Request $request)
     {
         $student = $this->resolveStudentUser($request)->loadMissing('school');
+        $requiresPin = $student->school?->result_pdf_requires_pin ?? true;
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
-            'pin_code' => ['required', 'string'],
+            'pin_code' => $requiresPin ? ['required', 'string'] : ['sometimes', 'nullable', 'string'],
         ]);
 
-        $this->validateResultPinAccess(
-            $student,
-            $validated['session_id'],
-            $validated['term_id'],
-            $validated['pin_code'],
-        );
+        if ($requiresPin) {
+            $this->validateResultPinAccess(
+                $student,
+                $validated['session_id'],
+                $validated['term_id'],
+                $validated['pin_code'],
+            );
+        }
 
         $results = Result::query()
             ->where('student_id', $student->id)
@@ -328,8 +336,9 @@ class StudentAuthController extends Controller
     public function downloadResultPdf(Request $request)
     {
         $student = $this->resolveStudentUser($request)->loadMissing('school');
+        $requiresPin = $student->school?->result_pdf_requires_pin ?? true;
 
-        $validated = $this->validateResultPdfDownloadRequest($request);
+        $validated = $this->validateResultPdfDownloadRequest($request, $requiresPin);
 
         $hasResults = Result::query()
             ->where('student_id', $student->id)
@@ -353,12 +362,14 @@ class StudentAuthController extends Controller
             abort(404, 'Session or term not found.');
         }
 
-        $this->validateResultPinAccess(
-            $student,
-            $validated['session_id'],
-            $validated['term_id'],
-            $validated['pin_code'],
-        );
+        if ($requiresPin) {
+            $this->validateResultPinAccess(
+                $student,
+                $validated['session_id'],
+                $validated['term_id'],
+                $validated['pin_code'],
+            );
+        }
 
         $page = app(ResultViewController::class)->buildResultPageData(
             $student,
@@ -401,16 +412,18 @@ class StudentAuthController extends Controller
         ]);
     }
 
-    private function validateResultPdfDownloadRequest(Request $request): array
+    private function validateResultPdfDownloadRequest(Request $request, bool $requiresPin): array
     {
-        $request->merge([
-            'pin_code' => $request->header('X-Result-PIN', $request->input('pin_code')),
-        ]);
+        if ($requiresPin) {
+            $request->merge([
+                'pin_code' => $request->header('X-Result-PIN', $request->input('pin_code')),
+            ]);
+        }
 
         return $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
-            'pin_code' => ['required', 'string'],
+            'pin_code' => $requiresPin ? ['required', 'string'] : ['sometimes', 'nullable', 'string'],
         ]);
     }
 

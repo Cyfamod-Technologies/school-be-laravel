@@ -172,3 +172,33 @@ it('rejects an invalid result PIN for PDF downloads', function () {
         ->assertStatus(422)
         ->assertJsonValidationErrors('pin_code');
 });
+
+it('does not require a result PIN for PDF downloads when the school disables it', function () {
+    $this->school->update([
+        'result_pdf_requires_pin' => false,
+    ]);
+
+    Sanctum::actingAs($this->viewer, [], 'student');
+
+    $response = getJson(
+        "/api/v1/student/results/download.pdf?session_id={$this->session->id}&term_id={$this->term->id}",
+    );
+
+    expect($response->status())->not->toBe(422);
+});
+
+it('does not require a result PIN for dashboard preview when the school disables it', function () {
+    $this->school->update([
+        'result_pdf_requires_pin' => false,
+    ]);
+
+    Sanctum::actingAs($this->viewer, [], 'student');
+
+    postJson('/api/v1/student/results/preview', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ])
+        ->assertOk()
+        ->assertJsonPath('student.id', $this->viewer->id)
+        ->assertJsonPath('results.0.subject', 'Basic Science');
+});
