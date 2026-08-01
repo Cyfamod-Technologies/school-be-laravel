@@ -74,14 +74,21 @@ class BroadsheetController extends Controller
             ->unique('id')
             ->values();
 
-        // Students in the class/arm
-        $students = Student::query()
-            ->where('school_id', $schoolId)
+        $studentIds = Result::query()
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
             ->where('school_class_id', $validated['school_class_id'])
             ->when(
                 ! empty($validated['class_arm_id']),
-                fn ($q) => $q->where('class_arm_id', $validated['class_arm_id'])
+                fn ($query) => $query->where('class_arm_id', $validated['class_arm_id'])
             )
+            ->distinct()
+            ->pluck('student_id');
+
+        // Students who belonged to the selected class/arm for this result period.
+        $students = Student::query()
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $studentIds)
             ->whereNotIn('status', ['inactive', 'Inactive'])
             ->orderBy('last_name')
             ->orderBy('first_name')

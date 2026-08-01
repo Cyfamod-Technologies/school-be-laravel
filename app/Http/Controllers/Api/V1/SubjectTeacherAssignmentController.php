@@ -417,6 +417,119 @@ class SubjectTeacherAssignmentController extends Controller
     }
 
     /**
+     * Create and update several rows for one teacher/session/term in one
+     * transaction. Omitted assignments are deliberately left untouched.
+     */
+    public function bulkSave(Request $request)
+    {
+        $school = $request->user()->school;
+
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'staff_id' => ['required', 'uuid'],
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'assignments' => ['required', 'array', 'min:1'],
+            'assignments.*.id' => ['nullable', 'uuid'],
+            'assignments.*.subject_id' => ['required', 'uuid'],
+            'assignments.*.school_class_id' => ['required', 'uuid'],
+            'assignments.*.class_arm_id' => ['nullable', 'uuid'],
+            'assignments.*.student_ids' => ['nullable', 'array'],
+            'assignments.*.student_ids.*' => ['uuid'],
+        ]);
+
+        if (collect($validated['assignments'])->contains(fn (array $row) => ! empty($row['id']))) {
+            $this->ensurePermission($request, ['subject.assignments.update', 'subject.assignments.teacher']);
+        }
+        if (collect($validated['assignments'])->contains(fn (array $row) => empty($row['id']))) {
+            $this->ensurePermission($request, ['subject.assignments.create', 'subject.assignments.teacher']);
+        }
+
+        $prepared = collect($validated['assignments'])->map(function (array $row) use ($request, $school, $validated) {
+            $payload = [
+                ...$row,
+                'staff_id' => $validated['staff_id'],
+                'session_id' => $validated['session_id'],
+                'term_id' => $validated['term_id'],
+            ];
+            $entities = $this->resolveEntities($school->id, $payload);
+
+            $assignment = null;
+            if (! empty($row['id'])) {
+                $assignment = SubjectTeacherAssignment::find($row['id']);
+                if (! $assignment) {
+                    abort(404, 'One of the teacher assignments could not be found.');
+                }
+                $this->authorizeTeacherAssignment($request, $assignment);
+            }
+
+            return [
+                'assignment' => $assignment,
+                'entities' => $entities,
+                'student_ids' => $this->resolveStudentIds($school->id, $row['student_ids'] ?? null, $entities),
+                'key' => $this->assignmentContextKey(
+                    $entities['subject']->id,
+                    $entities['class']?->id,
+                    $entities['class_arm']?->id,
+                ),
+            ];
+        });
+
+        if ($prepared->pluck('key')->duplicates()->isNotEmpty()) {
+            return response()->json([
+                'message' => 'The group contains the same subject, class and arm more than once.',
+            ], 422);
+        }
+
+        $savedIds = DB::transaction(function () use ($prepared) {
+            return $prepared->map(function (array $row) {
+                /** @var SubjectTeacherAssignment|null $assignment */
+                $assignment = $row['assignment'];
+                $entities = $row['entities'];
+
+                if ($this->teacherAssignmentExists($entities, $assignment?->id)) {
+                    abort(422, 'Teacher is already assigned to one of the selected subject and class contexts.');
+                }
+
+                $assignment ??= new SubjectTeacherAssignment(['id' => (string) Str::uuid()]);
+                $assignment->fill([
+                    'subject_id' => $entities['subject']->id,
+                    'staff_id' => $entities['staff']->id,
+                    'school_class_id' => $entities['class']?->id,
+                    'class_arm_id' => $entities['class_arm']?->id,
+                    'class_section_id' => null,
+                    'student_ids' => $row['student_ids'],
+                    'session_id' => $entities['session']->id,
+                    'term_id' => $entities['term']->id,
+                ]);
+                $assignment->save();
+
+                return $assignment->id;
+            })->all();
+        });
+
+        return response()->json([
+            'message' => 'Teacher assignment group saved successfully.',
+            'data' => SubjectTeacherAssignment::query()
+                ->with([
+                    'subject:id,name,code',
+                    'staff:id,full_name,email,phone,role',
+                    'school_class:id,name',
+                    'class_arm:id,name',
+                    'session:id,name',
+                    'term:id,name',
+                ])
+                ->whereIn('id', $savedIds)
+                ->get(),
+        ]);
+    }
+
+    /**
      * @OA\Delete(
      *     path="/api/v1/settings/subject-teacher-assignments/{id}",
      *     tags={"school-v1.7"},
@@ -536,6 +649,11 @@ class SubjectTeacherAssignmentController extends Controller
         }
 
         return $query->exists();
+    }
+
+    private function assignmentContextKey(string $subjectId, ?string $classId, ?string $classArmId): string
+    {
+        return $subjectId.':'.($classId ?? 'all').':'.($classArmId ?? 'all');
     }
 
     private function resolveContexts(string $schoolId, array $validated, array $baseEntities): array

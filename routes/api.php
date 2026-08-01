@@ -404,6 +404,8 @@ Route::prefix('api/v1')->group(function () {
             Route::apiResource('subject-assignments', SubjectAssignmentController::class)
                 ->parameters(['subject-assignments' => 'assignment'])
                 ->except(['create', 'edit']);
+            Route::post('subject-teacher-assignments/bulk-save', [SubjectTeacherAssignmentController::class, 'bulkSave'])
+                ->name('subject-teacher-assignments.bulk-save');
             Route::apiResource('subject-teacher-assignments', SubjectTeacherAssignmentController::class)
                 ->parameters(['subject-teacher-assignments' => 'assignment'])
                 ->except(['create', 'edit']);

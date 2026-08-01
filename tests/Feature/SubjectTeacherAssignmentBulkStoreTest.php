@@ -128,6 +128,61 @@ it('creates multiple teacher subject assignments in one request', function () {
     )->toBe(2);
 });
 
+it('bulk saves different subject and class rows without deleting omitted assignments', function () {
+    $existing = SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectA->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    $omitted = SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectC->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->classTwo->id,
+        'class_arm_id' => null,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    postJson('/api/v1/settings/subject-teacher-assignments/bulk-save', [
+        'staff_id' => $this->teacher->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'assignments' => [
+            [
+                'id' => $existing->id,
+                'subject_id' => $this->subjectB->id,
+                'school_class_id' => $this->class->id,
+                'class_arm_id' => $this->armB->id,
+            ],
+            [
+                'subject_id' => $this->subjectA->id,
+                'school_class_id' => $this->classTwo->id,
+                'class_arm_id' => null,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+
+    expect($existing->fresh()->subject_id)->toBe($this->subjectB->id)
+        ->and($existing->fresh()->class_arm_id)->toBe($this->armB->id)
+        ->and(SubjectTeacherAssignment::find($omitted->id))->not->toBeNull()
+        ->and(SubjectTeacherAssignment::query()
+            ->where('subject_id', $this->subjectA->id)
+            ->where('school_class_id', $this->classTwo->id)
+            ->exists())->toBeTrue();
+});
+
 it('shows assignments on dashboard for staff users with teacher staff role', function () {
     $teacherUser = User::factory()->create([
         'school_id' => $this->school->id,

@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClassArm;
+use App\Models\ClassSection;
+use App\Models\Result;
+use App\Models\SchoolClass;
 use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,21 +111,57 @@ class StudentController extends Controller
                         });
                 });
             })
-            ->when($request->filled('session_id') || $request->filled('current_session_id'), function ($query) use ($request) {
-                $sessionId = $request->input('current_session_id', $request->input('session_id'));
-                $query->where('current_session_id', $sessionId);
+            ->when($request->filled('current_session_id'), function ($query) use ($request) {
+                $query->where('current_session_id', $request->input('current_session_id'));
             })
-            ->when($request->filled('term_id') || $request->filled('current_term_id'), function ($query) use ($request) {
-                $termId = $request->input('current_term_id', $request->input('term_id'));
-                $query->where('current_term_id', $termId);
-            })
-            ->when($request->filled('class_id') || $request->filled('school_class_id'), function ($query) use ($request) {
+            ->when($request->filled('session_id') && ! $request->filled('current_session_id'), function ($query) use ($request) {
+                $sessionId = $request->input('session_id');
+                $termId = $request->input('term_id');
                 $classId = $request->input('school_class_id', $request->input('class_id'));
-                $query->where('school_class_id', $classId);
+                $classArmId = $request->input('class_arm_id');
+                $classSectionId = $request->input('class_section_id');
+
+                $query->where(function ($placementQuery) use ($sessionId, $termId, $classId, $classArmId, $classSectionId) {
+                    $placementQuery->where(function ($currentPlacement) use ($sessionId, $classId, $classArmId, $classSectionId) {
+                        $currentPlacement->where('current_session_id', $sessionId)
+                            ->when($classId, fn ($builder, $value) => $builder->where('school_class_id', $value))
+                            ->when($classArmId, fn ($builder, $value) => $builder->where('class_arm_id', $value))
+                            ->when($classSectionId, fn ($builder, $value) => $builder->where('class_section_id', $value));
+                    })
+                        ->orWhereHas('results', function ($resultQuery) use ($sessionId, $termId, $classId, $classArmId, $classSectionId) {
+                            $resultQuery->where('session_id', $sessionId)
+                                ->when($termId, fn ($builder, $value) => $builder->where('term_id', $value))
+                                ->when($classId, fn ($builder, $value) => $builder->where('school_class_id', $value))
+                                ->when($classArmId, fn ($builder, $value) => $builder->where('class_arm_id', $value))
+                                ->when($classSectionId, fn ($builder, $value) => $builder->where('class_section_id', $value));
+                        });
+                });
             })
-            ->when($request->filled('class_arm_id'), function ($query) use ($request) {
-                $query->where('class_arm_id', $request->class_arm_id);
+            ->when($request->filled('current_term_id'), function ($query) use ($request) {
+                $query->where('current_term_id', $request->input('current_term_id'));
             })
+            ->when(
+                ($request->filled('class_id') || $request->filled('school_class_id'))
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $classId = $request->input('school_class_id', $request->input('class_id'));
+                    $query->where('school_class_id', $classId);
+                }
+            )
+            ->when(
+                $request->filled('class_arm_id')
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $query->where('class_arm_id', $request->class_arm_id);
+                }
+            )
+            ->when(
+                $request->filled('class_section_id')
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $query->where('class_section_id', $request->input('class_section_id'));
+                }
+            )
             ->when($request->filled('parent_id'), function ($query) use ($request) {
                 $query->where('parent_id', $request->parent_id);
             })
@@ -147,6 +187,45 @@ class StudentController extends Controller
         $scope->restrictStudentQuery($query);
 
         $students = $query->paginate($perPage)->withQueryString();
+
+        if ($request->filled('session_id') && ! $request->filled('current_session_id')) {
+            $studentIds = $students->getCollection()->pluck('id');
+            $placements = Result::query()
+                ->whereIn('student_id', $studentIds)
+                ->where('session_id', $request->input('session_id'))
+                ->when($request->input('term_id'), fn ($builder, $termId) => $builder->where('term_id', $termId))
+                ->whereNotNull('school_class_id')
+                ->get(['student_id', 'school_class_id', 'class_arm_id', 'class_section_id'])
+                ->unique('student_id')
+                ->keyBy('student_id');
+
+            $classes = SchoolClass::query()
+                ->whereIn('id', $placements->pluck('school_class_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+            $arms = ClassArm::query()
+                ->whereIn('id', $placements->pluck('class_arm_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+            $sections = ClassSection::query()
+                ->whereIn('id', $placements->pluck('class_section_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+
+            $students->getCollection()->each(function (Student $student) use ($placements, $classes, $arms, $sections) {
+                $placement = $placements->get($student->id);
+                if (! $placement) {
+                    return;
+                }
+
+                $student->school_class_id = $placement->school_class_id;
+                $student->class_arm_id = $placement->class_arm_id;
+                $student->class_section_id = $placement->class_section_id;
+                $student->setRelation('school_class', $classes->get($placement->school_class_id));
+                $student->setRelation('class_arm', $arms->get($placement->class_arm_id));
+                $student->setRelation('class_section', $sections->get($placement->class_section_id));
+            });
+        }
 
         return response()->json($students);
     }

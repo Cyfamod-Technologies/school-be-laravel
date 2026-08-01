@@ -201,6 +201,15 @@ class ResultViewController extends Controller
                 abort(403, 'You are not linked to any school.');
             }
 
+            $studentIds = Result::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->where('school_class_id', $validated['school_class_id'])
+                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->distinct()
+                ->pluck('student_id');
+
             $students = Student::query()
                 ->with([
                     'school',
@@ -210,9 +219,7 @@ class ResultViewController extends Controller
                     'parent',
                 ])
                 ->where('school_id', $schoolId)
-                ->where('school_class_id', $validated['school_class_id'])
-                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
-                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->whereIn('id', $studentIds)
                 ->whereNotIn('status', ['inactive', 'Inactive'])
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -351,6 +358,14 @@ class ResultViewController extends Controller
                 abort(403, 'Session result printing is not enabled for this school.');
             }
 
+            $studentIds = Result::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('school_class_id', $validated['school_class_id'])
+                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->distinct()
+                ->pluck('student_id');
+
             $students = Student::query()
                 ->with([
                     'school',
@@ -360,9 +375,7 @@ class ResultViewController extends Controller
                     'parent',
                 ])
                 ->where('school_id', $schoolId)
-                ->where('school_class_id', $validated['school_class_id'])
-                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
-                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->whereIn('id', $studentIds)
                 ->whereNotIn('status', ['inactive', 'Inactive'])
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -529,6 +542,8 @@ class ResultViewController extends Controller
             $term = $student->term()->where('school_id', $student->school_id)->first();
         }
 
+        $this->applyHistoricalResultPlacement($student, $session?->id, $term?->id);
+
         $results = Result::query()
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
@@ -573,13 +588,7 @@ class ResultViewController extends Controller
             ? ($gradeScale?->position_ranges?->sortBy('position')->values() ?? collect())
             : collect();
         $componentColumns = $this->buildComponentColumns($results, $student, $term);
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session?->id, $term?->id);
 
         $subjectStatisticsData = $this->computeSubjectStatistics(
             $student,
@@ -827,6 +836,8 @@ class ResultViewController extends Controller
             );
         }
 
+        $this->applyHistoricalResultPlacement($student, $session->id);
+
         $terms = Term::query()
             ->where('school_id', $student->school_id)
             ->where('session_id', $session->id)
@@ -868,13 +879,7 @@ class ResultViewController extends Controller
         $gradeScale = $this->resolveGradeScale($student->school_id, $session->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
         $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session->id);
 
         $resultPageSettings = $this->resolveResultPageSettings($student->school);
         if ($student->school_class && $student->school_class->result_show_position !== null) {
@@ -1060,6 +1065,8 @@ class ResultViewController extends Controller
             $term = $student->term()->where('school_id', $student->school_id)->first();
         }
 
+        $this->applyHistoricalResultPlacement($student, $session?->id, $term?->id);
+
         $termSummary = TermSummary::query()
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
@@ -1071,13 +1078,7 @@ class ResultViewController extends Controller
         $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? null;
         $schoolOpenedDays = optional($student->school)->term_school_opened_days;
 
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session?->id, $term?->id);
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -1751,11 +1752,9 @@ class ResultViewController extends Controller
         $classRows = Result::query()
             ->where('session_id', $sessionId)
             ->whereIn('term_id', $termIds)
-            ->whereHas('student', function ($query) use ($student) {
-                $query->where('school_class_id', $student->school_class_id)
-                    ->when($student->class_arm_id, fn ($builder) => $builder->where('class_arm_id', $student->class_arm_id))
-                    ->when($student->class_section_id, fn ($builder) => $builder->where('class_section_id', $student->class_section_id));
-            })
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $armId) => $query->where('class_arm_id', $armId))
+            ->when($student->class_section_id, fn ($query, $sectionId) => $query->where('class_section_id', $sectionId))
             ->get()
             ->groupBy(fn (Result $result) => $result->student_id . ':' . $result->subject_id . ':' . $result->term_id)
             ->map(fn (Collection $entries) => [
@@ -1831,11 +1830,9 @@ class ResultViewController extends Controller
             ->whereIn('subject_id', $subjectIds)
             ->where('session_id', $sessionId)
             ->where('term_id', $termId)
-            ->whereHas('student', function ($query) use ($student) {
-                $query->where('school_class_id', $student->school_class_id)
-                    ->when($student->class_arm_id, fn ($builder) => $builder->where('class_arm_id', $student->class_arm_id))
-                    ->when($student->class_section_id, fn ($builder) => $builder->where('class_section_id', $student->class_section_id));
-            })
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $armId) => $query->where('class_arm_id', $armId))
+            ->when($student->class_section_id, fn ($query, $sectionId) => $query->where('class_section_id', $sectionId))
             ->get();
 
         if ($rows->isEmpty()) {
@@ -1956,6 +1953,64 @@ class ResultViewController extends Controller
             'position' => $position,
             'class_size' => $classSize ?: $existingClassSize,
         ];
+    }
+
+    private function applyHistoricalResultPlacement(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId = null,
+    ): void {
+        if (! $sessionId) {
+            return;
+        }
+
+        $placement = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->when($termId, fn ($query, $id) => $query->where('term_id', $id))
+            ->whereNotNull('school_class_id')
+            ->first(['school_class_id', 'class_arm_id', 'class_section_id']);
+
+        if (! $placement) {
+            return;
+        }
+
+        $student->school_class_id = $placement->school_class_id;
+        $student->class_arm_id = $placement->class_arm_id;
+        $student->class_section_id = $placement->class_section_id;
+        $student->unsetRelation('school_class');
+        $student->unsetRelation('class_arm');
+        $student->unsetRelation('class_section');
+        $student->loadMissing(['school_class', 'class_arm', 'class_section']);
+    }
+
+    private function resolveHistoricalClassSize(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId = null,
+    ): int {
+        if ($sessionId && $student->school_class_id) {
+            $historicalSize = Result::query()
+                ->where('session_id', $sessionId)
+                ->when($termId, fn ($query, $id) => $query->where('term_id', $id))
+                ->where('school_class_id', $student->school_class_id)
+                ->when($student->class_arm_id, fn ($query, $id) => $query->where('class_arm_id', $id))
+                ->when($student->class_section_id, fn ($query, $id) => $query->where('class_section_id', $id))
+                ->distinct()
+                ->count('student_id');
+
+            if ($historicalSize > 0) {
+                return $historicalSize;
+            }
+        }
+
+        return Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $id) => $query->where('class_arm_id', $id))
+            ->when($student->class_section_id, fn ($query, $id) => $query->where('class_section_id', $id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
     }
 
     private function resolveSubjectCount(Student $student): int
