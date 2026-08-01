@@ -768,6 +768,34 @@ class StudentAuthController extends Controller
     }
 
     /**
+     * Change the authenticated student's portal password.
+     */
+    public function changePassword(Request $request)
+    {
+        $student = $this->resolveStudentUser($request);
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        if (! $student->portal_password || ! Hash::check($validated['current_password'], $student->portal_password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $student->update([
+            'portal_password' => $validated['password'],
+            'portal_password_changed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Password changed successfully.',
+        ]);
+    }
+
+    /**
      * Delete a file from public storage (student context).
      */
     private function deleteStudentPublicFile(?string $url): void

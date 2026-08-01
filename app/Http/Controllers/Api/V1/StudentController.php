@@ -672,6 +672,29 @@ class StudentController extends Controller
     }
 
     /**
+     * Reset a student's portal password to the school default.
+     */
+    public function resetPortalPassword(Request $request, Student $student): JsonResponse
+    {
+        $this->ensurePermission($request, ['students.update', 'students.edit']);
+
+        if ($student->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $student->update([
+            'portal_password' => '123456',
+            'portal_password_changed_at' => now(),
+        ]);
+
+        $student->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Student password reset to 123456 successfully.',
+        ]);
+    }
+
+    /**
      * Remove the specified resource from storage.
      *
      * @param  \App\Models\Student  $student

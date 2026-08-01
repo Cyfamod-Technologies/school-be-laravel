@@ -77,6 +77,7 @@ Route::prefix('api/v1')->group(function () {
                 Route::post('logout', [StudentAuthController::class, 'logout']);
                 Route::get('profile', [StudentAuthController::class, 'profile']);
                 Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
+                Route::post('password/change', [StudentAuthController::class, 'changePassword']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
                 Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
@@ -192,6 +193,12 @@ Route::prefix('api/v1')->group(function () {
             'regenerateAdmissionNumbers',
         ])
             ->name('students.admission-numbers.regenerate');
+        Route::post('students/{student}/reset-password', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'resetPortalPassword',
+        ])
+            ->whereUuid('student')
+            ->name('students.password.reset');
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
         Route::get('student-term-summaries', [StudentTermSummaryController::class, 'batchIndex'])
             ->name('student-term-summaries.index');
