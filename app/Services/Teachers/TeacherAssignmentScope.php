@@ -73,6 +73,10 @@ class TeacherAssignmentScope
                 $outer->orWhere(function (Builder $clause) use ($context) {
                     $clause->where('school_class_id', $context['school_class_id']);
 
+                    if ($context['session_id']) {
+                        $clause->where('current_session_id', $context['session_id']);
+                    }
+
                     if ($context['class_arm_id']) {
                         $clause->where('class_arm_id', $context['class_arm_id']);
                     }
@@ -97,9 +101,6 @@ class TeacherAssignmentScope
                         $resultQuery->where('session_id', $context['session_id']);
                     }
 
-                    if ($context['term_id']) {
-                        $resultQuery->where('term_id', $context['term_id']);
-                    }
                 });
             }
         });
@@ -137,9 +138,6 @@ class TeacherAssignmentScope
                         $clause->where('session_id', $assignment->session_id);
                     }
 
-                    if ($assignment->term_id) {
-                        $clause->where('term_id', $assignment->term_id);
-                    }
 
                     $studentIds = $this->assignmentStudentIds($assignment);
                     if ($studentIds->isNotEmpty()) {
@@ -176,9 +174,6 @@ class TeacherAssignmentScope
                         $resultQuery->where('session_id', $context['session_id']);
                     }
 
-                    if ($context['term_id']) {
-                        $resultQuery->where('term_id', $context['term_id']);
-                    }
                 });
             }
 
@@ -242,9 +237,6 @@ class TeacherAssignmentScope
                 if ($sessionId && $assignment->session_id && $assignment->session_id !== $sessionId) {
                     return false;
                 }
-                if ($termId && $assignment->term_id && $assignment->term_id !== $termId) {
-                    return false;
-                }
                 return true;
             })
             ->values();
@@ -262,8 +254,19 @@ class TeacherAssignmentScope
             return true;
         }
 
-        // If there's no specific subject assignment, fall back to class teacher access.
-        return $this->allowsStudent($student);
+        // If there is no matching subject assignment, only a class-teacher
+        // allocation from the requested session may grant fallback access.
+        return $this->classAssignments
+            ->filter(function (ClassTeacher $assignment) use ($sessionId) {
+                return ! $sessionId
+                    || ! $assignment->session_id
+                    || (string) $assignment->session_id === $sessionId;
+            })
+            ->contains(fn (ClassTeacher $assignment) => $this->matchesContext([
+                'school_class_id' => $assignment->school_class_id,
+                'class_arm_id' => $assignment->class_arm_id ?? null,
+                'class_section_id' => $assignment->class_section_id ?? null,
+            ], $student));
     }
 
     /**
@@ -295,7 +298,7 @@ class TeacherAssignmentScope
                 $assignment->class_arm_id ?? null,
                 $assignment->class_section_id ?? null,
                 $assignment->session_id ?? null,
-                $assignment->term_id ?? null,
+                null,
             );
 
             if (! array_key_exists($key, $entries)) {
@@ -305,7 +308,7 @@ class TeacherAssignmentScope
                     'class_arm' => $this->formatArm($assignment),
                     'class_section' => $this->formatSection($assignment),
                     'session' => $this->formatSession($assignment),
-                    'term' => $this->formatTerm($assignment),
+                    'term' => null,
                     'subjects' => [],
                     'is_class_teacher' => false,
                 ];
@@ -409,7 +412,7 @@ class TeacherAssignmentScope
                 'class_arm_id' => $assignment->class_arm_id ?? null,
                 'class_section_id' => $assignment->class_section_id ?? null,
                 'session_id' => $assignment->session_id ?? null,
-                'term_id' => $assignment->term_id ?? null,
+                'term_id' => null,
             ]);
         };
 
@@ -422,7 +425,6 @@ class TeacherAssignmentScope
                 $context['class_arm_id'] ?? 'arm-null',
                 $context['class_section_id'] ?? 'section-null',
                 $context['session_id'] ?? 'session-null',
-                $context['term_id'] ?? 'term-null',
             ]))
             ->values();
     }
@@ -435,11 +437,13 @@ class TeacherAssignmentScope
                 'school_class_id' => $assignment->school_class_id,
                 'class_arm_id' => $assignment->class_arm_id ?? null,
                 'class_section_id' => $assignment->class_section_id ?? null,
+                'session_id' => $assignment->session_id ?? null,
             ])
             ->unique(fn (array $context) => implode(':', [
                 $context['school_class_id'] ?? 'class-null',
                 $context['class_arm_id'] ?? 'arm-null',
                 $context['class_section_id'] ?? 'section-null',
+                $context['session_id'] ?? 'session-null',
             ]))
             ->values();
     }
@@ -455,6 +459,12 @@ class TeacherAssignmentScope
         }
 
         if ($context['class_section_id'] && $context['class_section_id'] !== $student->class_section_id) {
+            return false;
+        }
+
+        if (($context['session_id'] ?? null)
+            && $student->current_session_id
+            && (string) $context['session_id'] !== (string) $student->current_session_id) {
             return false;
         }
 

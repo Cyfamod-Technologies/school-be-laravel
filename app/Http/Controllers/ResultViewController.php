@@ -2211,7 +2211,6 @@ class ResultViewController extends Controller
             ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
             ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
             ->when($sessionId, fn ($query) => $query->where('session_id', $sessionId))
-            ->when($termId, fn ($query) => $query->where('term_id', $termId))
             ->whereHas('school_class', fn ($query) => $query->where('school_id', $student->school_id))
             ->with('staff:id,full_name')
             ->orderByDesc('created_at')

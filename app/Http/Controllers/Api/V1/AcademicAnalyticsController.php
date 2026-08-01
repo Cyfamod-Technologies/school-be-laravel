@@ -136,7 +136,6 @@ class AcademicAnalyticsController extends Controller
             ->where('staff.school_id', $schoolId)
             ->whereIn('subject_teacher_assignments.school_class_id', $classIds)
             ->when($filters['session_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.session_id', $value))
-            ->when($filters['term_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.term_id', $value))
             ->when($filters['subject_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.subject_id', $value))
             ->selectRaw('subject_teacher_assignments.school_class_id as class_id')
             ->selectRaw('COUNT(DISTINCT subject_teacher_assignments.staff_id) as teacher_count')

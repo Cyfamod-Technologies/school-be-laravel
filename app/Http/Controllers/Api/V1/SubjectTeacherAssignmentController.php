@@ -29,14 +29,13 @@ class SubjectTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/subject-teacher-assignments",
      *     tags={"school-v1.7"},
      *     summary="List teacher-subject assignments",
-     *     description="Paginated list filtered by subject, staff, class, arm, section, session, or term.",
+     *     description="Paginated list filtered by subject, staff, class, arm, section, or session.",
      *     @OA\Parameter(name="subject_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="staff_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_section_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
-     *     @OA\Parameter(name="term_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="search", in="query", required=false, description="Search subject or teacher", @OA\Schema(type="string")),
      *     @OA\Response(response=200, description="Assignments returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
@@ -79,7 +78,6 @@ class SubjectTeacherAssignmentController extends Controller
             'school_class_id',
             'class_arm_id',
             'session_id',
-            'term_id',
         ];
 
         foreach ($filters as $filter) {
@@ -117,7 +115,7 @@ class SubjectTeacherAssignmentController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"staff_id","session_id","term_id"},
+     *             required={"staff_id","session_id"},
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
      *             @OA\Property(
      *                 property="subject_ids",
@@ -137,8 +135,7 @@ class SubjectTeacherAssignmentController extends Controller
      *             @OA\Property(property="school_class_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true),
-     *             @OA\Property(property="session_id", type="string", format="uuid"),
-     *             @OA\Property(property="term_id", type="string", format="uuid")
+     *             @OA\Property(property="session_id", type="string", format="uuid")
      *         )
      *     ),
      *     @OA\Response(response=201, description="Assignment created"),
@@ -169,7 +166,7 @@ class SubjectTeacherAssignmentController extends Controller
             'student_ids' => ['nullable', 'array'],
             'student_ids.*' => ['uuid'],
             'session_id' => ['required', 'uuid'],
-            'term_id' => ['required', 'uuid'],
+            'term_id' => ['nullable', 'uuid'],
         ]);
 
         $subjectIds = collect($validated['subject_ids'] ?? [$validated['subject_id'] ?? null])
@@ -334,8 +331,7 @@ class SubjectTeacherAssignmentController extends Controller
      *             @OA\Property(property="school_class_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true),
-     *             @OA\Property(property="session_id", type="string", format="uuid"),
-     *             @OA\Property(property="term_id", type="string", format="uuid")
+     *             @OA\Property(property="session_id", type="string", format="uuid")
      *         )
      *     ),
      *     @OA\Response(response=200, description="Assignment updated"),
@@ -364,7 +360,7 @@ class SubjectTeacherAssignmentController extends Controller
             'student_ids' => ['nullable', 'array'],
             'student_ids.*' => ['uuid'],
             'session_id' => ['sometimes', 'required', 'uuid'],
-            'term_id' => ['sometimes', 'required', 'uuid'],
+            'term_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
 
         $payload = [
@@ -376,7 +372,9 @@ class SubjectTeacherAssignmentController extends Controller
                 ? $validated['student_ids']
                 : $assignment->student_ids,
             'session_id' => $validated['session_id'] ?? $assignment->session_id,
-            'term_id' => $validated['term_id'] ?? $assignment->term_id,
+            'term_id' => array_key_exists('term_id', $validated)
+                ? $validated['term_id']
+                : (array_key_exists('session_id', $validated) ? null : $assignment->term_id),
         ];
 
         $entities = $this->resolveEntities($school->id, $payload);
@@ -433,7 +431,7 @@ class SubjectTeacherAssignmentController extends Controller
         $validated = $request->validate([
             'staff_id' => ['required', 'uuid'],
             'session_id' => ['required', 'uuid'],
-            'term_id' => ['required', 'uuid'],
+            'term_id' => ['nullable', 'uuid'],
             'assignments' => ['required', 'array', 'min:1'],
             'assignments.*.id' => ['nullable', 'uuid'],
             'assignments.*.subject_id' => ['required', 'uuid'],
@@ -451,14 +449,6 @@ class SubjectTeacherAssignmentController extends Controller
         }
 
         $prepared = collect($validated['assignments'])->map(function (array $row) use ($request, $school, $validated) {
-            $payload = [
-                ...$row,
-                'staff_id' => $validated['staff_id'],
-                'session_id' => $validated['session_id'],
-                'term_id' => $validated['term_id'],
-            ];
-            $entities = $this->resolveEntities($school->id, $payload);
-
             $assignment = null;
             if (! empty($row['id'])) {
                 $assignment = SubjectTeacherAssignment::find($row['id']);
@@ -467,6 +457,14 @@ class SubjectTeacherAssignmentController extends Controller
                 }
                 $this->authorizeTeacherAssignment($request, $assignment);
             }
+
+            $payload = [
+                ...$row,
+                'staff_id' => $validated['staff_id'],
+                'session_id' => $validated['session_id'],
+                'term_id' => $validated['term_id'] ?? $assignment?->term_id,
+            ];
+            $entities = $this->resolveEntities($school->id, $payload);
 
             return [
                 'assignment' => $assignment,
@@ -612,12 +610,18 @@ class SubjectTeacherAssignmentController extends Controller
             abort(404, 'Session not found for the authenticated school.');
         }
 
-        $term = Term::where('id', $payload['term_id'])
-            ->where('school_id', $schoolId)
-            ->first();
+        $term = ! empty($payload['term_id'])
+            ? Term::where('id', $payload['term_id'])
+                ->where('school_id', $schoolId)
+                ->first()
+            : Term::where('school_id', $schoolId)
+                ->where('session_id', $session->id)
+                ->orderBy('start_date')
+                ->orderBy('created_at')
+                ->first();
 
         if (! $term) {
-            abort(404, 'Term not found for the authenticated school.');
+            abort(422, 'The selected session must have at least one term.');
         }
 
         if ($term->session_id !== $session->id) {
@@ -641,8 +645,7 @@ class SubjectTeacherAssignmentController extends Controller
             ->where('staff_id', $entities['staff']->id)
             ->when($entities['class'], fn (Builder $builder, SchoolClass $class) => $builder->where('school_class_id', $class->id), fn (Builder $builder) => $builder->whereNull('school_class_id'))
             ->when($entities['class_arm'], fn (Builder $builder, ClassArm $arm) => $builder->where('class_arm_id', $arm->id), fn (Builder $builder) => $builder->whereNull('class_arm_id'))
-            ->where('session_id', $entities['session']->id)
-            ->where('term_id', $entities['term']->id);
+            ->where('session_id', $entities['session']->id);
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
