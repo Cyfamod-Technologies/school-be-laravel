@@ -186,8 +186,9 @@
 
         .session-table .subject-text {
             display: block;
-            padding: 0 24px;
-            text-align: center;
+            padding-left: 28px;
+            text-align: left;
+            white-space: nowrap;
         }
 
         .session-summary-grid {
