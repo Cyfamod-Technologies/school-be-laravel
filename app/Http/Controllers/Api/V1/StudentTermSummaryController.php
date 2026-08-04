@@ -519,6 +519,10 @@ class StudentTermSummaryController extends Controller
         }
 
         // Fallback to default hardcoded comments
+        if ($average >= 80) {
+            return 'An outstanding performance. The student demonstrates exceptional understanding, excellent participation, and remarkable consistency. Keep up the excellent work.';
+        }
+
         if ($average >= 70) {
             return 'An excellent performance. The student demonstrates strong understanding, active participation, and consistent effort in class. Keep striving for excellence.';
         }
@@ -539,7 +543,15 @@ class StudentTermSummaryController extends Controller
             return 'A weak pass. The student shows minimal understanding and must improve study habits and commitment.';
         }
 
-        return 'A poor performance. The student needs serious improvement, more practice, and closer academic guidance.';
+        if ($average >= 35) {
+            return 'A below-average performance. The student shows limited understanding and needs greater concentration, regular practice, and additional academic support.';
+        }
+
+        if ($average >= 30) {
+            return 'A poor performance. The student is struggling with key concepts and needs consistent practice, closer supervision, and serious improvement.';
+        }
+
+        return 'A very poor performance. The student requires urgent academic support, regular revision, and close guidance to improve.';
     }
 
     private function generatePrincipalComment(?float $average, ?Student $student, ?string $sessionId): string
