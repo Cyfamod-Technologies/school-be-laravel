@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\ResultViewController;
 use App\Models\ClassArm;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Subject;
 use App\Models\SubjectAssignment;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -109,4 +111,34 @@ it('skips duplicate subject assignments during bulk create', function () {
             ->where('class_arm_id', $this->arm->id)
             ->count()
     )->toBe(3);
+});
+
+it('counts arm-specific subjects without adding class-wide assignments', function () {
+    SubjectAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectA->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => null,
+        'class_section_id' => null,
+    ]);
+
+    foreach ([$this->subjectB, $this->subjectC] as $subject) {
+        SubjectAssignment::create([
+            'id' => (string) Str::uuid(),
+            'subject_id' => $subject->id,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->arm->id,
+            'class_section_id' => null,
+        ]);
+    }
+
+    $student = new Student;
+    $student->school_class_id = $this->class->id;
+    $student->class_arm_id = $this->arm->id;
+    $student->class_section_id = null;
+
+    $method = new ReflectionMethod(ResultViewController::class, 'resolveSubjectCount');
+    $subjectCount = $method->invoke(new ResultViewController, $student);
+
+    expect($subjectCount)->toBe(2);
 });

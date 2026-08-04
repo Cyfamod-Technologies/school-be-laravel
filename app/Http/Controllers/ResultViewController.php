@@ -2034,28 +2034,36 @@ class ResultViewController extends Controller
             return 0;
         }
 
-        $query = SubjectAssignment::query()
+        $baseQuery = SubjectAssignment::query()
             ->where('school_class_id', $student->school_class_id);
 
         if ($student->class_arm_id) {
-            $query->where(function ($builder) use ($student) {
-                $builder->whereNull('class_arm_id')
-                    ->orWhere('class_arm_id', $student->class_arm_id);
-            });
+            $armQuery = (clone $baseQuery)
+                ->where('class_arm_id', $student->class_arm_id);
+
+            if ($armQuery->exists()) {
+                $baseQuery = $armQuery;
+            } else {
+                $baseQuery->whereNull('class_arm_id');
+            }
         } else {
-            $query->whereNull('class_arm_id');
+            $baseQuery->whereNull('class_arm_id');
         }
 
         if ($student->class_section_id) {
-            $query->where(function ($builder) use ($student) {
-                $builder->whereNull('class_section_id')
-                    ->orWhere('class_section_id', $student->class_section_id);
-            });
+            $sectionQuery = (clone $baseQuery)
+                ->where('class_section_id', $student->class_section_id);
+
+            if ($sectionQuery->exists()) {
+                $baseQuery = $sectionQuery;
+            } else {
+                $baseQuery->whereNull('class_section_id');
+            }
         } else {
-            $query->whereNull('class_section_id');
+            $baseQuery->whereNull('class_section_id');
         }
 
-        return (int) $query->distinct('subject_id')->count('subject_id');
+        return (int) $baseQuery->distinct('subject_id')->count('subject_id');
     }
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
