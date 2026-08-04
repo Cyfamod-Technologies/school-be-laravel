@@ -309,3 +309,19 @@ it('allows an assigned class teacher to open student details without a separate 
         ->assertOk()
         ->assertJsonPath('data.id', $this->student->id);
 });
+
+it('resolves legacy students before repairing invalid foreign keys', function () {
+    DB::table('students')
+        ->where('id', $this->student->id)
+        ->update(['class_section_id' => '0']);
+
+    expect(Student::query()->whereKey($this->student->id)->exists())->toBeFalse();
+
+    getJson(route('students.show', $this->student->id))
+        ->assertOk()
+        ->assertJsonPath('data.id', $this->student->id)
+        ->assertJsonPath('data.class_section_id', null);
+
+    expect(DB::table('students')->where('id', $this->student->id)->value('class_section_id'))
+        ->toBeNull();
+});

@@ -145,6 +145,22 @@ class Student extends Model implements AuthenticatableContract
         });
     }
 
+    /**
+     * Resolve route-bound students before the legacy UUID cleanup runs.
+     *
+     * Some older student rows contain invalid nullable foreign-key values. The
+     * validUuids scope intentionally hides those rows from normal queries, but
+     * applying it during implicit route binding means controller actions never
+     * get the opportunity to repair them. Only remove that data-quality scope
+     * here; controller-level school and teacher authorization still applies.
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null)
+    {
+        return $query
+            ->withoutGlobalScope('validUuids')
+            ->where($field ?? $this->getRouteKeyName(), $value);
+    }
+
     public function getGenderAttribute($value)
     {
         return match ($value) {
