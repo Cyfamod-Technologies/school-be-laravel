@@ -615,6 +615,12 @@ class ResultViewController extends Controller
             $subjectCount
         );
 
+        // Keep the summary in sync with the totals visible in the report table.
+        $displayedTotalObtained = $this->resolveDisplayedTotalObtained($subjectRows);
+        if ($displayedTotalObtained !== null) {
+            $overallStats['total_obtained'] = $displayedTotalObtained;
+        }
+
         if ($subjectCount > 0) {
             $overallStats['total_possible'] = $subjectCount * 100;
             $overallStats['average'] = $overallStats['total_obtained'] !== null
@@ -2011,6 +2017,15 @@ class ResultViewController extends Controller
             ->when($student->class_section_id, fn ($query, $id) => $query->where('class_section_id', $id))
             ->whereNotIn('status', ['inactive', 'Inactive'])
             ->count();
+    }
+
+    private function resolveDisplayedTotalObtained(Collection $subjectRows): ?float
+    {
+        $totals = $subjectRows
+            ->pluck('total')
+            ->filter(fn ($total) => $total !== null && is_numeric($total));
+
+        return $totals->isEmpty() ? null : round((float) $totals->sum(), 2);
     }
 
     private function resolveSubjectCount(Student $student): int

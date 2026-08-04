@@ -28,3 +28,22 @@ it('calculates report aggregates using offered subjects and student class averag
         ->and($result['average'])->toBe(85.2)
         ->and($result['class_average'])->toBe(80.0);
 });
+
+it('sums marks obtained from the totals displayed in the report table', function () {
+    $method = new ReflectionMethod(ResultViewController::class, 'resolveDisplayedTotalObtained');
+
+    $total = $method->invoke(
+        new ResultViewController,
+        collect([
+            ['total' => 55],
+            ['total' => 57],
+            ['total' => 40],
+            ['total' => 67],
+            ['total' => 62],
+            ['total' => 40],
+            ['total' => 27],
+        ]),
+    );
+
+    expect($total)->toBe(348.0);
+});
