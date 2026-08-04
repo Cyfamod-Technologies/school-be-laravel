@@ -108,7 +108,60 @@ class TeacherAssignmentScope
 
     public function restrictAttendanceQuery(Builder $builder): void
     {
-        $this->restrictStudentQuery($builder);
+        if (! $this->isTeacher) {
+            return;
+        }
+
+        $contexts = $this->studentContexts();
+        $explicitStudentIds = $this->explicitStudentIds();
+
+        if ($contexts->isEmpty() && $explicitStudentIds->isEmpty()) {
+            $builder->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $builder->where(function (Builder $outer) use ($contexts, $explicitStudentIds) {
+            if ($explicitStudentIds->isNotEmpty()) {
+                $outer->orWhereIn('student_id', $explicitStudentIds->values()->all());
+            }
+
+            foreach ($contexts as $context) {
+                // Prefer the historical placement stored on the attendance row.
+                $outer->orWhere(function (Builder $attendanceQuery) use ($context) {
+                    $attendanceQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $attendanceQuery->where('session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $attendanceQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $attendanceQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+
+                // Support legacy attendance rows that do not contain placement snapshots.
+                $outer->orWhereHas('student', function (Builder $studentQuery) use ($context) {
+                    $studentQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $studentQuery->where('current_session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $studentQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $studentQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+            }
+        });
     }
 
     public function restrictResultQuery(Builder $builder): void
