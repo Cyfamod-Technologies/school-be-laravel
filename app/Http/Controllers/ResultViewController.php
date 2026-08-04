@@ -1829,11 +1829,17 @@ class ResultViewController extends Controller
             ];
         }
 
-        $subjectIds = $results
-            ->pluck('subject_id')
-            ->filter()
-            ->unique()
-            ->values();
+        // Every report for the same class context must use the same subject
+        // population when calculating class-wide totals and averages.
+        $subjectIds = $this->resolveSubjectIds($student);
+
+        if ($subjectIds->isEmpty()) {
+            $subjectIds = $results
+                ->pluck('subject_id')
+                ->filter()
+                ->unique()
+                ->values();
+        }
 
         if ($subjectIds->isEmpty()) {
             return [
@@ -2042,8 +2048,13 @@ class ResultViewController extends Controller
 
     private function resolveSubjectCount(Student $student): int
     {
+        return $this->resolveSubjectIds($student)->count();
+    }
+
+    private function resolveSubjectIds(Student $student): Collection
+    {
         if (! $student->school_class_id) {
-            return 0;
+            return collect();
         }
 
         $baseQuery = SubjectAssignment::query()
@@ -2075,7 +2086,11 @@ class ResultViewController extends Controller
             $baseQuery->whereNull('class_section_id');
         }
 
-        return (int) $baseQuery->distinct('subject_id')->count('subject_id');
+        return $baseQuery
+            ->distinct()
+            ->pluck('subject_id')
+            ->filter()
+            ->values();
     }
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
