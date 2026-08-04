@@ -170,6 +170,26 @@
             min-width: 160px;
         }
 
+        .session-table .subject-label {
+            display: block;
+            position: relative;
+            min-height: 1em;
+        }
+
+        .session-table .subject-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 24px;
+            text-align: left;
+        }
+
+        .session-table .subject-text {
+            display: block;
+            padding: 0 24px;
+            text-align: center;
+        }
+
         .session-summary-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));

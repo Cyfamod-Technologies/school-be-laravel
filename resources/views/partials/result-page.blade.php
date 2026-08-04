@@ -137,7 +137,12 @@
             </tr>
             @forelse($resultsRows as $row)
                 <tr>
-                    <td class="subject-name">{{ $loop->iteration }}. {{ $row['subject_name'] }}</td>
+                    <td class="subject-name">
+                        <span class="subject-label">
+                            <span class="subject-number">{{ $loop->iteration }}.</span>
+                            <span class="subject-text">{{ $row['subject_name'] }}</span>
+                        </span>
+                    </td>
                     @foreach($resultsColumns as $column)
                         @php
                             $value = $row['component_values'][$column['id']] ?? null;
