@@ -79,7 +79,10 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        $this->ensurePermission($request, 'students.view');
+        $scope = $this->teacherAccess->forUser($request->user());
+        if (! $scope->isTeacher()) {
+            $this->ensurePermission($request, 'students.view');
+        }
         Student::fixLegacyForeignKeys();
         $perPage = max((int) $request->input('per_page', 10), 1);
 
@@ -183,7 +186,6 @@ class StudentController extends Controller
                 }
             });
 
-        $scope = $this->teacherAccess->forUser($request->user());
         $scope->restrictStudentQuery($query);
 
         $students = $query->paginate($perPage)->withQueryString();
@@ -493,13 +495,14 @@ class StudentController extends Controller
      */
     public function show(Request $request, Student $student)
     {
-        $this->ensurePermission($request, 'students.view');
+        $scope = $this->teacherAccess->forUser($request->user());
+        if (! $scope->isTeacher()) {
+            $this->ensurePermission($request, 'students.view');
+        }
         Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
-
-        $scope = $this->teacherAccess->forUser($request->user());
 
         if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($student)) {
             abort(403, 'You are not allowed to view this student.');

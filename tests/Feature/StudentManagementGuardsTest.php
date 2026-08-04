@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\ClassTeacher;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
@@ -272,4 +273,39 @@ it('prevents subject teachers from opening student records without class teacher
 
     getJson(route('students.show', $this->student->id))
         ->assertForbidden();
+});
+
+it('allows an assigned class teacher to open student details without a separate students view permission', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'teacher',
+        'status' => 'active',
+    ]);
+
+    $staff = Staff::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'user_id' => $teacherUser->id,
+        'full_name' => 'Assigned Class Teacher',
+        'email' => 'class.teacher.guard@example.test',
+        'phone' => '08030000000',
+        'role' => 'Class Teacher',
+        'gender' => 'female',
+    ]);
+
+    ClassTeacher::create([
+        'id' => (string) Str::uuid(),
+        'staff_id' => $staff->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->arm->id,
+        'class_section_id' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    getJson(route('students.show', $this->student->id))
+        ->assertOk()
+        ->assertJsonPath('data.id', $this->student->id);
 });
