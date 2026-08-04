@@ -120,7 +120,7 @@
         <tbody>
             @forelse($resultsRows as $row)
                 <tr>
-                    <td class="subject-name">{{ $row['subject_name'] }}</td>
+                    <td class="subject-name">{{ $loop->iteration }}. {{ $row['subject_name'] }}</td>
                     @foreach($termSections as $section)
                         @php
                             $termNumber = $section['number'] ?? null;
