@@ -109,6 +109,7 @@ describe('Result PIN management', function () {
         ])->assertCreated()
             ->assertJsonPath('data.student_id', $this->student->id)
             ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('data.distribution_status', 'not_sent')
             ->assertJsonPath('data.max_usage', 5);
 
         $pin = ResultPin::query()->where('student_id', $this->student->id)->first();
@@ -116,6 +117,69 @@ describe('Result PIN management', function () {
         expect($pin)->not->toBeNull()
             ->and($pin->max_usage)->toBe(5)
             ->and($pin->use_count)->toBe(0);
+    });
+
+    it('hides generated pins from the student until an administrator sends them', function () {
+        postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'max_usage' => 3,
+        ])->assertCreated();
+
+        Sanctum::actingAs($this->student, [], 'student');
+
+        getJson(route('student.result-pins.index'))
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    });
+
+    it('sends generated pins to selected student dashboards', function () {
+        foreach ($this->students->take(2) as $student) {
+            postJson(route('students.result-pins.store', ['student' => $student->id]), [
+                'session_id' => $this->session->id,
+                'term_id' => $this->term->id,
+                'max_usage' => 3,
+            ])->assertCreated();
+        }
+
+        $selectedStudentIds = $this->students->take(2)->pluck('id')->all();
+
+        postJson(route('result-pins.distribute'), [
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'student_ids' => $selectedStudentIds,
+        ])->assertOk()
+            ->assertJsonPath('sent_count', 2)
+            ->assertJsonPath('already_sent_count', 0);
+
+        expect(ResultPin::query()->whereIn('student_id', $selectedStudentIds)->whereNotNull('sent_at')->count())
+            ->toBe(2);
+
+        Sanctum::actingAs($this->student, [], 'student');
+
+        getJson(route('student.result-pins.index'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', 'active')
+            ->assertJsonPath('data.0.distribution_status', 'sent');
+    });
+
+    it('does not partially send class pins when generated pins are insufficient', function () {
+        postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+        ])->assertCreated();
+
+        postJson(route('result-pins.distribute'), [
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->classArm->id,
+        ])->assertStatus(422)
+            ->assertJsonPath('required', 3)
+            ->assertJsonPath('available', 1);
+
+        expect(ResultPin::query()->whereNotNull('sent_at')->count())->toBe(0);
     });
 
     it('prevents duplicate active pins unless regenerate is true', function () {
@@ -163,15 +227,20 @@ describe('Result PIN management', function () {
             'term_id' => $this->term->id,
             'pin_code' => 'ABCDEFGH',
             'status' => 'active',
+            'sent_at' => now(),
+            'sent_by' => $this->admin->id,
         ]);
 
         putJson(route('result-pins.invalidate', ['resultPin' => $pin->id]))
             ->assertOk()
-            ->assertJsonPath('data.status', 'revoked');
+            ->assertJsonPath('data.status', 'revoked')
+            ->assertJsonPath('data.distribution_status', 'not_sent');
 
         $pin->refresh();
 
-        expect($pin->status)->toBe('revoked');
+        expect($pin->status)->toBe('revoked')
+            ->and($pin->sent_at)->toBeNull()
+            ->and($pin->sent_by)->toBeNull();
     });
 
     it('lists result pins for a student', function () {

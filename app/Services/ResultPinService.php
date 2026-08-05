@@ -30,6 +30,7 @@ class ResultPinService
         }
 
         $expiresAt = Arr::get($options, 'expires_at');
+        $hasExpiresAt = array_key_exists('expires_at', $options);
         if ($expiresAt) {
             $expiresAt = Carbon::parse($expiresAt);
         }
@@ -41,7 +42,7 @@ class ResultPinService
             $maxUsage = (int) $maxUsage;
         }
 
-        return DB::transaction(function () use ($student, $session, $term, $createdBy, $expiresAt, $regenerate, $hasMaxUsage, $maxUsage) {
+        return DB::transaction(function () use ($student, $session, $term, $createdBy, $expiresAt, $hasExpiresAt, $regenerate, $hasMaxUsage, $maxUsage) {
             $existing = ResultPin::query()
                 ->where('student_id', $student->id)
                 ->where('session_id', $session->id)
@@ -59,8 +60,12 @@ class ResultPinService
 
                 $existing->pin_code = $pinValue;
                 $existing->status = 'active';
-                $existing->expires_at = $expiresAt ?? $existing->expires_at;
+                if ($hasExpiresAt) {
+                    $existing->expires_at = $expiresAt;
+                }
                 $existing->revoked_at = null;
+                $existing->sent_at = null;
+                $existing->sent_by = null;
                 $existing->created_by = $createdBy;
                 $existing->use_count = 0;
                 if ($hasMaxUsage) {
@@ -81,6 +86,8 @@ class ResultPinService
                 'created_by' => $createdBy,
                 'use_count' => 0,
                 'max_usage' => $hasMaxUsage ? $maxUsage : null,
+                'sent_at' => null,
+                'sent_by' => null,
             ]);
         });
     }
@@ -90,8 +97,11 @@ class ResultPinService
         if ($pin->status !== 'revoked') {
             $pin->status = 'revoked';
             $pin->revoked_at = Carbon::now();
-            $pin->save();
         }
+
+        $pin->sent_at = null;
+        $pin->sent_by = null;
+        $pin->save();
 
         return $pin;
     }

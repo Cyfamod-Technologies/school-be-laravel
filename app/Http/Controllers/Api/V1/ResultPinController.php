@@ -11,6 +11,7 @@ use App\Services\ResultPinService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -221,6 +222,180 @@ class ResultPinController extends Controller
             'count' => count($pins),
             'data' => collect($pins)->map(fn (ResultPin $pin) => $this->transformPin($pin)),
         ]);
+    }
+
+    /**
+     * Send already-generated PINs to one student, selected students, selected
+     * PIN rows, or every eligible student in a class.
+     */
+    public function distribute(Request $request)
+    {
+        $this->ensurePermission($request, 'result.pin.create');
+
+        $validated = $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'pin_ids' => ['nullable', 'array', 'min:1'],
+            'pin_ids.*' => ['uuid'],
+            'student_ids' => ['nullable', 'array', 'min:1'],
+            'student_ids.*' => ['uuid'],
+            'school_class_id' => ['nullable', 'uuid'],
+            'class_arm_id' => ['nullable', 'uuid'],
+        ]);
+
+        $user = $request->user();
+        $school = $user?->school;
+
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $pinIds = collect($validated['pin_ids'] ?? [])
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+        $studentIds = collect($validated['student_ids'] ?? [])
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values();
+
+        if ($pinIds->isEmpty() && $studentIds->isEmpty() && empty($validated['school_class_id'])) {
+            return response()->json([
+                'message' => 'Select PINs, students, or a class to send result PINs.',
+            ], 422);
+        }
+
+        if ($pinIds->isNotEmpty()) {
+            $pins = ResultPin::query()
+                ->whereIn('id', $pinIds)
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->whereHas('student', fn ($query) => $query->where('school_id', $school->id))
+                ->get();
+
+            if ($pins->count() !== $pinIds->count()) {
+                return response()->json([
+                    'message' => 'One or more selected PINs are invalid or belong to another school, session, or term.',
+                ], 422);
+            }
+
+            if ($studentIds->isNotEmpty()) {
+                $unexpectedStudentIds = $pins->pluck('student_id')
+                    ->map(fn ($id) => (string) $id)
+                    ->diff($studentIds);
+                if ($unexpectedStudentIds->isNotEmpty()) {
+                    return response()->json([
+                        'message' => 'Each selected PIN must belong to one of the selected students.',
+                    ], 422);
+                }
+            }
+
+            $requiredCount = $pins->count();
+        } else {
+            $studentsQuery = Student::query()
+                ->where('school_id', $school->id)
+                ->where('status', 'active');
+
+            if ($studentIds->isNotEmpty()) {
+                $studentsQuery->whereIn('id', $studentIds);
+            } else {
+                $studentsQuery->where('school_class_id', $validated['school_class_id']);
+                if (! empty($validated['class_arm_id'])) {
+                    $studentsQuery->where('class_arm_id', $validated['class_arm_id']);
+                }
+            }
+
+            $targetStudents = $studentsQuery->get(['id']);
+
+            if ($studentIds->isNotEmpty() && $targetStudents->count() !== $studentIds->count()) {
+                return response()->json([
+                    'message' => 'One or more selected students are invalid or belong to another school.',
+                ], 422);
+            }
+
+            if ($targetStudents->isEmpty()) {
+                return response()->json([
+                    'message' => 'No eligible students were found for the selected distribution.',
+                ], 404);
+            }
+
+            $pins = ResultPin::query()
+                ->whereIn('student_id', $targetStudents->pluck('id'))
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->get();
+            $requiredCount = $targetStudents->count();
+        }
+
+        $alreadySent = $pins->filter(
+            fn (ResultPin $pin) => $pin->sent_at !== null && $pin->status !== 'revoked'
+        );
+        $available = $pins->filter(fn (ResultPin $pin) => $this->isPinAvailableForDistribution($pin));
+        $fulfilledCount = $alreadySent->count() + $available->count();
+
+        if ($fulfilledCount < $requiredCount) {
+            return response()->json([
+                'message' => "There are not enough available PINs for the selected students. Required: {$requiredCount}. Available: {$fulfilledCount}.",
+                'required' => $requiredCount,
+                'available' => $fulfilledCount,
+            ], 422);
+        }
+
+        if ($requiredCount === 1 && $alreadySent->count() === 1 && $available->isEmpty()) {
+            return response()->json([
+                'message' => 'This student already has a result PIN for the selected session and term.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($available, $user): void {
+            foreach ($available as $pin) {
+                $pin->forceFill([
+                    'sent_at' => now(),
+                    'sent_by' => $user->id,
+                ])->save();
+            }
+        });
+
+        $sentPins = $available->map(fn (ResultPin $pin) => $pin->fresh());
+
+        return response()->json([
+            'message' => "Result PINs were successfully sent to {$sentPins->count()} students.",
+            'sent_count' => $sentPins->count(),
+            'already_sent_count' => $alreadySent->count(),
+            'data' => $sentPins->map(fn (ResultPin $pin) => $this->transformPin($pin)),
+        ]);
+    }
+
+    /**
+     * Return only PINs explicitly released to the authenticated student.
+     */
+    public function studentDashboard(Request $request)
+    {
+        $student = $request->user('student');
+
+        if (! ($student instanceof Student)) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $pins = ResultPin::query()
+            ->with(['session:id,name,school_id', 'term:id,name,session_id,school_id'])
+            ->where('student_id', $student->id)
+            ->whereNotNull('sent_at')
+            ->where('status', '!=', 'revoked')
+            ->whereHas('session', fn ($query) => $query->where('school_id', $student->school_id))
+            ->whereHas('term', fn ($query) => $query->where('school_id', $student->school_id))
+            ->orderByDesc('sent_at')
+            ->get()
+            ->map(function (ResultPin $pin): array {
+                $payload = $this->transformPin($pin, true);
+                $payload['status'] = $this->effectivePinStatus($pin);
+
+                return $payload;
+            });
+
+        return response()->json(['data' => $pins]);
     }
 
     /**
@@ -551,6 +726,10 @@ class ResultPinController extends Controller
             'updated_at' => optional($pin->updated_at)->toISOString(),
             'use_count' => $pin->use_count,
             'max_usage' => $pin->max_usage,
+            'sent_at' => optional($pin->sent_at)->toISOString(),
+            'sent_by' => $pin->sent_by,
+            'distribution_status' => $this->distributionStatus($pin),
+            'effective_status' => $this->effectivePinStatus($pin),
             'student_name' => $studentName,
             'session_name' => $sessionName,
             'term_name' => $termName,
@@ -568,5 +747,44 @@ class ResultPinController extends Controller
                 'name' => $termName,
             ] : null,
         ];
+    }
+
+    private function isPinAvailableForDistribution(ResultPin $pin): bool
+    {
+        if ($pin->sent_at !== null || $pin->status !== 'active') {
+            return false;
+        }
+
+        if ($pin->expires_at && $pin->expires_at->isPast()) {
+            return false;
+        }
+
+        return ! ($pin->max_usage && $pin->use_count >= $pin->max_usage);
+    }
+
+    private function distributionStatus(ResultPin $pin): string
+    {
+        if ($pin->status === 'revoked') {
+            return 'not_sent';
+        }
+
+        return $pin->sent_at ? 'sent' : 'not_sent';
+    }
+
+    private function effectivePinStatus(ResultPin $pin): string
+    {
+        if ($pin->status === 'revoked') {
+            return 'disabled';
+        }
+
+        if ($pin->expires_at && $pin->expires_at->isPast()) {
+            return 'expired';
+        }
+
+        if ($pin->max_usage && $pin->use_count >= $pin->max_usage) {
+            return 'used';
+        }
+
+        return 'active';
     }
 }

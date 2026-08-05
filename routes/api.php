@@ -79,6 +79,8 @@ Route::prefix('api/v1')->group(function () {
                 Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
                 Route::post('password/change', [StudentAuthController::class, 'changePassword']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
+                Route::get('result-pins', [ResultPinController::class, 'studentDashboard'])
+                    ->name('student.result-pins.index');
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
                 Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
                 Route::get('parent', [StudentAuthController::class, 'getParent']);
@@ -253,6 +255,8 @@ Route::prefix('api/v1')->group(function () {
                 ->name('result-pins.index');
             Route::post('bulk', [ResultPinController::class, 'bulkGenerate'])
                 ->name('result-pins.bulk-generate');
+            Route::post('distribute', [ResultPinController::class, 'distribute'])
+                ->name('result-pins.distribute');
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
