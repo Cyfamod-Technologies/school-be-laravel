@@ -36,77 +36,79 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Result extends Model
 {
-    protected $table = 'results';
+	protected $table = 'results';
+	public $incrementing = false;
 
-    public $incrementing = false;
+	protected $keyType = 'string';
 
-    protected $keyType = 'string';
+	protected $casts = [
+		'total_score' => 'float',
+		'position_in_subject' => 'int',
+		'lowest_in_class' => 'float',
+		'highest_in_class' => 'float',
+		'class_average' => 'float'
+	];
 
-    protected $casts = [
-        'total_score' => 'float',
-        'position_in_subject' => 'int',
-        'lowest_in_class' => 'float',
-        'highest_in_class' => 'float',
-        'class_average' => 'float',
-    ];
+	public const NULL_COMPONENT_UUID = '00000000-0000-0000-0000-000000000000';
 
-    public const NULL_COMPONENT_UUID = '00000000-0000-0000-0000-000000000000';
+	protected $fillable = [
+		'id',
+		'student_id',
+		'subject_id',
+		'assessment_component_id',
+		'term_id',
+		'session_id',
+		'school_class_id',
+		'class_arm_id',
+		'class_section_id',
+		'total_score',
+		'position_in_subject',
+		'lowest_in_class',
+		'highest_in_class',
+		'class_average',
+		'grade_id',
+		'remarks',
+		'component_slot'
+	];
 
-    protected $fillable = [
-        'id',
-        'student_id',
-        'subject_id',
-        'assessment_component_id',
-        'term_id',
-        'session_id',
-        'total_score',
-        'position_in_subject',
-        'lowest_in_class',
-        'highest_in_class',
-        'class_average',
-        'grade_id',
-        'remarks',
-        'component_slot',
-    ];
+	public function setAssessmentComponentIdAttribute($value): void
+	{
+		$this->attributes['assessment_component_id'] = $value;
+		$this->attributes['component_slot'] = $value ?? self::NULL_COMPONENT_UUID;
+	}
 
-    public function setAssessmentComponentIdAttribute($value): void
-    {
-        $this->attributes['assessment_component_id'] = $value;
-        $this->attributes['component_slot'] = $value ?? self::NULL_COMPONENT_UUID;
-    }
+	public function setComponentSlotAttribute($value): void
+	{
+		$this->attributes['component_slot'] = $value ?? self::NULL_COMPONENT_UUID;
+	}
 
-    public function setComponentSlotAttribute($value): void
-    {
-        $this->attributes['component_slot'] = $value ?? self::NULL_COMPONENT_UUID;
-    }
+	public function grade_range()
+	{
+		return $this->belongsTo(GradeRange::class, 'grade_id');
+	}
 
-    public function grade_range()
-    {
-        return $this->belongsTo(GradeRange::class, 'grade_id');
-    }
+	public function session()
+	{
+		return $this->belongsTo(Session::class);
+	}
 
-    public function session()
-    {
-        return $this->belongsTo(Session::class);
-    }
+	public function student()
+	{
+		return $this->belongsTo(Student::class);
+	}
 
-    public function student()
-    {
-        return $this->belongsTo(Student::class);
-    }
+	public function subject()
+	{
+		return $this->belongsTo(Subject::class);
+	}
 
-    public function subject()
-    {
-        return $this->belongsTo(Subject::class);
-    }
+	public function term()
+	{
+		return $this->belongsTo(Term::class);
+	}
 
-    public function term()
-    {
-        return $this->belongsTo(Term::class);
-    }
-
-    public function assessment_component()
-    {
-        return $this->belongsTo(AssessmentComponent::class);
-    }
+	public function assessment_component()
+	{
+		return $this->belongsTo(AssessmentComponent::class);
+	}
 }

@@ -73,6 +73,8 @@
 <body>
 @php
     $classLabel = trim(collect([$studentInfo['class'] ?? null, $studentInfo['class_arm'] ?? null])->filter()->implode(' '));
+    $resolvedSignatoryTitle = strtolower((string) ($signatoryTitle ?? 'principal'));
+    $signatoryLabel = $resolvedSignatoryTitle === 'director' ? 'Director' : 'Principal';
 @endphp
 <div class="page">
     @if(($showPrintButton ?? true))
@@ -215,11 +217,21 @@
                     <strong>Class Teacher:</strong> {{ $classTeacherName }}
                 </div>
             @endif
+
+            <div style="margin-top: 12px;">
+                <strong>{{ $signatoryLabel }}'s Comment:</strong>
+                {{ $principalComment ?? 'No comment provided.' }}
+            </div>
+            @if(!empty($principalName))
+                <div style="margin-top: 6px;">
+                    <strong>{{ $signatoryLabel }}:</strong> {{ $principalName }}
+                </div>
+            @endif
         </div>
         <div class="signature-box">
-            <strong>Director's Signature</strong>
-            @if($directorSignatureUrl)
-                <img src="{{ $directorSignatureUrl }}" alt="Director signature">
+            <strong>{{ $signatoryLabel }}'s Signature</strong>
+            @if($principalSignatureUrl)
+                <img src="{{ $principalSignatureUrl }}" alt="{{ $signatoryLabel }} signature">
             @else
                 <div class="signature-line"></div>
             @endif

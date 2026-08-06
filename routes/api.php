@@ -48,7 +48,17 @@ use App\Http\Controllers\Api\V1\TermController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\UserRoleController;
 use App\Http\Controllers\ResultViewController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\QuizController;
+use App\Http\Controllers\Api\V1\QuizQuestionController;
+use App\Http\Controllers\Api\V1\QuizAttemptController;
+use App\Http\Controllers\Api\V1\QuizAnswerController;
+use App\Http\Controllers\Api\V1\QuizResultController;
+use App\Http\Controllers\Api\V1\PermissionSeedController;
+use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
+use App\Http\Controllers\Api\V1\BroadsheetController;
+use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
+use App\Http\Controllers\Api\V1\AccountLookupController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -59,36 +69,38 @@ Route::domain('{subdomain}.'.$host)->group(function () {
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
 
 Route::prefix('api/v1')->group(function () {
+    Route::post('/find-account', AccountLookupController::class)
+        ->middleware('throttle:20,1');
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
-    Route::get('/public/schools/resolve-domain', [PublicSchoolWebsiteController::class, 'resolveDomain'])->name('public.schools.resolve-domain');
-    Route::get('/public/schools/{schoolSlug}/website', [PublicSchoolWebsiteController::class, 'show'])->name('public.schools.website.show');
-    Route::get('/public/schools/{schoolSlug}/website/preview', [PublicSchoolWebsiteController::class, 'preview'])
-        ->middleware('signed')
-        ->name('public.schools.website.preview');
 
-    Route::prefix('student')->group(function () {
-        Route::post('login', [StudentAuthController::class, 'login']);
-        Route::get('results/download', [StudentAuthController::class, 'downloadResult']);
+        Route::prefix('student')->group(function () {
+            Route::post('login', [StudentAuthController::class, 'login']);
+            Route::get('results/download', [StudentAuthController::class, 'downloadResult']);
 
-        Route::middleware('auth:student')->group(function () {
-            Route::post('logout', [StudentAuthController::class, 'logout']);
-            Route::get('profile', [StudentAuthController::class, 'profile']);
-            Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
-            Route::get('sessions', [StudentAuthController::class, 'sessions']);
-            Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
-            Route::get('parent', [StudentAuthController::class, 'getParent']);
-            Route::post('parent', [StudentAuthController::class, 'updateParent']);
+            Route::middleware('auth:student')->group(function () {
+                Route::post('logout', [StudentAuthController::class, 'logout']);
+                Route::get('profile', [StudentAuthController::class, 'profile']);
+                Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
+                Route::post('password/change', [StudentAuthController::class, 'changePassword']);
+                Route::get('sessions', [StudentAuthController::class, 'sessions']);
+                Route::get('result-pins', [ResultPinController::class, 'studentDashboard'])
+                    ->name('student.result-pins.index');
+                Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
+                Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
+                Route::get('parent', [StudentAuthController::class, 'getParent']);
+                Route::post('parent', [StudentAuthController::class, 'updateParent']);
 
-            // Location lookups for student bio-data editing
-            Route::prefix('locations')->group(function () {
-                Route::get('countries', [LocationController::class, 'countries']);
-                Route::get('states', [LocationController::class, 'states']);
-                Route::get('states/{state}/lgas', [LocationController::class, 'lgas'])->whereUuid('state');
-                Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
+                // Location lookups for student bio-data editing
+                Route::prefix('locations')->group(function () {
+                    Route::get('countries', [LocationController::class, 'countries']);
+                    Route::get('states', [LocationController::class, 'states']);
+                    Route::get('states/{state}/lgas', [LocationController::class, 'lgas'])->whereUuid('state');
+                    Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
+                });
             });
         });
     });
@@ -200,7 +212,22 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('parents', \App\Http\Controllers\Api\V1\ParentController::class);
 
         // Student Routes
+        Route::post('students/regenerate-admission-numbers', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'regenerateAdmissionNumbers',
+        ])
+            ->name('students.admission-numbers.regenerate');
+        Route::post('students/{student}/reset-password', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'resetPortalPassword',
+        ])
+            ->whereUuid('student')
+            ->name('students.password.reset');
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
+        Route::get('student-term-summaries', [StudentTermSummaryController::class, 'batchIndex'])
+            ->name('student-term-summaries.index');
+        Route::put('student-term-summaries/batch', [StudentTermSummaryController::class, 'batchUpdate'])
+            ->name('student-term-summaries.batch-update');
         Route::prefix('students/bulk')->group(function () {
             Route::get('template', [StudentBulkUploadController::class, 'template'])->name('students.bulk.template');
             Route::post('preview', [StudentBulkUploadController::class, 'preview'])->name('students.bulk.preview');
@@ -214,9 +241,15 @@ Route::prefix('api/v1')->group(function () {
             ->whereUuid('student');
         Route::get('results/bulk/print', [ResultViewController::class, 'bulkPrint'])
             ->name('results.bulk.print');
+        Route::get('results/session/print', [ResultViewController::class, 'sessionBulkPrint'])
+            ->name('results.session.print');
+        Route::get('broadsheet/print', [BroadsheetController::class, 'print'])
+            ->name('broadsheet.print');
         Route::prefix('students/{student}')
             ->whereUuid('student')
             ->group(function () {
+                Route::delete('dependent-records', [\App\Http\Controllers\Api\V1\StudentController::class, 'deleteDependentRecords'])
+                    ->name('students.dependent-records.destroy');
                 Route::get('skill-ratings', [StudentSkillRatingController::class, 'index'])
                     ->name('students.skill-ratings.index');
                 Route::get('skill-types', [StudentSkillRatingController::class, 'types'])
@@ -244,6 +277,8 @@ Route::prefix('api/v1')->group(function () {
                 ->name('result-pins.index');
             Route::post('bulk', [ResultPinController::class, 'bulkGenerate'])
                 ->name('result-pins.bulk-generate');
+            Route::post('distribute', [ResultPinController::class, 'distribute'])
+                ->name('result-pins.distribute');
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
@@ -402,6 +437,8 @@ Route::prefix('api/v1')->group(function () {
             Route::apiResource('subject-assignments', SubjectAssignmentController::class)
                 ->parameters(['subject-assignments' => 'assignment'])
                 ->except(['create', 'edit']);
+            Route::post('subject-teacher-assignments/bulk-save', [SubjectTeacherAssignmentController::class, 'bulkSave'])
+                ->name('subject-teacher-assignments.bulk-save');
             Route::apiResource('subject-teacher-assignments', SubjectTeacherAssignmentController::class)
                 ->parameters(['subject-teacher-assignments' => 'assignment'])
                 ->except(['create', 'edit']);
@@ -412,6 +449,10 @@ Route::prefix('api/v1')->group(function () {
                 ->except(['create', 'edit', 'show']);
             Route::post('skill-types/bulk', [SkillTypeController::class, 'bulkStore'])
                 ->name('skill-types.bulk-store');
+            Route::post('skill-types/copy', [SkillTypeController::class, 'bulkCopyToScope'])
+                ->name('skill-types.bulk-copy');
+            Route::put('skill-types/scope', [SkillTypeController::class, 'bulkUpdateScope'])
+                ->name('skill-types.bulk-scope');
             Route::apiResource('skill-types', SkillTypeController::class)
                 ->except(['create', 'edit', 'show']);
         });

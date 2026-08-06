@@ -269,16 +269,18 @@ class AssessmentComponentController extends Controller
     {
         $this->authorizeComponent($request, $assessmentComponent);
 
-        DB::transaction(function () use ($assessmentComponent) {
-            Result::query()
-                ->where('assessment_component_id', $assessmentComponent->id)
-                ->update([
-                    'assessment_component_id' => null,
-                    'component_slot' => Result::NULL_COMPONENT_UUID,
-                ]);
+        $linkedResultsCount = Result::query()
+            ->where('assessment_component_id', $assessmentComponent->id)
+            ->count();
 
-            $assessmentComponent->delete();
-        });
+        if ($linkedResultsCount > 0) {
+            return response()->json([
+                'message' => 'This assessment component cannot be deleted because results are already linked to it.',
+                'linked_results_count' => $linkedResultsCount,
+            ], 422);
+        }
+
+        $assessmentComponent->delete();
 
         return response()->json([
             'message' => 'Assessment component deleted successfully.',

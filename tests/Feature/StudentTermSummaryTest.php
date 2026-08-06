@@ -1,11 +1,15 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\CommentRange;
+use App\Models\GradingScale;
+use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
@@ -124,6 +128,63 @@ it('retrieves class teacher and principal comments', function () {
         ->assertJsonPath('data.principal_comment', 'Keep up the great work.');
 });
 
+it('uses live result averages for automatic comments instead of unscoped manual templates', function () {
+    $this->school->update(['result_comment_mode' => 'range']);
+
+    $manualTemplateScale = GradingScale::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'session_id' => $this->session->id,
+        'name' => 'Manual template scale',
+    ]);
+
+    CommentRange::create([
+        'id' => (string) Str::uuid(),
+        'grading_scale_id' => $manualTemplateScale->id,
+        'min_score' => 0,
+        'max_score' => 100,
+        'teacher_comment' => 'Unscoped manual teacher template.',
+        'principal_comment' => 'Unscoped manual principal template.',
+    ]);
+
+    collect([
+        ['name' => 'English Language', 'code' => 'ENG', 'score' => 68],
+        ['name' => 'Mathematics', 'code' => 'MTH', 'score' => 60],
+    ])->each(function (array $entry) {
+        $subject = Subject::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'name' => $entry['name'],
+            'code' => $entry['code'],
+        ]);
+
+        Result::create([
+            'id' => (string) Str::uuid(),
+            'student_id' => $this->student->id,
+            'subject_id' => $subject->id,
+            'assessment_component_id' => null,
+            'session_id' => $this->session->id,
+            'term_id' => $this->term->id,
+            'total_score' => $entry['score'],
+        ]);
+    });
+
+    getJson(route('students.term-summary.show', [
+        'student' => $this->student->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]))
+        ->assertOk()
+        ->assertJsonPath(
+            'data.class_teacher_comment',
+            'A very good performance. The student shows good understanding and participates well but can improve with more consistency.'
+        )
+        ->assertJsonPath(
+            'data.principal_comment',
+            'A commendable performance. With a little more effort, you can achieve even greater success.'
+        );
+});
+
 it('updates class teacher and principal comments', function () {
     putJson(route('students.term-summary.update', [
         'student' => $this->student->id,
@@ -176,4 +237,99 @@ it('creates term summary when missing', function () {
     expect($createdSummary)->not->toBeNull()
         ->and($createdSummary->overall_comment)->toBe('Great participation.')
         ->and($createdSummary->principal_comment)->toBe('Keep striving for excellence.');
+});
+
+it('lists batch term summaries for a class', function () {
+    $secondStudent = Student::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'admission_no' => '2024/002',
+        'first_name' => 'Mary',
+        'last_name' => 'Jones',
+        'gender' => 'F',
+        'date_of_birth' => now()->subYears(11),
+        'house' => 'Green',
+        'club' => 'Drama',
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+        'parent_id' => $this->parent->id,
+        'class_section_id' => null,
+        'admission_date' => now()->subYears(2),
+        'status' => 'active',
+    ]);
+
+    getJson('/api/v1/student-term-summaries?' . http_build_query([
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+    ]))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.days_present', 45)
+        ->assertJsonPath('data.0.days_absent', 2)
+        ->assertJsonPath('data.1.student.id', $secondStudent->id)
+        ->assertJsonPath('data.1.days_present', null)
+        ->assertJsonPath('data.1.days_absent', null);
+});
+
+it('updates batch attendance summaries for multiple students', function () {
+    $secondStudent = Student::create([
+        'id' => (string) Str::uuid(),
+        'school_id' => $this->school->id,
+        'admission_no' => '2024/002',
+        'first_name' => 'Mary',
+        'last_name' => 'Jones',
+        'gender' => 'F',
+        'date_of_birth' => now()->subYears(11),
+        'house' => 'Green',
+        'club' => 'Drama',
+        'current_session_id' => $this->session->id,
+        'current_term_id' => $this->term->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
+        'parent_id' => $this->parent->id,
+        'class_section_id' => null,
+        'admission_date' => now()->subYears(2),
+        'status' => 'active',
+    ]);
+
+    putJson('/api/v1/student-term-summaries/batch', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'entries' => [
+            [
+                'student_id' => $this->student->id,
+                'days_present' => 47,
+                'days_absent' => 1,
+            ],
+            [
+                'student_id' => $secondStudent->id,
+                'days_present' => 44,
+                'days_absent' => 3,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.0.days_present', 47)
+        ->assertJsonPath('data.0.days_absent', 1)
+        ->assertJsonPath('data.1.student.id', $secondStudent->id)
+        ->assertJsonPath('data.1.days_present', 44)
+        ->assertJsonPath('data.1.days_absent', 3);
+
+    $this->termSummary->refresh();
+
+    $secondSummary = TermSummary::query()
+        ->where('student_id', $secondStudent->id)
+        ->where('session_id', $this->session->id)
+        ->where('term_id', $this->term->id)
+        ->first();
+
+    expect($this->termSummary->days_present)->toBe(47)
+        ->and($this->termSummary->days_absent)->toBe(1)
+        ->and($secondSummary)->not->toBeNull()
+        ->and($secondSummary->days_present)->toBe(44)
+        ->and($secondSummary->days_absent)->toBe(3);
 });

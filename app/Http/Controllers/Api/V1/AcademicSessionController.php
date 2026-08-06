@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\GradingScale;
 use App\Models\Session;
 use App\Models\Term;
 use Illuminate\Http\Request;
@@ -426,6 +427,7 @@ class AcademicSessionController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'slug' => 'nullable|string|max:120',
+            'use_position_ranges' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -433,6 +435,8 @@ class AcademicSessionController extends Controller
         }
 
         $validated = $validator->validated();
+        $validated['use_position_ranges'] = ($validated['use_position_ranges'] ?? false)
+            && $this->schoolHasPositionRanges($session->school_id);
         $termNumber = $this->resolveRequestedTermNumber(
             name: (string) ($validated['name'] ?? ''),
             termNumber: array_key_exists('term_number', $validated) ? (int) $validated['term_number'] : null,
@@ -572,6 +576,7 @@ class AcademicSessionController extends Controller
             'slug' => 'nullable|string|max:120',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'use_position_ranges' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -579,6 +584,8 @@ class AcademicSessionController extends Controller
         }
 
         $validated = $validator->validated();
+        $validated['use_position_ranges'] = ($validated['use_position_ranges'] ?? false)
+            && $this->schoolHasPositionRanges($term->school_id);
         $termNumber = $this->resolveRequestedTermNumber(
             name: (string) ($validated['name'] ?? ''),
             termNumber: array_key_exists('term_number', $validated) ? (int) $validated['term_number'] : $term->term_number,
@@ -660,6 +667,14 @@ class AcademicSessionController extends Controller
         $term->delete();
 
         return response()->json(['message' => 'Term deleted successfully']);
+    }
+
+    private function schoolHasPositionRanges(string $schoolId): bool
+    {
+        return GradingScale::query()
+            ->where('school_id', $schoolId)
+            ->whereHas('position_ranges')
+            ->exists();
     }
 
     private function resolveRequestedTermNumber(

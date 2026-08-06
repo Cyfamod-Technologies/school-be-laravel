@@ -60,8 +60,8 @@ beforeEach(function () {
     ]);
 });
 
-it('flags duplicate students by first and last name when creating', function () {
-    $existing = Student::create([
+it('allows duplicate students by first and last name when creating', function () {
+    Student::create([
         'id' => (string) Str::uuid(),
         'school_id' => $this->school->id,
         'admission_no' => 'ADM-001',
@@ -90,10 +90,7 @@ it('flags duplicate students by first and last name when creating', function () 
         'class_arm_id' => $this->arm->id,
         'admission_date' => '2020-09-10',
         'status' => 'active',
-    ])->assertStatus(409)
-        ->assertJsonPath('is_duplicate', true)
-        ->assertJsonPath('duplicate.id', $existing->id)
-        ->assertJsonPath('duplicate.match', 'name');
+    ])->assertCreated();
 
-    expect(Student::where('school_id', $this->school->id)->count())->toBe(1);
+    expect(Student::where('school_id', $this->school->id)->count())->toBe(2);
 });

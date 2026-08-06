@@ -2,11 +2,13 @@
 
 use App\Models\ClassArm;
 use App\Models\PromotionLog;
+use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -67,6 +69,17 @@ describe('PromotionController', function () {
             'start_date' => now()->subMonths(7),
             'end_date' => now()->subMonths(4),
             'status' => 'archived',
+        ]);
+
+        $this->targetTerm = Term::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'session_id' => $this->targetSession->id,
+            'name' => 'First Term',
+            'slug' => 'first-term',
+            'start_date' => now()->addMonths(5),
+            'end_date' => now()->addMonths(8),
+            'status' => 'planned',
         ]);
 
         $this->class = SchoolClass::create([
@@ -155,6 +168,74 @@ describe('PromotionController', function () {
         });
 
         expect(PromotionLog::query()->count())->toBe($this->students->count());
+    });
+
+    it('does not carry a source class arm into a different target class', function () {
+        $student = $this->students->first();
+
+        postJson(route('promotions.bulk'), [
+            'target_session_id' => $this->targetSession->id,
+            'target_class_id' => $this->nextClass->id,
+            'student_ids' => [$student->id],
+        ])->assertOk();
+
+        $student->refresh();
+
+        expect($student->school_class_id)->toBe($this->nextClass->id)
+            ->and($student->class_arm_id)->toBeNull();
+    });
+
+    it('preserves former-session results and their original class placement', function () {
+        $student = $this->students->first();
+        $subject = Subject::create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->school->id,
+            'name' => 'Mathematics',
+            'code' => 'MTH',
+        ]);
+        $resultId = (string) Str::uuid();
+
+        Result::create([
+            'id' => $resultId,
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'session_id' => $this->sourceSession->id,
+            'term_id' => $this->term->id,
+            'assessment_component_id' => null,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->classArm->id,
+            'total_score' => 78,
+        ]);
+
+        postJson(route('promotions.bulk'), [
+            'target_session_id' => $this->targetSession->id,
+            'target_class_id' => $this->nextClass->id,
+            'target_class_arm_id' => $this->nextClassArm->id,
+            'student_ids' => [$student->id],
+        ])->assertOk();
+
+        $result = Result::query()->findOrFail($resultId);
+
+        expect($result->session_id)->toBe($this->sourceSession->id)
+            ->and($result->term_id)->toBe($this->term->id)
+            ->and($result->school_class_id)->toBe($this->class->id)
+            ->and($result->class_arm_id)->toBe($this->classArm->id)
+            ->and($result->total_score)->toBe(78.0);
+
+        getJson('/api/v1/results?'.http_build_query([
+            'session_id' => $this->sourceSession->id,
+            'term_id' => $this->term->id,
+            'school_class_id' => $this->class->id,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $resultId);
+
+        getJson('/api/v1/students?'.http_build_query([
+            'session_id' => $this->sourceSession->id,
+            'school_class_id' => $this->class->id,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $student->id);
     });
 
     it('returns promotion history', function () {

@@ -15,14 +15,12 @@ class TeacherAccessService
             return TeacherAssignmentScope::forNonTeacher();
         }
 
-        if (! $this->isTeacher($user)) {
-            return TeacherAssignmentScope::forNonTeacher();
-        }
-
         $staff = $user->staff ?? Staff::query()->where('user_id', $user->id)->first();
 
         if (! $staff) {
-            return new TeacherAssignmentScope(true, null, collect(), collect());
+            return $this->isTeacherUser($user)
+                ? new TeacherAssignmentScope(true, null, collect(), collect())
+                : TeacherAssignmentScope::forNonTeacher();
         }
 
         $subjectAssignments = SubjectTeacherAssignment::query()
@@ -50,10 +48,19 @@ class TeacherAccessService
             ->orderByDesc('created_at')
             ->get();
 
+        if (
+            ! $this->isTeacherUser($user)
+            && ! $this->isTeacherStaff($staff)
+            && $subjectAssignments->isEmpty()
+            && $classAssignments->isEmpty()
+        ) {
+            return TeacherAssignmentScope::forNonTeacher();
+        }
+
         return new TeacherAssignmentScope(true, $staff, $subjectAssignments, $classAssignments);
     }
 
-    private function isTeacher(User $user): bool
+    private function isTeacherUser(User $user): bool
     {
         $roleColumn = strtolower((string) ($user->role ?? ''));
 
@@ -66,5 +73,10 @@ class TeacherAccessService
         }
 
         return false;
+    }
+
+    private function isTeacherStaff(Staff $staff): bool
+    {
+        return str_contains(strtolower((string) $staff->role), 'teach');
     }
 }

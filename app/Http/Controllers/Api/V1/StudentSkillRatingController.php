@@ -8,6 +8,8 @@ use App\Models\SkillRating;
 use App\Models\SkillType;
 use App\Models\Student;
 use App\Models\Term;
+use App\Services\Teachers\TeacherAccessService;
+use App\Support\SkillScope;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,10 @@ use Illuminate\Validation\Rule;
 
 class StudentSkillRatingController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
     /**
      * @OA\Get(
      *     path="/api/v1/students/{student}/skill-ratings",
@@ -97,9 +103,13 @@ class StudentSkillRatingController extends Controller
     {
         $this->assertStudentAccess($request, $student);
 
-        $types = SkillType::query()
+        $types = SkillScope::applyTypeVisibility(
+                SkillType::query(),
+                $student->school,
+                SkillScope::normalizeClassId($student->school_class_id)
+            )
             ->where('school_id', $student->school_id)
-            ->with('skill_category:id,name')
+            ->with('skill_category:id,name,school_class_id')
             ->orderBy('name')
             ->get()
             ->map(function (SkillType $type) {
@@ -109,6 +119,7 @@ class StudentSkillRatingController extends Controller
                     'description' => $type->description,
                     'skill_category_id' => $type->skill_category_id,
                     'category' => optional($type->skill_category)->name,
+                    'school_class_id' => $type->school_class_id,
                 ];
             })
             ->values();
@@ -374,6 +385,11 @@ class StudentSkillRatingController extends Controller
         if (! $user || $user->school_id !== $student->school_id) {
             abort(403, 'You are not allowed to perform this action for the selected student.');
         }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($student)) {
+            abort(403, 'Only the assigned class teacher can view or grade skills for this student.');
+        }
     }
 
     private function resolveSession(Student $student, ?string $sessionId): ?Session
@@ -404,7 +420,13 @@ class StudentSkillRatingController extends Controller
 
     private function resolveSkillType(Student $student, string $skillTypeId): SkillType
     {
-        return SkillType::query()
+        $student->loadMissing('school');
+
+        return SkillScope::applyTypeVisibility(
+                SkillType::query(),
+                $student->school,
+                SkillScope::normalizeClassId($student->school_class_id)
+            )
             ->where('school_id', $student->school_id)
             ->findOrFail($skillTypeId);
     }

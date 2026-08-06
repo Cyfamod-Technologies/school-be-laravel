@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $status
  * @property Carbon|null $expires_at
  * @property Carbon|null $revoked_at
+ * @property Carbon|null $sent_at
+ * @property string|null $sent_by
  * @property string|null $created_by
  * @property int $use_count
  * @property int|null $max_usage
@@ -41,6 +43,7 @@ class ResultPin extends Model
     protected $casts = [
         'expires_at' => 'datetime',
         'revoked_at' => 'datetime',
+        'sent_at' => 'datetime',
         'use_count' => 'int',
         'max_usage' => 'int',
     ];
@@ -54,6 +57,8 @@ class ResultPin extends Model
         'status',
         'expires_at',
         'revoked_at',
+        'sent_at',
+        'sent_by',
         'created_by',
         'use_count',
         'max_usage',
@@ -86,5 +91,10 @@ class ResultPin extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function sender()
+    {
+        return $this->belongsTo(User::class, 'sent_by');
     }
 }

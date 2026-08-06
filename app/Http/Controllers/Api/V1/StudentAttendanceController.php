@@ -99,6 +99,7 @@ class StudentAttendanceController extends Controller
             'term_id' => ['nullable', 'uuid'],
             'school_class_id' => ['nullable', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
+            'class_section_id' => ['nullable', 'uuid'],
             'student_id' => ['required_without:entries', 'uuid'],
             'status' => ['required_without:entries', Rule::in(self::STATUSES)],
             'metadata' => ['nullable', 'array'],
@@ -149,6 +150,7 @@ class StudentAttendanceController extends Controller
         $termId = $validated['term_id'] ?? null;
         $classId = $validated['school_class_id'] ?? null;
         $classArmId = $validated['class_arm_id'] ?? null;
+        $classSectionId = $validated['class_section_id'] ?? null;
 
         $missingContext = collect();
 
@@ -182,6 +184,7 @@ class StudentAttendanceController extends Controller
             $termId,
             $classId,
             $classArmId,
+            $classSectionId,
             &$created,
             &$updated
         ) {
@@ -193,7 +196,7 @@ class StudentAttendanceController extends Controller
                     'term_id' => $termId ?? $student->current_term_id,
                     'school_class_id' => $classId ?? $student->school_class_id,
                     'class_arm_id' => $classArmId ?? $student->class_arm_id,
-                    'class_section_id' => null,
+                    'class_section_id' => $classSectionId ?? $student->class_section_id,
                     'status' => $entry['status'],
                     'recorded_by' => $user->id,
                     'metadata' => $entry['metadata'] ?? null,
@@ -234,10 +237,9 @@ class StudentAttendanceController extends Controller
             'term_id' => ['sometimes', 'uuid'],
             'school_class_id' => ['sometimes', 'uuid', 'nullable'],
             'class_arm_id' => ['sometimes', 'uuid', 'nullable'],
+            'class_section_id' => ['sometimes', 'uuid', 'nullable'],
             'metadata' => ['nullable', 'array'],
         ]);
-
-        $validated['class_section_id'] = null;
 
         $attendance->fill($validated);
 
@@ -487,6 +489,7 @@ class StudentAttendanceController extends Controller
                 'term:id,name',
                 'schoolClass:id,name',
                 'classArm:id,name',
+                'classSection:id,name',
                 'recorder:id,name',
             ])
             ->whereHas('student', fn ($q) => $q->where('school_id', $user->school_id));
@@ -525,6 +528,10 @@ class StudentAttendanceController extends Controller
 
         if ($request->filled('class_arm_id')) {
             $query->where('class_arm_id', $request->input('class_arm_id'));
+        }
+
+        if ($request->filled('class_section_id')) {
+            $query->where('class_section_id', $request->input('class_section_id'));
         }
 
         if ($request->filled('student_id')) {
@@ -579,7 +586,10 @@ class StudentAttendanceController extends Controller
                 'id' => $attendance->classArm->id,
                 'name' => $attendance->classArm->name,
             ] : null,
-            'class_section' => null,
+            'class_section' => $attendance->classSection ? [
+                'id' => $attendance->classSection->id,
+                'name' => $attendance->classSection->name,
+            ] : null,
             'recorded_by' => $attendance->recorder ? [
                 'id' => $attendance->recorder->id,
                 'name' => $attendance->recorder->name,

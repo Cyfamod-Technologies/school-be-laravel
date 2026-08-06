@@ -33,7 +33,6 @@ class PromotionController extends Controller
      *             required={"target_session_id","target_class_id","student_ids"},
      *
      *             @OA\Property(property="current_session_id", type="string", format="uuid", nullable=true),
-     *             @OA\Property(property="current_term_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="current_class_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="current_class_arm_id", type="string", format="uuid", nullable=true),
      *             @OA\Property(property="current_section_id", type="string", format="uuid", nullable=true),
@@ -54,7 +53,6 @@ class PromotionController extends Controller
     {
         $validated = $request->validate([
             'current_session_id' => ['nullable', 'uuid'],
-            'current_term_id' => ['nullable', 'uuid'],
             'current_class_id' => ['nullable', 'uuid'],
             'current_class_arm_id' => ['nullable', 'uuid'],
             'target_session_id' => ['required', 'uuid'],

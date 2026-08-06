@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\PermissionRegistrar;
+use ZipArchive;
 
 class StudentBulkUploadService
 {
@@ -106,7 +107,13 @@ class StudentBulkUploadService
      *
      * @throws BulkUploadValidationException
      */
-    public function validateAndPrepare(School $school, UploadedFile $file, User $user, array $preselected = []): array
+    public function validateAndPrepare(
+        School $school,
+        UploadedFile $file,
+        User $user,
+        array $preselected = [],
+        array $rowUpdates = []
+    ): array
     {
         $hasSessionClassPreselection = ! empty($preselected['session_id']) && ! empty($preselected['class_id']);
         $hasArmPreselection = $hasSessionClassPreselection && ! empty($preselected['class_arm_id']);
@@ -139,37 +146,27 @@ class StudentBulkUploadService
             }
 
             if (! $preselectedSession || ! $preselectedClass) {
-                throw new BulkUploadValidationException([], null, 'Invalid session or class selection.');
+                throw new BulkUploadValidationException([], null, [], 'Invalid session or class selection.');
             }
 
             if (! $preselectedTerm) {
-                throw new BulkUploadValidationException([], null, 'No term found for the selected session.');
+                throw new BulkUploadValidationException([], null, [], 'No term found for the selected session.');
             }
 
             if ($hasArmPreselection) {
                 $preselectedArm = $preselectedClass->class_arms->firstWhere('id', $preselected['class_arm_id']);
                 if (! $preselectedArm) {
-                    throw new BulkUploadValidationException([], null, 'Invalid class arm selection for the selected class.');
+                    throw new BulkUploadValidationException([], null, [], 'Invalid class arm selection for the selected class.');
                 }
             }
         }
 
-        $handle = fopen($file->getRealPath(), 'r');
-        if ($handle === false) {
-            throw new BulkUploadValidationException([], null, 'Unable to read the uploaded file.');
-        }
-
-        $delimiter = $this->detectDelimiter($handle);
-
+        $uploadedRows = $this->readUploadedRows($file);
         $header = null;
-        $headerLineNumber = 0;
         $prefetchedRows = [];
-        for ($i = 0; $i < 2; $i++) {
-            $row = fgetcsv($handle, 0, $delimiter);
-            if ($row === false) {
-                break;
-            }
-            $prefetchedRows[] = $row;
+        $rowCursor = 0;
+        for ($i = 0; $i < 2 && $i < count($uploadedRows); $i++) {
+            $prefetchedRows[] = $uploadedRows[$i]['values'];
         }
 
         $shouldSkipPrefetched = count($prefetchedRows) === 2
@@ -177,23 +174,22 @@ class StudentBulkUploadService
             && $this->isSkippableRow($prefetchedRows[1]);
 
         if ($shouldSkipPrefetched) {
-            $headerLineNumber = 2;
-        } else {
-            rewind($handle);
+            $rowCursor = 2;
         }
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $headerLineNumber++;
+        while ($rowCursor < count($uploadedRows)) {
+            $entry = $uploadedRows[$rowCursor++];
+            $row = $entry['values'];
             if ($this->isSkippableRow($row)) {
                 continue;
             }
             $header = $row;
+            $headerLineNumber = $entry['number'];
             break;
         }
 
         if (! $header) {
-            fclose($handle);
-            throw new BulkUploadValidationException([], null, 'The uploaded file is empty or unreadable.');
+            throw new BulkUploadValidationException([], null, [], 'The uploaded file is empty or unreadable.');
         }
 
         $normalizedHeader = $this->normalizeHeaderRow($header);
@@ -205,10 +201,14 @@ class StudentBulkUploadService
 
             $headerKey = $definition['header_key'] ?? $this->normalizeHeaderValue($definition['header']);
             $legacyKey = Str::replace('.', '_', $definition['key']);
+            $headerAliases = collect($definition['header_aliases'] ?? [])
+                ->map(fn (string $alias) => $this->normalizeHeaderValue($alias))
+                ->all();
 
             if (
                 ! array_key_exists($headerKey, $normalizedHeader)
                 && ! array_key_exists($legacyKey, $normalizedHeader)
+                && empty(array_intersect($headerAliases, array_keys($normalizedHeader)))
             ) {
                 $missingColumns[] = $definition['header'];
             }
@@ -223,24 +223,28 @@ class StudentBulkUploadService
                 ? 'none'
                 : implode(', ', array_slice($detectedHeaders, 0, 12));
 
-            fclose($handle);
             throw new BulkUploadValidationException(
                 [],
                 null,
+                [],
                 'The uploaded file is missing required columns: '
-                .implode(', ', $missingColumns)
-                .". Detected headers: {$detectedSummary}. Delimiter: \"{$delimiter}\"."
+                . implode(', ', $missingColumns)
+                . ". Detected headers: {$detectedSummary}."
             );
         }
 
-        $rowNumber = $headerLineNumber;
         $preparedRows = [];
+        $previewCandidates = [];
         $errors = [];
+        $normalizedRowUpdates = $this->normalizeRowUpdates($rowUpdates);
 
         $inFileComposite = [];
+        $inFileAdmissionNumbers = [];
 
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $rowNumber++;
+        while ($rowCursor < count($uploadedRows)) {
+            $entry = $uploadedRows[$rowCursor++];
+            $rowNumber = $entry['number'];
+            $row = $entry['values'];
 
             if ($this->isSkippableRow($row)) {
                 continue;
@@ -257,6 +261,10 @@ class StudentBulkUploadService
             if ($hasArmPreselection) {
                 $rowData['student.class_arm_id'] = $preselectedArm->id;
             }
+            $rowData = $this->applyPreviewRowUpdates($rowData, $rowNumber, $normalizedRowUpdates);
+            if ($this->isRowMarkedDeleted((string) $rowNumber, $normalizedRowUpdates)) {
+                continue;
+            }
 
             [$rowPrepared, $rowErrors] = $this->validateRow(
                 $rowNumber,
@@ -266,8 +274,11 @@ class StudentBulkUploadService
                 $terms,
                 $classes,
                 $school,
-                $inFileComposite
+                $inFileComposite,
+                $inFileAdmissionNumbers
             );
+
+            $previewCandidates[] = $rowPrepared;
 
             if (! empty($rowErrors)) {
                 array_push($errors, ...$rowErrors);
@@ -278,19 +289,22 @@ class StudentBulkUploadService
             $preparedRows[] = $rowPrepared;
         }
 
-        fclose($handle);
-
         if (count($preparedRows) === 0) {
             $errorCsv = $this->buildErrorCsv([], $columns);
             throw new BulkUploadValidationException(
                 $errors ?: [['row' => '-', 'column' => '-', 'message' => 'No valid rows found in the file.']],
-                $errorCsv
+                $errorCsv,
+                $this->buildPreviewRows($previewCandidates, $sessions, $terms, $classes)
             );
         }
 
         if (! empty($errors)) {
             $errorCsv = $this->buildErrorCsv($errors, $columns, $preparedRows);
-            throw new BulkUploadValidationException($errors, $errorCsv);
+            throw new BulkUploadValidationException(
+                $errors,
+                $errorCsv,
+                $this->buildPreviewRows($previewCandidates, $sessions, $terms, $classes)
+            );
         }
 
         $this->attachDuplicates($school, $preparedRows);
@@ -312,28 +326,7 @@ class StudentBulkUploadService
             'expires_at' => now()->addHours(6),
         ]);
 
-        $previewRows = collect($preparedRows)
-            ->take(10)
-            ->map(function (array $row) use ($sessions, $terms, $classes) {
-                $class = $classes->firstWhere('id', $row['student']['school_class_id']);
-                $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id']);
-                $parent = is_array($row['parent'] ?? null) ? $row['parent'] : [];
-
-                return [
-                    'name' => trim("{$row['student']['first_name']} {$row['student']['last_name']}"),
-                    'gender' => $row['student']['gender'],
-                    'admission_no' => $row['student']['admission_no'] ?: 'Auto-generated',
-                    'session' => optional($sessions->firstWhere('id', $row['student']['current_session_id']))->name,
-                    'term' => optional($terms->firstWhere('id', $row['student']['current_term_id']))->name,
-                    'class' => $class?->name,
-                    'class_arm' => $arm?->name,
-                    'parent_email' => $parent['email'] ?? '—',
-                    'duplicate' => $row['duplicate'] ?? null,
-                    'duplicate_action' => $row['duplicate_action'] ?? null,
-                    'source_row' => $row['source_row'] ?? null,
-                ];
-            })
-            ->values();
+        $previewRows = $this->buildPreviewRows($preparedRows, $sessions, $terms, $classes);
 
         return [
             'batch' => $batch,
@@ -349,7 +342,7 @@ class StudentBulkUploadService
     /**
      * @return array<string, mixed>
      */
-    public function commit(BulkUploadBatch $batch, array $decisions = []): array
+    public function commit(BulkUploadBatch $batch, array $decisions = [], array $rowUpdates = []): array
     {
         if ($batch->type !== self::BULK_TYPE) {
             throw new \InvalidArgumentException('Invalid batch type supplied.');
@@ -378,9 +371,17 @@ class StudentBulkUploadService
         $createdParents = 0;
 
         $decisionMap = $this->normalizeDuplicateDecisions($decisions);
+        $rowUpdateMap = $this->normalizeRowUpdates($rowUpdates);
 
-        DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $batch, $decisionMap) {
+        DB::transaction(function () use (&$createdStudents, &$updatedStudents, &$skippedRows, &$createdParents, $rows, $school, $user, $batch, $decisionMap, $rowUpdateMap) {
             foreach ($rows as $row) {
+                $rowKey = (string) ($row['source_row'] ?? '');
+                if ($rowKey !== '' && $this->isRowMarkedDeleted($rowKey, $rowUpdateMap)) {
+                    $skippedRows++;
+                    continue;
+                }
+
+                $row = $this->applyRowUpdates($row, $rowUpdateMap);
                 $action = $this->resolveDuplicateAction($row, $decisionMap);
 
                 if ($action === 'skip') {
@@ -418,7 +419,11 @@ class StudentBulkUploadService
                 $studentData['parent_id'] = $parent?->id;
                 $studentData['portal_password'] = '123456';
                 $session = Session::findOrFail($studentData['current_session_id']);
-                $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
+                if (empty($studentData['admission_no'])) {
+                    $studentData['admission_no'] = Student::generateAdmissionNumber($school, $session);
+                }
+
+                $this->assertAdmissionNumberIsAvailable($school, $row, $studentData);
 
                 $student = Student::create($studentData);
                 $createdStudents++;
@@ -528,6 +533,7 @@ class StudentBulkUploadService
             [
                 'key' => 'student.admission_no',
                 'header' => 'Admission Number',
+                'header_aliases' => ['Admission No', 'Admission No.', 'Admission Number', 'Student Admission No', 'Student Admission Number'],
                 'required' => false,
                 'example' => '',
             ],
@@ -660,6 +666,270 @@ class StudentBulkUploadService
     }
 
     /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readUploadedRows(UploadedFile $file): array
+    {
+        $extension = Str::lower($file->getClientOriginalExtension());
+
+        if ($extension === 'xlsx') {
+            return $this->readXlsxRows($file);
+        }
+
+        return $this->readCsvRows($file);
+    }
+
+    /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readCsvRows(UploadedFile $file): array
+    {
+        $handle = fopen($file->getRealPath(), 'r');
+        if ($handle === false) {
+            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded file.');
+        }
+
+        $delimiter = $this->detectDelimiter($handle);
+        $rows = [];
+        $rowNumber = 0;
+
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $rowNumber++;
+            $rows[] = [
+                'number' => $rowNumber,
+                'values' => $row,
+            ];
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{number: int, values: array<int, string|null>}>
+     */
+    private function readXlsxRows(UploadedFile $file): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw new BulkUploadValidationException([], null, [], 'XLSX uploads require the PHP zip extension.');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($file->getRealPath()) !== true) {
+            throw new BulkUploadValidationException([], null, [], 'Unable to read the uploaded XLSX file.');
+        }
+
+        try {
+            $sharedStrings = $this->readXlsxSharedStrings($zip);
+            $dateStyleIndexes = $this->readXlsxDateStyleIndexes($zip);
+            $worksheetXml = $zip->getFromName($this->firstWorksheetPath($zip));
+            if ($worksheetXml === false) {
+                throw new BulkUploadValidationException([], null, [], 'The XLSX file does not contain a readable worksheet.');
+            }
+
+            $worksheet = simplexml_load_string($worksheetXml);
+            if (! $worksheet || ! isset($worksheet->sheetData)) {
+                throw new BulkUploadValidationException([], null, [], 'The XLSX worksheet is empty or unreadable.');
+            }
+
+            $rows = [];
+            foreach ($worksheet->sheetData->row as $worksheetRow) {
+                $rowNumber = (int) ($worksheetRow['r'] ?? (count($rows) + 1));
+                $values = [];
+
+                foreach ($worksheetRow->c as $cell) {
+                    $reference = (string) ($cell['r'] ?? '');
+                    $columnIndex = $reference !== ''
+                        ? $this->xlsxColumnIndex($reference)
+                        : count($values);
+                    $values[$columnIndex] = $this->xlsxCellValue($cell, $sharedStrings, $dateStyleIndexes);
+                }
+
+                if ($values === []) {
+                    $values = [''];
+                } else {
+                    ksort($values);
+                    $values = array_replace(array_fill(0, max(array_keys($values)) + 1, null), $values);
+                }
+
+                $rows[] = [
+                    'number' => $rowNumber,
+                    'values' => $values,
+                ];
+            }
+
+            return $rows;
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function readXlsxSharedStrings(ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $sharedStringXml = simplexml_load_string($xml);
+        if (! $sharedStringXml) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($sharedStringXml->si as $item) {
+            if (isset($item->t)) {
+                $strings[] = (string) $item->t;
+                continue;
+            }
+
+            $text = '';
+            foreach ($item->r as $run) {
+                $text .= (string) ($run->t ?? '');
+            }
+            $strings[] = $text;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private function readXlsxDateStyleIndexes(ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/styles.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $stylesXml = simplexml_load_string($xml);
+        if (! $stylesXml) {
+            return [];
+        }
+
+        $stylesXml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+        $customDateFormats = [];
+        foreach ($stylesXml->xpath('//main:numFmts/main:numFmt') ?: [] as $numFmt) {
+            $formatId = (int) ($numFmt['numFmtId'] ?? 0);
+            $formatCode = strtolower((string) ($numFmt['formatCode'] ?? ''));
+            if ($this->xlsxLooksLikeDateFormat($formatCode)) {
+                $customDateFormats[$formatId] = true;
+            }
+        }
+
+        $dateStyleIndexes = [];
+        foreach ($stylesXml->xpath('//main:cellXfs/main:xf') ?: [] as $styleIndex => $xf) {
+            $formatId = (int) ($xf['numFmtId'] ?? 0);
+            if ($this->xlsxIsBuiltInDateFormat($formatId) || isset($customDateFormats[$formatId])) {
+                $dateStyleIndexes[(int) $styleIndex] = true;
+            }
+        }
+
+        return $dateStyleIndexes;
+    }
+
+    private function firstWorksheetPath(ZipArchive $zip): string
+    {
+        $workbookXml = $zip->getFromName('xl/workbook.xml');
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+        if ($workbookXml === false || $relsXml === false) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $workbook = simplexml_load_string($workbookXml);
+        $relationships = simplexml_load_string($relsXml);
+        if (! $workbook || ! $relationships || ! isset($workbook->sheets->sheet[0])) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $namespaces = $workbook->sheets->sheet[0]->getNamespaces(true);
+        $relationshipId = (string) ($workbook->sheets->sheet[0]->attributes($namespaces['r'] ?? '')->id ?? '');
+        if ($relationshipId === '') {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        foreach ($relationships->Relationship as $relationship) {
+            if ((string) $relationship['Id'] !== $relationshipId) {
+                continue;
+            }
+
+            $target = ltrim((string) $relationship['Target'], '/');
+            return Str::startsWith($target, 'xl/')
+                ? $target
+                : 'xl/' . $target;
+        }
+
+        return 'xl/worksheets/sheet1.xml';
+    }
+
+    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings, array $dateStyleIndexes): ?string
+    {
+        $type = (string) ($cell['t'] ?? '');
+
+        if ($type === 's') {
+            $index = (int) ($cell->v ?? -1);
+            return $sharedStrings[$index] ?? '';
+        }
+
+        if ($type === 'inlineStr') {
+            if (isset($cell->is->t)) {
+                return (string) $cell->is->t;
+            }
+
+            $text = '';
+            foreach ($cell->is->r as $run) {
+                $text .= (string) ($run->t ?? '');
+            }
+            return $text;
+        }
+
+        if (isset($cell->v)) {
+            $value = (string) $cell->v;
+            $styleIndex = (int) ($cell['s'] ?? -1);
+            if ($type === '' && isset($dateStyleIndexes[$styleIndex]) && is_numeric($value)) {
+                return Carbon::create(1899, 12, 30)->addDays((int) floor((float) $value))->toDateString();
+            }
+
+            return $value;
+        }
+
+        return null;
+    }
+
+    private function xlsxIsBuiltInDateFormat(int $formatId): bool
+    {
+        return in_array($formatId, [14, 15, 16, 17, 22, 27, 30, 36, 45, 46, 47, 50, 57], true);
+    }
+
+    private function xlsxLooksLikeDateFormat(string $formatCode): bool
+    {
+        $formatCode = preg_replace('/\[[^\]]+\]/', '', $formatCode) ?? $formatCode;
+        $formatCode = preg_replace('/"[^"]*"/', '', $formatCode) ?? $formatCode;
+
+        return str_contains($formatCode, 'y')
+            && (str_contains($formatCode, 'd') || str_contains($formatCode, 'm'));
+    }
+
+    private function xlsxColumnIndex(string $reference): int
+    {
+        preg_match('/^[A-Z]+/i', $reference, $matches);
+        $letters = strtoupper($matches[0] ?? 'A');
+        $index = 0;
+
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - 64);
+        }
+
+        return max(0, $index - 1);
+    }
+
+    /**
      * @param  array<int, string>  $row
      */
     private function isSkippableRow(array $row): bool
@@ -717,9 +987,15 @@ class StudentBulkUploadService
             if ($headerKey && array_key_exists($headerKey, $headerIndex)) {
                 $value = $row[$headerIndex[$headerKey]] ?? null;
             } else {
+                $headerAliases = collect($definition['header_aliases'] ?? [])
+                    ->map(fn (string $alias) => $this->normalizeHeaderValue($alias))
+                    ->all();
                 $legacyKey = Str::replace('.', '_', $key);
-                if (array_key_exists($legacyKey, $headerIndex)) {
-                    $value = $row[$headerIndex[$legacyKey]] ?? null;
+                $matchedHeaderKey = collect([...$headerAliases, $legacyKey])
+                    ->first(fn (string $candidate) => array_key_exists($candidate, $headerIndex));
+
+                if ($matchedHeaderKey !== null) {
+                    $value = $row[$headerIndex[$matchedHeaderKey]] ?? null;
                 }
             }
 
@@ -736,6 +1012,8 @@ class StudentBulkUploadService
      * @param  EloquentCollection<int, \App\Models\Term>  $terms
      * @param  Collection<int, SchoolClass>  $classes
      * @param  array<int, string>  $inFileComposite
+     * @param  array<string, array{row: int, name: string}>  $inFileAdmissionNumbers
+     *
      * @return array{0: array<string, mixed>, 1: array<int, array<string, mixed>>}
      */
     private function validateRow(
@@ -746,7 +1024,8 @@ class StudentBulkUploadService
         EloquentCollection $terms,
         Collection $classes,
         School $school,
-        array &$inFileComposite
+        array &$inFileComposite,
+        array &$inFileAdmissionNumbers
     ): array {
         $errors = [];
 
@@ -766,8 +1045,8 @@ class StudentBulkUploadService
             return $value;
         };
 
-        $rawAdmissionNo = trim((string) ($getValue('student.admission_no') ?? ''));
-        $studentData['admission_no'] = null;
+        $rawAdmissionNo = $this->normalizeAdmissionNumberInput($getValue('student.admission_no'));
+        $studentData['admission_no'] = $rawAdmissionNo !== '' ? $rawAdmissionNo : null;
         $studentData['first_name'] = $getValue('student.first_name', true);
         $studentData['middle_name'] = $getValue('student.middle_name');
         $studentData['last_name'] = $getValue('student.last_name', true);
@@ -794,13 +1073,13 @@ class StudentBulkUploadService
         );
 
         $studentData['admission_date'] = $this->validateDate(
-            $getValue('student.admission_date', true),
+            $getValue('student.admission_date', false),
             $rowNumber,
             $columns['student.admission_date']['header'],
             $errors
         );
 
-        $status = strtolower((string) $getValue('student.status', true));
+        $status = strtolower((string) $getValue('student.status', false));
         if ($status && ! in_array($status, self::STATUS_OPTIONS, true)) {
             $errors[] = [
                 'row' => $rowNumber,
@@ -911,57 +1190,38 @@ class StudentBulkUploadService
         $parentData['state_of_origin'] = $getValue('parent.state_of_origin');
         $parentData['local_government_area'] = $getValue('parent.local_government_area');
 
-        $parentFieldsProvided = collect($parentData)->filter(function ($value) {
-            return $value !== null && $value !== '';
-        })->isNotEmpty();
+        $shouldLinkParent = trim((string) ($parentData['email'] ?? '')) !== '';
 
-        if ($parentFieldsProvided) {
-            foreach (['first_name', 'last_name', 'email'] as $requiredParentField) {
-                if (! ($parentData[$requiredParentField] ?? null)) {
-                    $errors[] = [
-                        'row' => $rowNumber,
-                        'column' => $columns["parent.{$requiredParentField}"]['header'] ?? $requiredParentField,
-                        'message' => 'This field is required when linking a parent.',
-                    ];
-                }
-            }
+        if ($shouldLinkParent) {
+            if (! filter_var($parentData['email'], FILTER_VALIDATE_EMAIL)) {
+                $errors[] = [
+                    'row' => $rowNumber,
+                    'column' => $columns['parent.email']['header'],
+                    'message' => 'Invalid email address.',
+                ];
+            } else {
+                $existingParent = SchoolParent::query()
+                    ->where('school_id', $school->id)
+                    ->whereHas('user', fn ($query) => $query->where('email', $parentData['email']))
+                    ->first();
 
-            if ($parentData['email']) {
-                if (! filter_var($parentData['email'], FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = [
-                        'row' => $rowNumber,
-                        'column' => $columns['parent.email']['header'],
-                        'message' => 'Invalid email address.',
-                    ];
-                } else {
-                    $existingParent = SchoolParent::query()
-                        ->where('school_id', $school->id)
-                        ->whereHas('user', fn ($query) => $query->where('email', $parentData['email']))
+                if (! $existingParent) {
+                    $existingUser = User::query()
+                        ->where('email', $parentData['email'])
                         ->first();
 
-                    if (! $existingParent) {
-                        $existingUser = User::query()
-                            ->where('email', $parentData['email'])
-                            ->first();
-
-                        if ($existingUser) {
-                            if ($existingUser->school_id !== $school->id) {
-                                $errors[] = [
-                                    'row' => $rowNumber,
-                                    'column' => $columns['parent.email']['header'],
-                                    'message' => 'Email already exists in another school.',
-                                ];
-                            } elseif (! $existingUser->hasRole('parent') && $existingUser->role !== 'parent') {
-                                $errors[] = [
-                                    'row' => $rowNumber,
-                                    'column' => $columns['parent.email']['header'],
-                                    'message' => 'Email already in use by a non-parent account.',
-                                ];
-                            }
-                        }
+                    if ($existingUser && $existingUser->school_id !== $school->id) {
+                        $errors[] = [
+                            'row' => $rowNumber,
+                            'column' => $columns['parent.email']['header'],
+                            'message' => 'Email already exists in another school.',
+                        ];
                     }
                 }
             }
+
+            $parentData['first_name'] = trim((string) ($parentData['first_name'] ?: $studentData['first_name'] ?: 'Parent'));
+            $parentData['last_name'] = trim((string) ($parentData['last_name'] ?: $studentData['last_name'] ?: 'Guardian'));
         } else {
             foreach ($parentData as $key => $value) {
                 $parentData[$key] = null;
@@ -979,15 +1239,79 @@ class StudentBulkUploadService
             $inFileComposite[] = $compositeKey;
         }
 
+        if ($rawAdmissionNo !== '') {
+            $normalizedAdmissionNo = strtolower($rawAdmissionNo);
+            $currentStudentName = trim("{$studentData['first_name']} {$studentData['last_name']}");
+
+            if (array_key_exists($normalizedAdmissionNo, $inFileAdmissionNumbers)) {
+                $existingEntry = $inFileAdmissionNumbers[$normalizedAdmissionNo];
+                $existingName = $existingEntry['name'] !== '' ? $existingEntry['name'] : 'Unknown student';
+                $currentName = $currentStudentName !== '' ? $currentStudentName : 'Unknown student';
+                $duplicateMessage = "This file contains two students with admission number {$rawAdmissionNo}: "
+                    . "{$existingName} on row {$existingEntry['row']} and {$currentName} on row {$rowNumber}. "
+                    . 'Each student in the file must have a unique admission number.';
+
+                $errors[] = [
+                    'row' => $existingEntry['row'],
+                    'column' => $columns['student.admission_no']['header'],
+                    'message' => $duplicateMessage,
+                ];
+                $errors[] = [
+                    'row' => $rowNumber,
+                    'column' => $columns['student.admission_no']['header'],
+                    'message' => $duplicateMessage,
+                ];
+            } else {
+                $inFileAdmissionNumbers[$normalizedAdmissionNo] = [
+                    'row' => $rowNumber,
+                    'name' => $currentStudentName,
+                ];
+            }
+        }
+
         return [
             [
                 'student' => $studentData,
-                'parent' => $parentFieldsProvided ? $parentData : null,
+                'parent' => $shouldLinkParent ? $parentData : null,
                 'source_row' => $rowNumber,
                 'admission_no_input' => $rawAdmissionNo !== '' ? $rawAdmissionNo : null,
             ],
             $errors,
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildPreviewRows(
+        array $rows,
+        EloquentCollection $sessions,
+        EloquentCollection $terms,
+        Collection $classes
+    ): array {
+        return collect($rows)
+            ->map(function (array $row) use ($sessions, $terms, $classes) {
+                $class = $classes->firstWhere('id', $row['student']['school_class_id'] ?? null);
+                $arm = $class?->class_arms->firstWhere('id', $row['student']['class_arm_id'] ?? null);
+                $parent = is_array($row['parent'] ?? null) ? $row['parent'] : [];
+
+                return [
+                    'name' => trim((string) (($row['student']['first_name'] ?? '') . ' ' . ($row['student']['last_name'] ?? ''))),
+                    'gender' => $row['student']['gender'] ?? null,
+                    'admission_no' => ($row['student']['admission_no'] ?? null) ?: 'Auto-generated',
+                    'session' => optional($sessions->firstWhere('id', $row['student']['current_session_id'] ?? null))->name,
+                    'term' => optional($terms->firstWhere('id', $row['student']['current_term_id'] ?? null))->name,
+                    'class' => $class?->name,
+                    'class_arm' => $arm?->name,
+                    'parent_email' => $parent['email'] ?? '—',
+                    'duplicate' => $row['duplicate'] ?? null,
+                    'duplicate_action' => $row['duplicate_action'] ?? null,
+                    'source_row' => $row['source_row'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function validateDate(?string $value, int $rowNumber, string $columnLabel, array &$errors): ?string
@@ -1078,7 +1402,7 @@ class StudentBulkUploadService
         }
 
         $user->name = trim("{$parentData['first_name']} {$parentData['last_name']}");
-        $user->role = 'parent';
+        $user->role = $user->exists ? ($user->role ?: 'parent') : 'parent';
         $user->status = 'active';
         $user->school_id = $school->id;
         $user->phone = $parentData['phone'];
@@ -1214,7 +1538,7 @@ class StudentBulkUploadService
             }
 
             $row['duplicate'] = $duplicate;
-            $row['duplicate_action'] = $duplicate ? 'skip' : 'create';
+            $row['duplicate_action'] = $duplicate ? 'allow' : 'create';
         }
         unset($row);
     }
@@ -1244,6 +1568,95 @@ class StudentBulkUploadService
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $rowUpdates
+     * @return array<string, array<string, mixed>>
+     */
+    private function normalizeRowUpdates(array $rowUpdates): array
+    {
+        $normalized = [];
+
+        foreach ($rowUpdates as $rowKey => $update) {
+            if (! is_array($update)) {
+                continue;
+            }
+
+            $admissionNo = isset($update['admission_no'])
+                ? $this->normalizeAdmissionNumberInput($update['admission_no'])
+                : '';
+            $deleted = filter_var($update['deleted'] ?? false, FILTER_VALIDATE_BOOL);
+
+            if ($admissionNo === '' && ! $deleted) {
+                continue;
+            }
+
+            $normalized[(string) $rowKey] = [];
+            if ($admissionNo !== '') {
+                $normalized[(string) $rowKey]['admission_no'] = $admissionNo;
+            }
+            if ($deleted) {
+                $normalized[(string) $rowKey]['deleted'] = true;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $rowData
+     * @param array<string, array<string, mixed>> $rowUpdateMap
+     * @return array<string, mixed>
+     */
+    private function applyPreviewRowUpdates(array $rowData, int $rowNumber, array $rowUpdateMap): array
+    {
+        $rowKey = (string) $rowNumber;
+        if (! array_key_exists($rowKey, $rowUpdateMap)) {
+            return $rowData;
+        }
+
+        $update = $rowUpdateMap[$rowKey];
+        if (! empty($update['admission_no'])) {
+            $rowData['student.admission_no'] = $update['admission_no'];
+        }
+
+        return $rowData;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, array<string, mixed>> $rowUpdateMap
+     * @return array<string, mixed>
+     */
+    private function applyRowUpdates(array $row, array $rowUpdateMap): array
+    {
+        $rowKey = (string) ($row['source_row'] ?? '');
+        if ($rowKey === '' || ! array_key_exists($rowKey, $rowUpdateMap)) {
+            return $row;
+        }
+
+        $update = $rowUpdateMap[$rowKey];
+        if (! empty($update['admission_no'])) {
+            $admissionNo = $this->normalizeAdmissionNumberInput($update['admission_no']);
+            $row['student']['admission_no'] = $admissionNo;
+            $row['admission_no_input'] = $admissionNo;
+
+            if (($row['duplicate']['admission_no'] ?? null) !== $admissionNo) {
+                $row['duplicate'] = null;
+                $row['duplicate_action'] = 'create';
+            }
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowUpdateMap
+     */
+    private function isRowMarkedDeleted(string $rowKey, array $rowUpdateMap): bool
+    {
+        return (bool) ($rowUpdateMap[$rowKey]['deleted'] ?? false);
     }
 
     private function resolveDuplicateAction(array $row, array $decisionMap): string
@@ -1292,6 +1705,86 @@ class StudentBulkUploadService
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $studentData
+     *
+     * @throws BulkUploadValidationException
+     */
+    private function assertAdmissionNumberIsAvailable(School $school, array $row, array $studentData): void
+    {
+        $admissionNo = $this->normalizeAdmissionNumberInput($studentData['admission_no'] ?? null);
+        if ($admissionNo === '') {
+            return;
+        }
+
+        $existingStudent = Student::query()
+            ->where('admission_no', $admissionNo)
+            ->first();
+
+        if (! $existingStudent) {
+            return;
+        }
+
+        $existingName = trim("{$existingStudent->first_name} {$existingStudent->last_name}");
+        $existingClassContext = $this->formatStudentClassContext($existingStudent);
+        $incomingClassContext = $this->formatIncomingClassContext($studentData);
+        $rowNumber = $row['source_row'] ?? '-';
+
+        $message = "CSV row {$rowNumber}: admission number {$admissionNo} is already used by an existing student record";
+        if ($existingName !== '') {
+            $message .= " as {$existingName}";
+        }
+        $message .= " in {$existingClassContext}.";
+        $message .= " The CSV row you are uploading is for {$incomingClassContext}.";
+        $message .= ' Change the admission number in the CSV or choose Overwrite for that row if you want to update the existing student.';
+
+        throw new BulkUploadValidationException(
+            [[
+                'row' => $row['source_row'] ?? '-',
+                'column' => 'Admission Number',
+                'message' => $message,
+            ]],
+            null,
+            [],
+            $message
+        );
+    }
+
+    private function formatStudentClassContext(Student $student): string
+    {
+        $student->loadMissing(['school_class', 'class_arm']);
+
+        $className = $student->school_class?->name ?: 'No class';
+        $armName = $student->class_arm?->name ?: 'None';
+
+        return "{$className} / {$armName}";
+    }
+
+    /**
+     * @param array<string, mixed> $studentData
+     */
+    private function formatIncomingClassContext(array $studentData): string
+    {
+        $className = 'No class';
+        $armName = 'None';
+
+        if (! empty($studentData['school_class_id'])) {
+            $class = SchoolClass::find($studentData['school_class_id']);
+            if ($class) {
+                $className = $class->name;
+                if (! empty($studentData['class_arm_id'])) {
+                    $arm = $class->class_arms()->find($studentData['class_arm_id']);
+                    if ($arm) {
+                        $armName = $arm->name;
+                    }
+                }
+            }
+        }
+
+        return "{$className} / {$armName}";
+    }
+
     private function normalizeHeaderValue(string $value): string
     {
         $value = ltrim($value, "\xEF\xBB\xBF");
@@ -1303,6 +1796,15 @@ class StudentBulkUploadService
             ->replace('.', '_')
             ->trim('_')
             ->value();
+    }
+
+    private function normalizeAdmissionNumberInput(mixed $value): string
+    {
+        $value = (string) ($value ?? '');
+        $value = str_replace("\xC2\xA0", ' ', $value);
+        $value = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{FEFF}]/u', '', $value) ?? $value;
+
+        return trim($value);
     }
 
     /**

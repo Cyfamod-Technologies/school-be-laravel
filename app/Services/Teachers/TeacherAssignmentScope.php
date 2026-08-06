@@ -72,6 +72,10 @@ class TeacherAssignmentScope
                 $outer->orWhere(function (Builder $clause) use ($context) {
                     $clause->where('school_class_id', $context['school_class_id']);
 
+                    if ($context['session_id']) {
+                        $clause->where('current_session_id', $context['session_id']);
+                    }
+
                     if ($context['class_arm_id']) {
                         $clause->where('class_arm_id', $context['class_arm_id']);
                     }
@@ -80,13 +84,83 @@ class TeacherAssignmentScope
                         $clause->where('class_section_id', $context['class_section_id']);
                     }
                 });
+
+                $outer->orWhereHas('results', function (Builder $resultQuery) use ($context) {
+                    $resultQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['class_arm_id']) {
+                        $resultQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $resultQuery->where('class_section_id', $context['class_section_id']);
+                    }
+
+                    if ($context['session_id']) {
+                        $resultQuery->where('session_id', $context['session_id']);
+                    }
+
+                });
             }
         });
     }
 
     public function restrictAttendanceQuery(Builder $builder): void
     {
-        $this->restrictStudentQuery($builder);
+        if (! $this->isTeacher) {
+            return;
+        }
+
+        $contexts = $this->studentContexts();
+        $explicitStudentIds = $this->explicitStudentIds();
+
+        if ($contexts->isEmpty() && $explicitStudentIds->isEmpty()) {
+            $builder->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $builder->where(function (Builder $outer) use ($contexts, $explicitStudentIds) {
+            if ($explicitStudentIds->isNotEmpty()) {
+                $outer->orWhereIn('student_id', $explicitStudentIds->values()->all());
+            }
+
+            foreach ($contexts as $context) {
+                // Prefer the historical placement stored on the attendance row.
+                $outer->orWhere(function (Builder $attendanceQuery) use ($context) {
+                    $attendanceQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $attendanceQuery->where('session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $attendanceQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $attendanceQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+
+                // Support legacy attendance rows that do not contain placement snapshots.
+                $outer->orWhereHas('student', function (Builder $studentQuery) use ($context) {
+                    $studentQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $studentQuery->where('current_session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $studentQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $studentQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+            }
+        });
     }
 
     public function restrictResultQuery(Builder $builder): void
@@ -116,25 +190,20 @@ class TeacherAssignmentScope
                         $clause->where('session_id', $assignment->session_id);
                     }
 
-                    if ($assignment->term_id) {
-                        $clause->where('term_id', $assignment->term_id);
-                    }
 
                     $studentIds = $this->assignmentStudentIds($assignment);
                     if ($studentIds->isNotEmpty()) {
                         $clause->whereIn('student_id', $studentIds->values()->all());
                     } else {
-                        $clause->whereHas('student', function (Builder $studentQuery) use ($assignment) {
-                            $studentQuery->where('school_class_id', $assignment->school_class_id);
+                        $clause->where('school_class_id', $assignment->school_class_id);
 
-                            if ($assignment->class_arm_id) {
-                                $studentQuery->where('class_arm_id', $assignment->class_arm_id);
-                            }
+                        if ($assignment->class_arm_id) {
+                            $clause->where('class_arm_id', $assignment->class_arm_id);
+                        }
 
-                            if ($assignment->class_section_id) {
-                                $studentQuery->where('class_section_id', $assignment->class_section_id);
-                            }
-                        });
+                        if ($assignment->class_section_id) {
+                            $clause->where('class_section_id', $assignment->class_section_id);
+                        }
                     }
                 });
             }
@@ -142,16 +211,21 @@ class TeacherAssignmentScope
             // Allow class teachers to view results for students
             // in their assigned classes/arms/sections, regardless of subject.
             foreach ($studentContexts as $context) {
-                $outer->orWhereHas('student', function (Builder $studentQuery) use ($context) {
-                    $studentQuery->where('school_class_id', $context['school_class_id']);
+                $outer->orWhere(function (Builder $resultQuery) use ($context) {
+                    $resultQuery->where('school_class_id', $context['school_class_id']);
 
                     if ($context['class_arm_id']) {
-                        $studentQuery->where('class_arm_id', $context['class_arm_id']);
+                        $resultQuery->where('class_arm_id', $context['class_arm_id']);
                     }
 
                     if ($context['class_section_id']) {
-                        $studentQuery->where('class_section_id', $context['class_section_id']);
+                        $resultQuery->where('class_section_id', $context['class_section_id']);
                     }
+
+                    if ($context['session_id']) {
+                        $resultQuery->where('session_id', $context['session_id']);
+                    }
+
                 });
             }
 
@@ -168,6 +242,17 @@ class TeacherAssignmentScope
         }
 
         return $this->studentContexts()->contains(
+            fn (array $context) => $this->matchesContext($context, $student),
+        );
+    }
+
+    public function allowsClassTeacherStudent(Student $student): bool
+    {
+        if (! $this->isTeacher) {
+            return true;
+        }
+
+        return $this->classTeacherStudentContexts()->contains(
             fn (array $context) => $this->matchesContext($context, $student),
         );
     }
@@ -204,10 +289,6 @@ class TeacherAssignmentScope
                 if ($sessionId && $assignment->session_id && $assignment->session_id !== $sessionId) {
                     return false;
                 }
-                if ($termId && $assignment->term_id && $assignment->term_id !== $termId) {
-                    return false;
-                }
-
                 return true;
             })
             ->values();
@@ -225,8 +306,19 @@ class TeacherAssignmentScope
             return true;
         }
 
-        // If there's no specific subject assignment, fall back to class teacher access.
-        return $this->allowsStudent($student);
+        // If there is no matching subject assignment, only a class-teacher
+        // allocation from the requested session may grant fallback access.
+        return $this->classAssignments
+            ->filter(function (ClassTeacher $assignment) use ($sessionId) {
+                return ! $sessionId
+                    || ! $assignment->session_id
+                    || (string) $assignment->session_id === $sessionId;
+            })
+            ->contains(fn (ClassTeacher $assignment) => $this->matchesContext([
+                'school_class_id' => $assignment->school_class_id,
+                'class_arm_id' => $assignment->class_arm_id ?? null,
+                'class_section_id' => $assignment->class_section_id ?? null,
+            ], $student));
     }
 
     /**
@@ -237,7 +329,7 @@ class TeacherAssignmentScope
      *     class_section: array|null,
      *     session: array|null,
      *     term: array|null,
-     *     subjects: array<int, array{id: string, name: ?string, code: ?string}>
+     *     subjects: array<int, array{id: string, name: ?string, code: ?string, is_subject_teacher: bool}>
      * }>
      */
     public function summarizeAssignments(): Collection
@@ -258,7 +350,7 @@ class TeacherAssignmentScope
                 $assignment->class_arm_id ?? null,
                 $assignment->class_section_id ?? null,
                 $assignment->session_id ?? null,
-                $assignment->term_id ?? null,
+                null,
             );
 
             if (! array_key_exists($key, $entries)) {
@@ -268,7 +360,7 @@ class TeacherAssignmentScope
                     'class_arm' => $this->formatArm($assignment),
                     'class_section' => $this->formatSection($assignment),
                     'session' => $this->formatSession($assignment),
-                    'term' => $this->formatTerm($assignment),
+                    'term' => null,
                     'subjects' => [],
                     'is_class_teacher' => false,
                 ];
@@ -284,6 +376,7 @@ class TeacherAssignmentScope
                     'id' => $assignment->subject->id,
                     'name' => $assignment->subject->name,
                     'code' => $assignment->subject->code,
+                    'is_subject_teacher' => true,
                 ];
             }
         };
@@ -310,13 +403,12 @@ class TeacherAssignmentScope
                                 'id' => $subject->id,
                                 'name' => $subject->name,
                                 'code' => $subject->code,
+                                'is_subject_teacher' => false,
                             ];
                         }
                     }
                 }
 
-                // Remove the is_class_teacher flag before returning
-                unset($entry['is_class_teacher']);
                 $entry['subjects'] = array_values($entry['subjects']);
 
                 return $entry;
@@ -371,6 +463,8 @@ class TeacherAssignmentScope
                 'school_class_id' => $assignment->school_class_id,
                 'class_arm_id' => $assignment->class_arm_id ?? null,
                 'class_section_id' => $assignment->class_section_id ?? null,
+                'session_id' => $assignment->session_id ?? null,
+                'term_id' => null,
             ]);
         };
 
@@ -382,6 +476,26 @@ class TeacherAssignmentScope
                 $context['school_class_id'] ?? 'class-null',
                 $context['class_arm_id'] ?? 'arm-null',
                 $context['class_section_id'] ?? 'section-null',
+                $context['session_id'] ?? 'session-null',
+            ]))
+            ->values();
+    }
+
+    private function classTeacherStudentContexts(): Collection
+    {
+        return $this->classAssignments
+            ->filter(fn ($assignment) => ! empty($assignment->school_class_id))
+            ->map(fn ($assignment) => [
+                'school_class_id' => $assignment->school_class_id,
+                'class_arm_id' => $assignment->class_arm_id ?? null,
+                'class_section_id' => $assignment->class_section_id ?? null,
+                'session_id' => $assignment->session_id ?? null,
+            ])
+            ->unique(fn (array $context) => implode(':', [
+                $context['school_class_id'] ?? 'class-null',
+                $context['class_arm_id'] ?? 'arm-null',
+                $context['class_section_id'] ?? 'section-null',
+                $context['session_id'] ?? 'session-null',
             ]))
             ->values();
     }
@@ -397,6 +511,12 @@ class TeacherAssignmentScope
         }
 
         if ($context['class_section_id'] && $context['class_section_id'] !== $student->class_section_id) {
+            return false;
+        }
+
+        if (($context['session_id'] ?? null)
+            && $student->current_session_id
+            && (string) $context['session_id'] !== (string) $student->current_session_id) {
             return false;
         }
 

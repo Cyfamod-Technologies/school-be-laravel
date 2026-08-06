@@ -5,15 +5,235 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\CommentRange;
 use App\Models\GradingScale;
+use App\Models\Result;
 use App\Models\Student;
 use App\Models\TermSummary;
+use App\Services\Teachers\TeacherAccessService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class StudentTermSummaryController extends Controller
 {
+    public function __construct(private TeacherAccessService $teacherAccess)
+    {
+    }
+
+    public function batchIndex(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'session_id' => [
+                'required',
+                'uuid',
+                Rule::exists('sessions', 'id')->where('school_id', $user->school_id),
+            ],
+            'term_id' => [
+                'required',
+                'uuid',
+                Rule::exists('terms', 'id')->where('school_id', $user->school_id),
+            ],
+            'school_class_id' => [
+                'required',
+                'uuid',
+                Rule::exists('classes', 'id')->where('school_id', $user->school_id),
+            ],
+            'class_arm_id' => ['nullable', 'uuid'],
+            'class_section_id' => ['nullable', 'uuid'],
+        ]);
+
+        $studentQuery = Student::query()
+            ->where('school_id', $user->school_id)
+            ->where('school_class_id', $validated['school_class_id'])
+            ->when(
+                ! empty($validated['class_arm_id']),
+                fn ($query) => $query->where('class_arm_id', $validated['class_arm_id'])
+            )
+            ->when(
+                ! empty($validated['class_section_id']),
+                fn ($query) => $query->where('class_section_id', $validated['class_section_id'])
+            )
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->with([
+                'school_class:id,name',
+                'class_arm:id,name',
+                'class_section:id,name',
+            ]);
+
+        $this->teacherAccess->forUser($user)->restrictStudentQuery($studentQuery);
+
+        $students = $studentQuery
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $summaries = TermSummary::query()
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereIn('student_id', $students->pluck('id'))
+            ->get()
+            ->keyBy('student_id');
+
+        return response()->json([
+            'data' => $students
+                ->map(fn (Student $student) => $this->serializeBatchSummary(
+                    $student,
+                    $summaries->get($student->id)
+                ))
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    public function batchUpdate(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'session_id' => [
+                'required',
+                'uuid',
+                Rule::exists('sessions', 'id')->where('school_id', $user->school_id),
+            ],
+            'term_id' => [
+                'required',
+                'uuid',
+                Rule::exists('terms', 'id')->where('school_id', $user->school_id),
+            ],
+            'entries' => ['required', 'array', 'min:1'],
+            'entries.*.student_id' => ['required', 'uuid'],
+            'entries.*.days_present' => ['nullable', 'integer', 'min:0'],
+            'entries.*.days_absent' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $entries = collect($validated['entries'])
+            ->map(fn (array $entry) => [
+                'student_id' => (string) $entry['student_id'],
+                'days_present' => $entry['days_present'] ?? null,
+                'days_absent' => $entry['days_absent'] ?? null,
+            ])
+            ->values();
+
+        $incompleteEntries = $entries
+            ->filter(fn (array $entry) => ($entry['days_present'] === null) xor ($entry['days_absent'] === null))
+            ->pluck('student_id')
+            ->values()
+            ->all();
+
+        if (! empty($incompleteEntries)) {
+            return response()->json([
+                'message' => 'Both days present and days absent must be provided together, or both left blank.',
+                'student_ids' => $incompleteEntries,
+            ], 422);
+        }
+
+        $students = Student::query()
+            ->where('school_id', $user->school_id)
+            ->whereIn('id', $entries->pluck('student_id'))
+            ->with([
+                'school_class:id,name',
+                'class_arm:id,name',
+                'class_section:id,name',
+            ])
+            ->get()
+            ->keyBy('id');
+
+        if ($students->count() !== $entries->count()) {
+            return response()->json([
+                'message' => 'One or more students could not be found in your school.',
+                'missing_student_ids' => $entries
+                    ->pluck('student_id')
+                    ->reject(fn (string $studentId) => $students->has($studentId))
+                    ->values()
+                    ->all(),
+            ], 422);
+        }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher()) {
+            foreach ($entries as $entry) {
+                $student = $students->get($entry['student_id']);
+
+                if (! $student || ! $scope->allowsStudent($student)) {
+                    abort(403, 'You are not allowed to manage records for one or more students.');
+                }
+            }
+        }
+
+        $savedSummaries = [];
+        $created = 0;
+        $updated = 0;
+
+        DB::transaction(function () use (
+            $entries,
+            $students,
+            $validated,
+            &$savedSummaries,
+            &$created,
+            &$updated
+        ) {
+            $existingSummaries = TermSummary::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->whereIn('student_id', $entries->pluck('student_id'))
+                ->get()
+                ->keyBy('student_id');
+
+            foreach ($entries as $entry) {
+                $student = $students->get($entry['student_id']);
+                $summary = $existingSummaries->get($entry['student_id']);
+
+                if (! $summary && $entry['days_present'] === null && $entry['days_absent'] === null) {
+                    continue;
+                }
+
+                $isNewSummary = false;
+                if (! $summary) {
+                    $summary = $this->makeEmptySummary(
+                        $student,
+                        $validated['session_id'],
+                        $validated['term_id']
+                    );
+                    $isNewSummary = true;
+                }
+
+                $summary->days_present = $entry['days_present'];
+                $summary->days_absent = $entry['days_absent'];
+
+                if ($isNewSummary || $summary->isDirty()) {
+                    $summary->save();
+                    if ($isNewSummary) {
+                        $created++;
+                    } else {
+                        $updated++;
+                    }
+                }
+
+                $savedSummaries[$student->id] = $summary;
+            }
+        });
+
+        return response()->json([
+            'message' => 'Attendance summary saved successfully.',
+            'created' => $created,
+            'updated' => $updated,
+            'data' => $entries
+                ->map(function (array $entry) use ($students, $savedSummaries) {
+                    $student = $students->get($entry['student_id']);
+                    $summary = $savedSummaries[$entry['student_id']] ?? null;
+
+                    return $this->serializeBatchSummary($student, $summary);
+                })
+                ->filter()
+                ->values()
+                ->all(),
+        ]);
+    }
+
     /**
      * @OA\Get(
      *     path="/api/v1/students/{student}/term-summary",
@@ -72,17 +292,26 @@ class StudentTermSummaryController extends Controller
             ->where('term_id', $termId)
             ->first();
 
-        $commentTemplates = $this->resolveCommentTemplates($student, $sessionId);
+        $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+        $average = $this->resolveStudentAverage($student, $sessionId, $termId, $termSummary);
+        $commentTemplates = $useAutomaticComments
+            ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
+            : $this->resolveCommentTemplates($student, $sessionId);
 
-        $teacherComment = $termSummary?->overall_comment;
-        $principalComment = $termSummary?->principal_comment;
+        if ($useAutomaticComments) {
+            $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
+            $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
+        } else {
+            $teacherComment = $termSummary?->overall_comment;
+            $principalComment = $termSummary?->principal_comment;
 
-        if ($teacherComment === null || trim((string) $teacherComment) === '') {
-            $teacherComment = $this->generateTeacherComment($termSummary);
-        }
+            if ($teacherComment === null || trim((string) $teacherComment) === '') {
+                $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
+            }
 
-        if ($principalComment === null || trim((string) $principalComment) === '') {
-            $principalComment = $this->generatePrincipalComment($termSummary);
+            if ($principalComment === null || trim((string) $principalComment) === '') {
+                $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
+            }
         }
 
         return response()->json([
@@ -176,10 +405,12 @@ class StudentTermSummaryController extends Controller
             $termSummary->principal_comment = null;
         }
 
-        if (array_key_exists('class_teacher_comment', $validated)) {
+        $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+
+        if (! $useAutomaticComments && array_key_exists('class_teacher_comment', $validated)) {
             $termSummary->overall_comment = $validated['class_teacher_comment'] ?? null;
         }
-        if (array_key_exists('principal_comment', $validated)) {
+        if (! $useAutomaticComments && array_key_exists('principal_comment', $validated)) {
             $termSummary->principal_comment = $validated['principal_comment'] ?? null;
         }
         if (array_key_exists('days_present', $validated)) {
@@ -190,16 +421,31 @@ class StudentTermSummaryController extends Controller
         }
         $termSummary->save();
 
-        $commentTemplates = $this->resolveCommentTemplates(
+        $commentTemplates = $useAutomaticComments
+            ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
+            : $this->resolveCommentTemplates(
+                $student,
+                $validated['session_id'] ?? null
+            );
+
+        $average = $this->resolveStudentAverage(
             $student,
-            $validated['session_id'] ?? null
+            $validated['session_id'],
+            $validated['term_id'],
+            $termSummary
         );
+        $teacherComment = $useAutomaticComments
+            ? $this->generateTeacherComment($average, $student, $validated['session_id'])
+            : $termSummary->overall_comment;
+        $principalComment = $useAutomaticComments
+            ? $this->generatePrincipalComment($average, $student, $validated['session_id'])
+            : $termSummary->principal_comment;
 
         return response()->json([
             'message' => 'Comments updated successfully.',
             'data' => [
-                'class_teacher_comment' => $termSummary->overall_comment,
-                'principal_comment' => $termSummary->principal_comment,
+                'class_teacher_comment' => $teacherComment,
+                'principal_comment' => $principalComment,
                 'class_teacher_comment_options' => $commentTemplates['class_teacher_comment_options'],
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary->days_present,
@@ -215,66 +461,201 @@ class StudentTermSummaryController extends Controller
         if (! $user || $user->school_id !== $student->school_id) {
             abort(403, 'You are not allowed to manage records for this student.');
         }
+
+        $scope = $this->teacherAccess->forUser($user);
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to manage records for this student.');
+        }
     }
 
-    private function generateTeacherComment(?TermSummary $summary): string
+    private function usesAutomaticCommentMode(Student $student): bool
     {
-        if (! $summary || $summary->average_score === null) {
-            return 'This student is good.';
+        return ($student->school?->result_comment_mode ?? 'manual') === 'range';
+    }
+
+    private function resolveStudentAverage(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        ?TermSummary $summary
+    ): ?float
+    {
+        $subjectTotals = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->where('term_id', $termId)
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function (Collection $entries) {
+                $overall = $entries->first(
+                    fn (Result $result) => $result->assessment_component_id === null
+                        && $result->total_score !== null
+                );
+
+                if ($overall) {
+                    return (float) $overall->total_score;
+                }
+
+                $componentScores = $entries
+                    ->filter(fn (Result $result) => $result->assessment_component_id !== null)
+                    ->pluck('total_score')
+                    ->filter(fn ($score) => $score !== null);
+
+                return $componentScores->isEmpty()
+                    ? null
+                    : (float) $componentScores->sum();
+            })
+            ->filter(fn ($total) => $total !== null)
+            ->values();
+
+        if ($subjectTotals->isNotEmpty()) {
+            return round((float) $subjectTotals->average(), 2);
         }
 
-        $average = (float) $summary->average_score;
+        return $summary?->average_score !== null
+            ? round((float) $summary->average_score, 2)
+            : null;
+    }
 
-        if ($average >= 85) {
-            return 'Excellent performance. Keep it up.';
+    private function generateTeacherComment(?float $average, ?Student $student, ?string $sessionId): string
+    {
+        if ($average === null) {
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        }
+
+        // Get comment ranges from database
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->teacher_comment))) {
+                return trim((string) $commentRange->teacher_comment);
+            }
+        }
+
+        // Fallback to default hardcoded comments
+        if ($average >= 80) {
+            return 'An outstanding performance. The student demonstrates exceptional understanding, excellent participation, and remarkable consistency. Keep up the excellent work.';
         }
 
         if ($average >= 70) {
-            return 'Very good performance. Keep working hard.';
+            return 'An excellent performance. The student demonstrates strong understanding, active participation, and consistent effort in class. Keep striving for excellence.';
         }
 
-        if ($average >= 55) {
-            return 'Good effort. There is room for improvement.';
+        if ($average >= 60) {
+            return 'A very good performance. The student shows good understanding and participates well but can improve with more consistency.';
+        }
+
+        if ($average >= 50) {
+            return 'A good effort. The student has a fair grasp of concepts but needs to work harder to improve understanding and performance.';
         }
 
         if ($average >= 45) {
-            return 'Fair performance. Encourage more focus and hard work.';
+            return 'A fair performance. The student needs to pay more attention, participate actively, and put in extra effort to improve.';
         }
 
-        return 'Below expectation. Close monitoring and extra support are recommended.';
+        if ($average >= 40) {
+            return 'A weak pass. The student shows minimal understanding and must improve study habits and commitment.';
+        }
+
+        if ($average >= 35) {
+            return 'A below-average performance. The student shows limited understanding and needs greater concentration, regular practice, and additional academic support.';
+        }
+
+        if ($average >= 30) {
+            return 'A poor performance. The student is struggling with key concepts and needs consistent practice, closer supervision, and serious improvement.';
+        }
+
+        return 'A very poor performance. The student requires urgent academic support, regular revision, and close guidance to improve.';
     }
 
-    private function generatePrincipalComment(?TermSummary $summary): string
+    private function generatePrincipalComment(?float $average, ?Student $student, ?string $sessionId): string
     {
-        if (! $summary || $summary->average_score === null) {
-            return 'This student is hardworking.';
+        if ($average === null) {
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
         }
 
-        $average = (float) $summary->average_score;
-
-        if ($average >= 85) {
-            return 'An outstanding result. The school is proud of this performance.';
+        // Get comment ranges from database
+        if ($student && $sessionId) {
+            $commentRange = $this->findMatchingCommentRange($student, $sessionId, $average);
+            if ($commentRange && ! empty(trim((string) $commentRange->principal_comment))) {
+                return trim((string) $commentRange->principal_comment);
+            }
         }
 
+        // Fallback to default hardcoded comments
         if ($average >= 70) {
-            return 'A very good result. Maintain this level of commitment.';
+            return 'An outstanding result. Keep up the excellent work and continue to be a good example to others.';
         }
 
-        if ($average >= 55) {
-            return 'A good result. Greater consistency will yield even better outcomes.';
+        if ($average >= 60) {
+            return 'A commendable performance. With a little more effort, you can achieve even greater success.';
+        }
+
+        if ($average >= 50) {
+            return 'A satisfactory performance. There is room for improvement. Work harder next term.';
         }
 
         if ($average >= 45) {
-            return 'A fair result. Increased effort and diligence are advised.';
+            return 'A fair result. You need to be more focused and committed to your studies.';
         }
 
-        return 'Performance is below the expected standard. Parents and teachers should work together to support this learner.';
+        if ($average >= 40) {
+            return 'A marginal pass. Greater effort and seriousness are required for improvement.';
+        }
+
+        return 'An unsatisfactory performance. Immediate improvement is required through hard work and discipline.';
+    }
+
+    private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
+    {
+        $boundedRange = fn ($query) => $query->where(
+            fn ($rangeQuery) => $rangeQuery
+                ->where('min_score', '>', 0)
+                ->orWhere('max_score', '<', 100)
+        );
+
+        $defaultQuery = GradingScale::query()
+            ->where('school_id', $student->school_id)
+            ->whereHas('comment_ranges', $boundedRange)
+            ->with([
+                'comment_ranges' => fn ($query) => $boundedRange($query)->orderBy('min_score'),
+            ]);
+
+        $gradeScale = null;
+
+        if ($sessionId) {
+            $gradeScale = (clone $defaultQuery)
+                ->where('session_id', $sessionId)
+                ->first();
+        }
+
+        if (! $gradeScale) {
+            $gradeScale = (clone $defaultQuery)
+                ->whereNull('session_id')
+                ->first();
+        }
+
+        if (! $gradeScale || $gradeScale->comment_ranges->isEmpty()) {
+            return null;
+        }
+
+        /** @var Collection<int, CommentRange> $ranges */
+        $ranges = $gradeScale->comment_ranges->sortBy('min_score')->values();
+
+        // Find the matching comment range for the score
+        foreach ($ranges as $range) {
+            if ($score >= (float) $range->min_score && $score <= (float) $range->max_score) {
+                return $range;
+            }
+        }
+
+        return null;
     }
 
     private function resolveCommentTemplates(Student $student, ?string $sessionId): array
     {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
+            ->whereHas('comment_ranges')
             ->with(['comment_ranges' => fn ($query) => $query->orderBy('created_at')]);
 
         $gradeScale = null;
@@ -316,6 +697,51 @@ class StudentTermSummaryController extends Controller
                 ->unique()
                 ->values()
                 ->all(),
+        ];
+    }
+
+    private function makeEmptySummary(Student $student, string $sessionId, string $termId): TermSummary
+    {
+        $summary = new TermSummary();
+        $summary->id = (string) Str::uuid();
+        $summary->student_id = $student->id;
+        $summary->session_id = $sessionId;
+        $summary->term_id = $termId;
+        $summary->total_marks_obtained = 0;
+        $summary->total_marks_possible = 0;
+        $summary->average_score = 0;
+        $summary->position_in_class = 0;
+        $summary->class_average_score = 0;
+        $summary->days_present = null;
+        $summary->days_absent = null;
+        $summary->final_grade = null;
+        $summary->overall_comment = null;
+        $summary->principal_comment = null;
+
+        return $summary;
+    }
+
+    private function serializeBatchSummary(?Student $student, ?TermSummary $summary): ?array
+    {
+        if (! $student) {
+            return null;
+        }
+
+        return [
+            'student' => [
+                'id' => $student->id,
+                'name' => trim(collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ')),
+                'admission_no' => $student->admission_no,
+                'class_label' => collect([
+                    optional($student->school_class)->name,
+                    optional($student->class_arm)->name,
+                    optional($student->class_section)->name,
+                ])->filter()->implode(' / '),
+            ],
+            'class_teacher_comment' => $summary?->overall_comment,
+            'principal_comment' => $summary?->principal_comment,
+            'days_present' => $summary?->days_present,
+            'days_absent' => $summary?->days_absent,
         ];
     }
 }

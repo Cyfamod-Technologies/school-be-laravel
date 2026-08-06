@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClassArm;
+use App\Models\ClassSection;
+use App\Models\Result;
+use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\JsonResponse;
@@ -80,7 +84,10 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        $this->ensurePermission($request, 'students.view');
+        $scope = $this->teacherAccess->forUser($request->user());
+        if (! $scope->isTeacher()) {
+            $this->ensurePermission($request, 'students.view');
+        }
         Student::fixLegacyForeignKeys();
         $perPage = max((int) $request->input('per_page', 10), 1);
 
@@ -112,26 +119,67 @@ class StudentController extends Controller
                         });
                 });
             })
-            ->when($request->filled('session_id') || $request->filled('current_session_id'), function ($query) use ($request) {
-                $sessionId = $request->input('current_session_id', $request->input('session_id'));
-                $query->where('current_session_id', $sessionId);
+            ->when($request->filled('current_session_id'), function ($query) use ($request) {
+                $query->where('current_session_id', $request->input('current_session_id'));
             })
-            ->when($request->filled('term_id') || $request->filled('current_term_id'), function ($query) use ($request) {
-                $termId = $request->input('current_term_id', $request->input('term_id'));
-                $query->where('current_term_id', $termId);
-            })
-            ->when($request->filled('class_id') || $request->filled('school_class_id'), function ($query) use ($request) {
+            ->when($request->filled('session_id') && ! $request->filled('current_session_id'), function ($query) use ($request) {
+                $sessionId = $request->input('session_id');
+                $termId = $request->input('term_id');
                 $classId = $request->input('school_class_id', $request->input('class_id'));
-                $query->where('school_class_id', $classId);
+                $classArmId = $request->input('class_arm_id');
+                $classSectionId = $request->input('class_section_id');
+
+                $query->where(function ($placementQuery) use ($sessionId, $termId, $classId, $classArmId, $classSectionId) {
+                    $placementQuery->where(function ($currentPlacement) use ($sessionId, $classId, $classArmId, $classSectionId) {
+                        $currentPlacement->where('current_session_id', $sessionId)
+                            ->when($classId, fn ($builder, $value) => $builder->where('school_class_id', $value))
+                            ->when($classArmId, fn ($builder, $value) => $builder->where('class_arm_id', $value))
+                            ->when($classSectionId, fn ($builder, $value) => $builder->where('class_section_id', $value));
+                    })
+                        ->orWhereHas('results', function ($resultQuery) use ($sessionId, $termId, $classId, $classArmId, $classSectionId) {
+                            $resultQuery->where('session_id', $sessionId)
+                                ->when($termId, fn ($builder, $value) => $builder->where('term_id', $value))
+                                ->when($classId, fn ($builder, $value) => $builder->where('school_class_id', $value))
+                                ->when($classArmId, fn ($builder, $value) => $builder->where('class_arm_id', $value))
+                                ->when($classSectionId, fn ($builder, $value) => $builder->where('class_section_id', $value));
+                        });
+                });
             })
-            ->when($request->filled('class_arm_id'), function ($query) use ($request) {
-                $query->where('class_arm_id', $request->class_arm_id);
+            ->when($request->filled('current_term_id'), function ($query) use ($request) {
+                $query->where('current_term_id', $request->input('current_term_id'));
             })
+            ->when(
+                ($request->filled('class_id') || $request->filled('school_class_id'))
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $classId = $request->input('school_class_id', $request->input('class_id'));
+                    $query->where('school_class_id', $classId);
+                }
+            )
+            ->when(
+                $request->filled('class_arm_id')
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $query->where('class_arm_id', $request->class_arm_id);
+                }
+            )
+            ->when(
+                $request->filled('class_section_id')
+                    && ! ($request->filled('session_id') && ! $request->filled('current_session_id')),
+                function ($query) use ($request) {
+                    $query->where('class_section_id', $request->input('class_section_id'));
+                }
+            )
             ->when($request->filled('parent_id'), function ($query) use ($request) {
                 $query->where('parent_id', $request->parent_id);
             })
             ->when($request->filled('status'), function ($query) use ($request) {
-                $query->where('status', strtolower($request->status));
+                $statuses = array_filter(array_map('strtolower', explode(',', $request->input('status'))));
+                if (count($statuses) === 1) {
+                    $query->where('status', reset($statuses));
+                } elseif (count($statuses) > 1) {
+                    $query->whereIn('status', array_values($statuses));
+                }
             })
             ->when($request->filled('sortBy'), function ($query) use ($request) {
                 $allowed = ['first_name', 'last_name', 'admission_no', 'created_at'];
@@ -143,10 +191,48 @@ class StudentController extends Controller
                 }
             });
 
-        $scope = $this->teacherAccess->forUser($request->user());
         $scope->restrictStudentQuery($query);
 
         $students = $query->paginate($perPage)->withQueryString();
+
+        if ($request->filled('session_id') && ! $request->filled('current_session_id')) {
+            $studentIds = $students->getCollection()->pluck('id');
+            $placements = Result::query()
+                ->whereIn('student_id', $studentIds)
+                ->where('session_id', $request->input('session_id'))
+                ->when($request->input('term_id'), fn ($builder, $termId) => $builder->where('term_id', $termId))
+                ->whereNotNull('school_class_id')->orderByDesc('created_at')
+                ->get(['student_id', 'school_class_id', 'class_arm_id', 'class_section_id'])
+                ->unique('student_id')
+                ->keyBy('student_id');
+
+            $classes = SchoolClass::query()
+                ->whereIn('id', $placements->pluck('school_class_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+            $arms = ClassArm::query()
+                ->whereIn('id', $placements->pluck('class_arm_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+            $sections = ClassSection::query()
+                ->whereIn('id', $placements->pluck('class_section_id')->filter()->unique())
+                ->get()
+                ->keyBy('id');
+
+            $students->getCollection()->each(function (Student $student) use ($placements, $classes, $arms, $sections) {
+                $placement = $placements->get($student->id);
+                if (! $placement) {
+                    return;
+                }
+
+                $student->school_class_id = $placement->school_class_id;
+                $student->class_arm_id = $placement->class_arm_id;
+                $student->class_section_id = $placement->class_section_id;
+                $student->setRelation('school_class', $classes->get($placement->school_class_id));
+                $student->setRelation('class_arm', $arms->get($placement->class_arm_id));
+                $student->setRelation('class_section', $sections->get($placement->class_section_id));
+            });
+        }
 
         return response()->json($students);
     }
@@ -253,12 +339,6 @@ class StudentController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'withdrawn'])],
         ]);
 
-        $scope = $this->teacherAccess->forUser($request->user());
-
-        if ($scope->isTeacher()) {
-            abort(403, 'Teachers cannot create student records.');
-        }
-
         $session = \App\Models\Session::findOrFail($validated['current_session_id']);
 
         $studentData = $validated;
@@ -293,10 +373,7 @@ class StudentController extends Controller
             $studentData['admission_no'] = $value === '' ? null : $value;
         }
 
-        $duplicateStudent = $this->findDuplicateStudent($school->id, $studentData);
-        if ($duplicateStudent) {
-            return $this->duplicateStudentResponse($duplicateStudent);
-        }
+        // Duplicate-name blocking is temporarily disabled.
 
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
@@ -317,6 +394,75 @@ class StudentController extends Controller
         return response()->json([
             'data' => $student->load($this->studentRelations()),
         ], 201);
+    }
+
+    public function regenerateAdmissionNumbers(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = strtolower(trim((string) ($user->role ?? '')));
+        $isAdmin = in_array($role, ['admin', 'super_admin', 'superadmin', 'administrator'], true)
+            || $user->hasAnyRole(['admin', 'super_admin']);
+
+        if (! $isAdmin) {
+            abort(403, 'Only administrators can regenerate admission numbers.');
+        }
+
+        $this->ensurePermission($request, ['students.update', 'students.edit']);
+
+        $school = $user->school;
+        if (! $school) {
+            return response()->json([
+                'message' => 'Authenticated user is not associated with any school.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'student_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'student_ids.*' => [
+                'required',
+                'uuid',
+                'distinct',
+                Rule::exists('students', 'id')->where('school_id', $school->id),
+            ],
+        ]);
+
+        $regenerated = DB::transaction(function () use ($validated, $school) {
+            $students = Student::query()
+                ->where('school_id', $school->id)
+                ->whereIn('id', $validated['student_ids'])
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            return collect($validated['student_ids'])->map(function (string $studentId) use ($students, $school) {
+                /** @var Student $student */
+                $student = $students->get($studentId);
+                $session = \App\Models\Session::query()
+                    ->where('school_id', $school->id)
+                    ->find($student->current_session_id);
+
+                if (! $session) {
+                    abort(422, "A current session is required to regenerate {$student->first_name} {$student->last_name}'s admission number.");
+                }
+
+                $previousAdmissionNo = $student->admission_no;
+                $student->admission_no = Student::generateAdmissionNumber($school, $session);
+                $student->save();
+
+                return [
+                    'id' => $student->id,
+                    'previous_admission_no' => $previousAdmissionNo,
+                    'admission_no' => $student->admission_no,
+                ];
+            })->values();
+        });
+
+        $count = $regenerated->count();
+
+        return response()->json([
+            'message' => "Regenerated admission numbers for {$count} student".($count === 1 ? '.' : 's.'),
+            'data' => $regenerated,
+        ]);
     }
 
     /**
@@ -359,15 +505,16 @@ class StudentController extends Controller
      */
     public function show(Request $request, Student $student)
     {
-        $this->ensurePermission($request, 'students.view');
+        $scope = $this->teacherAccess->forUser($request->user());
+        if (! $scope->isTeacher()) {
+            $this->ensurePermission($request, 'students.view');
+        }
         Student::fixLegacyForeignKeys();
         if ($student->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
 
-        $scope = $this->teacherAccess->forUser($request->user());
-
-        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($student)) {
             abort(403, 'You are not allowed to view this student.');
         }
 
@@ -513,10 +660,7 @@ class StudentController extends Controller
             }
         }
 
-        $duplicateStudent = $this->findDuplicateStudent($student->school_id, $validated, $student->id);
-        if ($duplicateStudent) {
-            return $this->duplicateStudentResponse($duplicateStudent);
-        }
+        // Duplicate-name blocking is temporarily disabled.
 
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('students/photos', 'public');
@@ -545,10 +689,113 @@ class StudentController extends Controller
     }
 
     /**
+     * Reset a student's portal password to the school default.
+     */
+    public function resetPortalPassword(Request $request, Student $student): JsonResponse
+    {
+        $this->ensurePermission($request, ['students.update', 'students.edit']);
+
+        if ($student->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $student->update([
+            'portal_password' => '123456',
+            'portal_password_changed_at' => now(),
+        ]);
+
+        $student->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Student password reset to 123456 successfully.',
+        ]);
+    }
+
+    /**
      * Remove the specified resource from storage.
      *
      * @return \Illuminate\Http\Response
      */
+
+    /**
+     * @OA\Delete(
+     *      path="/api/v1/students/{id}/dependent-records",
+     *      operationId="deleteStudentDependentRecords",
+     *      tags={"school-v1.4","school-v1.9","school-v2.0"},
+     *      summary="Delete all dependent records for a student",
+     *      description="Deletes all dependent records before deleting the student",
+     *      @OA\Parameter(
+     *          name="id",
+     *          description="Student id",
+     *          required=true,
+     *          in="path",
+     *          @OA\Schema(
+     *              type="string"
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="Successfully deleted dependent records",
+     *       ),
+     *      @OA\Response(
+     *          response=401,
+     *          description="Unauthenticated",
+     *      ),
+     *      @OA\Response(
+     *          response=404,
+     *          description="Resource Not Found"
+     *      )
+     * )
+     */
+    public function deleteDependentRecords(Request $request, Student $student)
+    {
+        $this->ensurePermission($request, 'students.delete');
+
+        if ($student->school_id !== $request->user()->school_id) {
+            return response()->json(['message' => 'Not Found'], 404);
+        }
+
+        $scope = $this->teacherAccess->forUser($request->user());
+
+        if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
+            abort(403, 'You are not allowed to delete records for this student.');
+        }
+
+        $deletedCounts = [];
+
+        DB::transaction(function () use ($student, &$deletedCounts) {
+            $tables = [
+                'results',
+                'attendances',
+                'fee_payments',
+                'performance_reports',
+                'result_pins',
+                'skill_ratings',
+                'student_enrollments',
+                'term_summaries',
+                'promotion_logs',
+                'quiz_results',
+                'quiz_attempts',
+                'cbt_score_imports',
+            ];
+
+            foreach ($tables as $table) {
+                if (! Schema::hasTable($table)) {
+                    continue;
+                }
+
+                $deletedCounts[$table] = DB::table($table)
+                    ->where('student_id', $student->id)
+                    ->delete();
+            }
+        });
+
+        return response()->json([
+            'message' => 'Successfully deleted all dependent records.',
+            'deleted_counts' => $deletedCounts,
+        ]);
+    }
+
     /**
      * @OA\Delete(
      *      path="/api/v1/students/{id}",
@@ -730,6 +977,7 @@ class StudentController extends Controller
 
         return Student::query()
             ->where('school_id', $schoolId)
+            ->where('status', 'active')
             ->when($excludeStudentId, function ($query) use ($excludeStudentId) {
                 $query->where('id', '!=', $excludeStudentId);
             })

@@ -23,6 +23,7 @@ use Illuminate\Support\Str;
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property string $status
+ * @property bool $use_position_ranges
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property School $school
@@ -40,213 +41,149 @@ use Illuminate\Support\Str;
  */
 class Term extends Model
 {
-    protected $table = 'terms';
+	protected $table = 'terms';
+	public $incrementing = false;
+	protected $keyType = 'string';
 
-    public $incrementing = false;
+	protected $casts = [
+		'start_date' => 'datetime',
+		'end_date' => 'datetime',
+		'term_number' => 'integer',
+		'use_position_ranges' => 'boolean',
+	];
 
-    protected $keyType = 'string';
+	protected $fillable = [
+		'id',
+		'school_id',
+		'session_id',
+		'name',
+		'term_number',
+		'slug',
+		'start_date',
+		'end_date',
+		'status',
+		'use_position_ranges',
+	];
 
-    protected $casts = [
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
-        'term_number' => 'integer',
-        'student_count_snapshot' => 'integer',
-        'amount_due' => 'decimal:2',
-        'amount_paid' => 'decimal:2',
-        'midterm_amount_due' => 'decimal:2',
-        'midterm_amount_paid' => 'decimal:2',
-        'outstanding_balance' => 'decimal:2',
-        'payment_due_date' => 'date',
-        'has_midterm_additions' => 'boolean',
-    ];
+	protected static function booted(): void
+	{
+		static::creating(function (self $term): void {
+			if (empty($term->term_number)) {
+				$term->term_number = static::resolveTermNumber($term);
+			}
 
-    protected $fillable = [
-        'id',
-        'school_id',
-        'session_id',
-        'name',
-        'term_number',
-        'slug',
-        'start_date',
-        'end_date',
-        'status',
-        'payment_status',
-        'invoice_id',
-        'student_count_snapshot',
-        'amount_due',
-        'amount_paid',
-        'payment_due_date',
-        'has_midterm_additions',
-        'midterm_amount_due',
-        'midterm_amount_paid',
-    ];
+			if (empty($term->slug) && ! empty($term->name)) {
+				$term->slug = Str::slug($term->name.'-'.$term->term_number);
+			}
+		});
+	}
 
-    protected static function booted(): void
-    {
-        static::creating(function (self $term): void {
-            if (empty($term->term_number)) {
-                $term->term_number = static::resolveTermNumber($term);
-            }
+	private static function resolveTermNumber(self $term): int
+	{
+		$usedNumbers = static::query()
+			->when($term->session_id, fn ($query) => $query->where('session_id', $term->session_id))
+			->pluck('term_number')
+			->filter()
+			->map(fn ($value) => (int) $value)
+			->values();
 
-            if (empty($term->slug) && ! empty($term->name)) {
-                $term->slug = Str::slug($term->name.'-'.$term->term_number);
-            }
-        });
-    }
+		$inferred = static::inferTermNumber((string) $term->name);
+		if ($inferred !== null && ! $usedNumbers->contains($inferred)) {
+			return $inferred;
+		}
 
-    private static function resolveTermNumber(self $term): int
-    {
-        $usedNumbers = static::query()
-            ->when($term->session_id, fn ($query) => $query->where('session_id', $term->session_id))
-            ->pluck('term_number')
-            ->filter()
-            ->map(fn ($value) => (int) $value)
-            ->values();
+		$candidate = 1;
+		while ($usedNumbers->contains($candidate)) {
+			$candidate++;
+		}
 
-        $inferred = static::inferTermNumber((string) $term->name);
-        if ($inferred !== null && ! $usedNumbers->contains($inferred)) {
-            return $inferred;
-        }
+		return $candidate;
+	}
 
-        $candidate = 1;
-        while ($usedNumbers->contains($candidate)) {
-            $candidate++;
-        }
+	public static function inferTermNumber(string $name): ?int
+	{
+		$normalized = Str::of($name)
+			->lower()
+			->replaceMatches('/\s+/', ' ')
+			->trim()
+			->toString();
 
-        return $candidate;
-    }
+		if ($normalized === '') {
+			return null;
+		}
 
-    public static function inferTermNumber(string $name): ?int
-    {
-        $normalized = Str::of($name)
-            ->lower()
-            ->replaceMatches('/\s+/', ' ')
-            ->trim()
-            ->toString();
+		if (preg_match('/\b(1st|first)\b/', $normalized) === 1) {
+			return 1;
+		}
 
-        if ($normalized === '') {
-            return null;
-        }
+		if (preg_match('/\b(2nd|second)\b/', $normalized) === 1) {
+			return 2;
+		}
 
-        if (preg_match('/\b(1st|first)\b/', $normalized) === 1) {
-            return 1;
-        }
+		if (preg_match('/\b(3rd|third)\b/', $normalized) === 1) {
+			return 3;
+		}
 
-        if (preg_match('/\b(2nd|second)\b/', $normalized) === 1) {
-            return 2;
-        }
+		return null;
+	}
 
-        if (preg_match('/\b(3rd|third)\b/', $normalized) === 1) {
-            return 3;
-        }
+	public function school()
+	{
+		return $this->belongsTo(School::class);
+	}
 
-        return null;
-    }
+	public function session()
+	{
+		return $this->belongsTo(Session::class);
+	}
 
-    public function school()
-    {
-        return $this->belongsTo(School::class);
-    }
+	public function assessment_components()
+	{
+		return $this->hasMany(AssessmentComponent::class);
+	}
 
-    public function session()
-    {
-        return $this->belongsTo(Session::class);
-    }
+	public function attendances()
+	{
+		return $this->hasMany(Attendance::class);
+	}
 
-    public function assessment_components()
-    {
-        return $this->hasMany(AssessmentComponent::class);
-    }
+	public function class_teachers()
+	{
+		return $this->hasMany(ClassTeacher::class);
+	}
 
-    public function attendances()
-    {
-        return $this->hasMany(Attendance::class);
-    }
+	public function fee_payments()
+	{
+		return $this->hasMany(FeePayment::class);
+	}
 
-    public function class_teachers()
-    {
-        return $this->hasMany(ClassTeacher::class);
-    }
+	public function results()
+	{
+		return $this->hasMany(Result::class);
+	}
 
-    public function fee_payments()
-    {
-        return $this->hasMany(FeePayment::class);
-    }
+	public function skill_ratings()
+	{
+		return $this->hasMany(SkillRating::class);
+	}
 
-    public function results()
-    {
-        return $this->hasMany(Result::class);
-    }
+	public function student_enrollments()
+	{
+		return $this->hasMany(StudentEnrollment::class);
+	}
 
-    public function skill_ratings()
-    {
-        return $this->hasMany(SkillRating::class);
-    }
+	public function students()
+	{
+		return $this->hasMany(Student::class, 'current_term_id');
+	}
 
-    public function student_enrollments()
-    {
-        return $this->hasMany(StudentEnrollment::class);
-    }
+	public function subject_teacher_assignments()
+	{
+		return $this->hasMany(SubjectTeacherAssignment::class);
+	}
 
-    public function students()
-    {
-        return $this->hasMany(Student::class, 'current_term_id');
-    }
-
-    public function subject_teacher_assignments()
-    {
-        return $this->hasMany(SubjectTeacherAssignment::class);
-    }
-
-    public function term_summaries()
-    {
-        return $this->hasMany(TermSummary::class);
-    }
-
-    public function invoice()
-    {
-        return $this->belongsTo(Invoice::class);
-    }
-
-    public function invoices()
-    {
-        return $this->hasMany(Invoice::class);
-    }
-
-    public function midtermAdditions()
-    {
-        return $this->hasMany(MidtermStudentAddition::class);
-    }
-
-    /**
-     * Check if subscription payment is made (demo schools exempt)
-     */
-    public function isPaymentRequired(): bool
-    {
-        return $this->school->subdomain !== 'demo';
-    }
-
-    /**
-     * Check if all fees are paid (original + mid-term)
-     */
-    public function allFeesPaid(): bool
-    {
-        if (! $this->isPaymentRequired()) {
-            return true;
-        }
-
-        return $this->outstanding_balance <= 0;
-    }
-
-    /**
-     * Get outstanding balance
-     */
-    public function getOutstandingBalance(): float
-    {
-        if (! $this->isPaymentRequired()) {
-            return 0;
-        }
-
-        return max(0, ($this->amount_due + $this->midterm_amount_due) - ($this->amount_paid + $this->midterm_amount_paid));
-    }
+	public function term_summaries()
+	{
+		return $this->hasMany(TermSummary::class);
+	}
 }

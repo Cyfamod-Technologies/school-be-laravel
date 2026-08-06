@@ -83,10 +83,11 @@ class StudentBulkUploadController extends Controller
     public function preview(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx'],
             'session_id' => ['nullable', 'string'],
             'class_id' => ['nullable', 'string'],
             'class_arm_id' => ['nullable', 'string'],
+            'row_updates' => ['nullable'],
         ]);
 
         // Get preselected context from form data
@@ -95,19 +96,29 @@ class StudentBulkUploadController extends Controller
             'class_id' => $request->input('class_id'),
             'class_arm_id' => $request->input('class_arm_id'),
         ];
+        $rowUpdates = $request->input('row_updates', []);
+        if (is_string($rowUpdates)) {
+            $decoded = json_decode($rowUpdates, true);
+            $rowUpdates = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($rowUpdates)) {
+            $rowUpdates = [];
+        }
 
         try {
             $result = $this->service->validateAndPrepare(
                 $request->user()->school,
                 $request->file('file'),
                 $request->user(),
-                $preselected
+                $preselected,
+                $rowUpdates
             );
         } catch (BulkUploadValidationException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
                 'errors' => $exception->errors(),
                 'error_csv' => $exception->errorCsv() ? base64_encode($exception->errorCsv()) : null,
+                'preview_rows' => $exception->previewRows(),
             ], 422);
         }
 
@@ -147,8 +158,20 @@ class StudentBulkUploadController extends Controller
         if (! is_array($decisions)) {
             $decisions = [];
         }
+        $rowUpdates = $request->input('row_updates', []);
+        if (! is_array($rowUpdates)) {
+            $rowUpdates = [];
+        }
 
-        $result = $this->service->commit($batch, $decisions);
+        try {
+            $result = $this->service->commit($batch, $decisions, $rowUpdates);
+        } catch (BulkUploadValidationException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+                'error_csv' => null,
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Students uploaded successfully.',

@@ -7,6 +7,8 @@
     $showLowest = $resultPageSettings['show_lowest'] ?? true;
     $showHighest = $resultPageSettings['show_highest'] ?? true;
     $showRemarks = $resultPageSettings['show_remarks'] ?? true;
+    $signatoryTitle = $resultPageSettings['signatory_title'] ?? 'principal';
+    $signatoryLabel = $signatoryTitle === 'director' ? 'Director' : 'Principal';
     $optionalResultColumns = array_filter([
         $showGrade,
         $showPosition,
@@ -135,7 +137,12 @@
             </tr>
             @forelse($resultsRows as $row)
                 <tr>
-                    <td class="subject-name">{{ $row['subject_name'] }}</td>
+                    <td class="subject-name">
+                        <span class="subject-label">
+                            <span class="subject-number">{{ $loop->iteration }}.</span>
+                            <span class="subject-text">{{ $row['subject_name'] }}</span>
+                        </span>
+                    </td>
                     @foreach($resultsColumns as $column)
                         @php
                             $value = $row['component_values'][$column['id']] ?? null;
@@ -241,7 +248,7 @@
                         @if(!empty($classTeacherName))
                             <p><strong>Class Teacher:</strong> {{ $classTeacherName }}</p>
                         @endif
-                        <p>Principal Comment : {{ $aggregate['principal_comment'] ?? 'No comment provided.' }}</p>
+                        <p>{{ $signatoryLabel }} Comment : {{ $aggregate['principal_comment'] ?? 'No comment provided.' }}</p>
                         @if($showGrade && !empty($aggregate['final_grade']))
                             <p><strong>Final Grade:</strong> {{ $aggregate['final_grade'] }}</p>
                         @endif
@@ -250,8 +257,8 @@
                         @endif
                         @if(!empty($principalSignatureUrl))
                             <div style="margin-top: 8px; display: flex; align-items: center; gap: 12px;">
-                                <span style="font-weight: 500;">Principal signature:</span>
-                                <img src="{{ $principalSignatureUrl }}" alt="Principal signature" style="max-height:50px;width:auto;">
+                                <span style="font-weight: 500;">{{ $signatoryLabel }} signature:</span>
+                                <img src="{{ $principalSignatureUrl }}" alt="{{ $signatoryLabel }} signature" style="max-height:50px;width:auto;">
                             </div>
                         @endif
                         </div>

@@ -46,279 +46,242 @@ use Illuminate\Support\Str;
  */
 class School extends Model
 {
-    use HasFactory;
+	use HasFactory;
 
-    protected static function booted()
-    {
-        static::creating(function (self $model) {
-            if (empty($model->id)) {
-                $model->id = (string) Str::uuid();
-            }
-        });
-    }
+	protected static function booted()
+	{
+		static::creating(function (self $model) {
+			if (empty($model->id)) {
+				$model->id = (string) Str::uuid();
+			}
+		});
+	}
 
-    protected $table = 'schools';
+	protected $table = 'schools';
+	public $incrementing = false;
+	protected $keyType = 'string';
 
-    public $incrementing = false;
+	protected $casts = [
+		'established_at' => 'datetime',
+		'code_sequence' => 'integer',
+		'result_show_grade' => 'boolean',
+		'result_show_position' => 'boolean',
+		'result_show_class_average' => 'boolean',
+		'result_show_lowest' => 'boolean',
+		'result_show_highest' => 'boolean',
+		'result_show_remarks' => 'boolean',
+		'term_school_opened_days' => 'integer',
+		'result_hide_student_identity' => 'boolean',
+		'result_allow_shared_pin_access' => 'boolean',
+		'result_pdf_requires_pin' => 'boolean',
+		'result_enable_session_print' => 'boolean',
+		'result_collapse_session_ca' => 'boolean',
+		'skill_categories_separate_by_class' => 'boolean',
+		'skill_types_separate_by_class' => 'boolean',
+	];
 
-    protected $keyType = 'string';
+	protected $fillable = [
+		'id',
+		'name',
+		'acronym',
+		'code_sequence',
+		'slug',
+		'subdomain',
+		'address',
+		'email',
+		'phone',
+		'logo_url',
+		'signature_url',
+		'student_portal_link',
+		'term_school_opened_days',
+		'established_at',
+		'owner_name',
+		'status',
+		'current_session_id',
+		'current_term_id',
+		'result_show_grade',
+		'result_show_position',
+		'result_show_class_average',
+		'result_show_lowest',
+		'result_show_highest',
+		'result_show_remarks',
+		'result_hide_student_identity',
+		'result_allow_shared_pin_access',
+		'result_pdf_requires_pin',
+		'result_enable_session_print',
+		'result_collapse_session_ca',
+		'result_comment_mode',
+		'result_signatory_title',
+		'skill_categories_separate_by_class',
+		'skill_types_separate_by_class',
+	];
 
-    protected $casts = [
-        'established_at' => 'datetime',
-        'code_sequence' => 'integer',
-        'activated' => 'boolean',
-        'enable_free_trial' => 'boolean',
-        'result_show_grade' => 'boolean',
-        'result_show_position' => 'boolean',
-        'result_show_class_average' => 'boolean',
-        'result_show_lowest' => 'boolean',
-        'result_show_highest' => 'boolean',
-        'result_show_remarks' => 'boolean',
-        'term_school_opened_days' => 'integer',
-        'result_hide_student_identity' => 'boolean',
-        'result_allow_shared_pin_access' => 'boolean',
-    ];
+	public function analytics_data()
+	{
+		return $this->hasMany(AnalyticsDatum::class);
+	}
 
-    protected $fillable = [
-        'id',
-        'name',
-        'acronym',
-        'code_sequence',
-        'slug',
-        'subdomain',
-        'custom_domain',
-        'activated',
-        'address',
-        'email',
-        'phone',
-        'logo_url',
-        'signature_url',
-        'student_portal_link',
-        'term_school_opened_days',
-        'established_at',
-        'owner_name',
-        'status',
-        'enable_free_trial',
-        'current_session_id',
-        'current_term_id',
-        'result_show_grade',
-        'result_show_position',
-        'result_show_class_average',
-        'result_show_lowest',
-        'result_show_highest',
-        'result_show_remarks',
-        'result_hide_student_identity',
-        'result_allow_shared_pin_access',
-        'result_comment_mode',
-    ];
+	public function assessment_components()
+	{
+		return $this->hasMany(AssessmentComponent::class);
+	}
 
-    public function analytics_data()
-    {
-        return $this->hasMany(AnalyticsDatum::class);
-    }
+	public function classes()
+	{
+		return $this->hasMany(\App\Models\Classes::class);
+	}
 
-    public function assessment_components()
-    {
-        return $this->hasMany(AssessmentComponent::class);
-    }
+	public function grading_scales()
+	{
+		return $this->hasMany(GradingScale::class);
+	}
 
-    public function classes()
-    {
-        return $this->hasMany(\App\Models\Classes::class);
-    }
+	public function parents()
+	{
+		return $this->hasMany(SchoolParent::class);
+	}
 
-    public function grading_scales()
-    {
-        return $this->hasMany(GradingScale::class);
-    }
+	public function skill_types()
+	{
+		return $this->hasMany(SkillType::class);
+	}
 
-    public function parents()
-    {
-        return $this->hasMany(SchoolParent::class);
-    }
+	public function users()
+	{
+		return $this->hasMany(User::class);
+	}
 
-    public function skill_types()
-    {
-        return $this->hasMany(SkillType::class);
-    }
+	public function getLogoUrlAttribute($value)
+	{
+		if ($value === null || $value === '') {
+			return null;
+		}
 
-    public function users()
-    {
-        return $this->hasMany(User::class);
-    }
+		if (Str::startsWith($value, ['http://', 'https://'])) {
+			return $value;
+		}
 
-    public function getLogoUrlAttribute($value)
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
+		$appUrl = rtrim(config('app.url'), '/');
 
-        if (Str::startsWith($value, ['http://', 'https://'])) {
-            return $value;
-        }
+		if (Str::startsWith($value, '/storage/')) {
+			return $appUrl . $value;
+		}
 
-        $appUrl = rtrim(config('app.url'), '/');
+		return $appUrl . Storage::url($value);
+	}
 
-        if (Str::startsWith($value, '/storage/')) {
-            return $appUrl.$value;
-        }
+	public function getSignatureUrlAttribute($value)
+	{
+		if ($value === null || $value === '') {
+			return null;
+		}
 
-        return $appUrl.Storage::url($value);
-    }
+		if (Str::startsWith($value, ['http://', 'https://'])) {
+			return $value;
+		}
 
-    public function getSignatureUrlAttribute($value)
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
+		$appUrl = rtrim(config('app.url'), '/');
 
-        if (Str::startsWith($value, ['http://', 'https://'])) {
-            return $value;
-        }
+		if (Str::startsWith($value, '/storage/')) {
+			return $appUrl . $value;
+		}
 
-        $appUrl = rtrim(config('app.url'), '/');
+		return $appUrl . Storage::url($value);
+	}
 
-        if (Str::startsWith($value, '/storage/')) {
-            return $appUrl.$value;
-        }
+	public function getFormattedCodeSequenceAttribute(): string
+	{
+		$sequence = (int) ($this->code_sequence ?? 0);
 
-        return $appUrl.Storage::url($value);
-    }
+		if ($sequence <= 0) {
+			return '000';
+		}
 
-    public function getFormattedCodeSequenceAttribute(): string
-    {
-        $sequence = (int) ($this->code_sequence ?? 0);
+		return str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
+	}
 
-        if ($sequence <= 0) {
-            return '000';
-        }
+	public function getResolvedAcronymAttribute(): string
+	{
+		$acronym = trim((string) ($this->acronym ?? ''));
 
-        return str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
-    }
+		if ($acronym !== '') {
+			return Str::upper(Str::limit($acronym, 5, ''));
+		}
 
-    public function getResolvedAcronymAttribute(): string
-    {
-        $acronym = trim((string) ($this->acronym ?? ''));
+		$words = collect(preg_split('/\s+/', (string) $this->name, -1, PREG_SPLIT_NO_EMPTY));
 
-        if ($acronym !== '') {
-            return Str::upper(Str::limit($acronym, 5, ''));
-        }
+		$derived = $words
+			->map(fn ($word) => mb_substr($word, 0, 1))
+			->implode('');
 
-        $words = collect(preg_split('/\s+/', (string) $this->name, -1, PREG_SPLIT_NO_EMPTY));
+		$derived = Str::upper(Str::of($derived)->replaceMatches('/[^A-Z]/', ''));
 
-        $derived = $words
-            ->map(fn ($word) => mb_substr($word, 0, 1))
-            ->implode('');
+		if ($derived === '') {
+			$derived = Str::upper(mb_substr((string) $this->name, 0, 3));
+		}
 
-        $derived = Str::upper(Str::of($derived)->replaceMatches('/[^A-Z]/', ''));
+		return Str::limit($derived ?: 'SCH', 5, '');
+	}
 
-        if ($derived === '') {
-            $derived = Str::upper(mb_substr((string) $this->name, 0, 3));
-        }
+	public function setAcronymAttribute(?string $value): void
+	{
+		$this->attributes['acronym'] = $value !== null && $value !== ''
+			? Str::upper(Str::limit(trim($value), 5, ''))
+			: null;
+	}
 
-        return Str::limit($derived ?: 'SCH', 5, '');
-    }
+	public function currentSession()
+	{
+		return $this->belongsTo(Session::class, 'current_session_id');
+	}
 
-    public function setAcronymAttribute(?string $value): void
-    {
-        $this->attributes['acronym'] = $value !== null && $value !== ''
-            ? Str::upper(Str::limit(trim($value), 5, ''))
-            : null;
-    }
+	public function currentTerm()
+	{
+		return $this->belongsTo(Term::class, 'current_term_id');
+	}
 
-    public function currentSession()
-    {
-        return $this->belongsTo(Session::class, 'current_session_id');
-    }
+	public function sessions()
+	{
+		return $this->hasMany(Session::class);
+	}
 
-    public function currentTerm()
-    {
-        return $this->belongsTo(Term::class, 'current_term_id');
-    }
+	public function skill_categories()
+	{
+		return $this->hasMany(SkillCategory::class);
+	}
 
-    public function sessions()
-    {
-        return $this->hasMany(Session::class);
-    }
+	public function staff()
+	{
+		return $this->hasMany(Staff::class);
+	}
 
-    public function skill_categories()
-    {
-        return $this->hasMany(SkillCategory::class);
-    }
+	public function students()
+	{
+		return $this->hasMany(Student::class);
+	}
 
-    public function staff()
-    {
-        return $this->hasMany(Staff::class);
-    }
+	public function subjects()
+	{
+		return $this->hasMany(Subject::class);
+	}
 
-    public function students()
-    {
-        return $this->hasMany(Student::class);
-    }
+	public function terms()
+	{
+		return $this->hasMany(Term::class);
+	}
 
-    public function subjects()
-    {
-        return $this->hasMany(Subject::class);
-    }
+	public function feeItems()
+	{
+		return $this->hasMany(FeeItem::class);
+	}
 
-    public function terms()
-    {
-        return $this->hasMany(Term::class);
-    }
+	public function feeStructures()
+	{
+		return $this->hasMany(FeeStructure::class);
+	}
 
-    public function feeItems()
-    {
-        return $this->hasMany(FeeItem::class);
-    }
-
-    public function feeStructures()
-    {
-        return $this->hasMany(FeeStructure::class);
-    }
-
-    public function bankDetails()
-    {
-        return $this->hasMany(BankDetail::class);
-    }
-
-    public function invoices()
-    {
-        return $this->hasMany(Invoice::class);
-    }
-
-    public function referrals()
-    {
-        return $this->hasMany(Referral::class);
-    }
-
-    public function commissions()
-    {
-        return $this->hasMany(AgentCommission::class);
-    }
-
-    public function midtermAdditions()
-    {
-        return $this->hasMany(MidtermStudentAddition::class);
-    }
-
-    public function website(): HasOne
-    {
-        return $this->hasOne(SchoolWebsite::class);
-    }
-
-    /**
-     * Check if this is a demo school
-     */
-    public function isDemo(): bool
-    {
-        return $this->subdomain === 'demo';
-    }
-
-    /**
-     * Check if subscription applies to this school
-     */
-    public function requiresSubscription(): bool
-    {
-        return ! $this->isDemo();
-    }
+	public function bankDetails()
+	{
+		return $this->hasMany(BankDetail::class);
+	}
 }

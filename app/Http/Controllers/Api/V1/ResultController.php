@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Term;
 use App\Services\Teachers\TeacherAccessService;
+use App\Services\StudentSessionPlacementResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ResultController extends Controller
 {
-    public function __construct(private TeacherAccessService $teacherAccess) {}
+    public function __construct(
+        private TeacherAccessService $teacherAccess,
+        private StudentSessionPlacementResolver $placementResolver,
+    ) {}
 
     /**
      * @OA\Get(
@@ -102,13 +106,15 @@ class ResultController extends Controller
         }
 
         if ($request->filled('school_class_id')) {
-            $classId = $request->input('school_class_id');
-            $query->whereHas('student', fn (Builder $builder) => $builder->where('school_class_id', $classId));
+            $query->where('school_class_id', $request->input('school_class_id'));
         }
 
         if ($request->filled('class_arm_id')) {
-            $armId = $request->input('class_arm_id');
-            $query->whereHas('student', fn (Builder $builder) => $builder->where('class_arm_id', $armId));
+            $query->where('class_arm_id', $request->input('class_arm_id'));
+        }
+
+        if ($request->filled('class_section_id')) {
+            $query->where('class_section_id', $request->input('class_section_id'));
         }
 
         if ($request->filled('min_score')) {
@@ -294,6 +300,7 @@ class ResultController extends Controller
         $created = 0;
         $updated = 0;
         $savedResults = collect();
+        $placementCache = [];
 
         DB::transaction(function () use (
             $entries,
@@ -308,7 +315,8 @@ class ResultController extends Controller
             $school,
             &$created,
             &$updated,
-            &$savedResults
+            &$savedResults,
+            &$placementCache,
         ) {
             foreach ($entries as $entry) {
                 $student = $students->get($entry['student_id']);
@@ -396,9 +404,16 @@ class ResultController extends Controller
                 /** @var Result|null $result */
                 $result = $query->first();
 
+                $placementKey = $student->id.':'.$entrySessionId;
+                $placement = $placementCache[$placementKey]
+                    ??= $this->placementResolver->resolve($student, $entrySessionId);
+
                 $payload = [
                     'total_score' => $entry['score'],
                     'remarks' => array_key_exists('remarks', $entry) && $entry['remarks'] !== '' ? $entry['remarks'] : null,
+                    'school_class_id' => $placement['school_class_id'],
+                    'class_arm_id' => $placement['class_arm_id'],
+                    'class_section_id' => $placement['class_section_id'],
                 ];
 
                 if ($result) {

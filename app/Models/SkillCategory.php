@@ -9,12 +9,14 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\SchoolClass;
 
 /**
  * Class SkillCategory
  *
  * @property string $id
  * @property string $school_id
+ * @property string|null $school_class_id
  * @property string $name
  * @property string|null $description
  * @property Carbon $created_at
@@ -25,31 +27,36 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SkillCategory extends Model
 {
-    protected $table = 'skill_categories';
+	protected $table = 'skill_categories';
+	public $incrementing = false;
 
-    public $incrementing = false;
+	protected $keyType = 'string';
 
-    protected $keyType = 'string';
+	protected $fillable = [
+		'id',
+		'school_id',
+		'school_class_id',
+		'name',
+		'description'
+	];
 
-    protected $fillable = [
-        'id',
-        'school_id',
-        'name',
-        'description',
-    ];
+	public function school()
+	{
+		return $this->belongsTo(School::class);
+	}
 
-    public function school()
-    {
-        return $this->belongsTo(School::class);
-    }
+	public function school_class()
+	{
+		return $this->belongsTo(SchoolClass::class, 'school_class_id');
+	}
 
-    public function school_skill_types()
-    {
-        return $this->hasMany(SchoolSkillType::class);
-    }
+	public function school_skill_types()
+	{
+		return $this->hasMany(SchoolSkillType::class);
+	}
 
-    public function skill_types()
-    {
-        return $this->hasMany(SkillType::class);
-    }
+	public function skill_types()
+	{
+		return $this->hasMany(SkillType::class);
+	}
 }
