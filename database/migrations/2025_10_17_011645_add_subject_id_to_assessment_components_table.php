@@ -70,12 +70,12 @@ return new class extends Migration
     {
         $schema = Schema::getConnection()->getDatabaseName();
         $rows = Schema::getConnection()->select(
-            "SELECT constraint_name
+            'SELECT constraint_name
              FROM information_schema.key_column_usage
              WHERE table_schema = ?
                AND table_name = ?
                AND column_name = ?
-               AND referenced_table_name IS NOT NULL",
+               AND referenced_table_name IS NOT NULL',
             [$schema, $table, $column]
         );
 

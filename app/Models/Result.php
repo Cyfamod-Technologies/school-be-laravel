@@ -27,15 +27,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $remarks
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property GradeRange|null $grade_range
  * @property Session $session
  * @property Student $student
  * @property Subject $subject
  * @property Term $term
  * @property AssessmentComponent|null $assessment_component
- *
- * @package App\Models
  */
 class Result extends Model
 {

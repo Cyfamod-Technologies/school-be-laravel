@@ -19,43 +19,41 @@ use Illuminate\Database\Eloquent\Model;
  * @property float $average_score
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- *
  * @property Class $class
  * @property School $school
  * @property Subject $subject
- *
- * @package App\Models
  */
 class AnalyticsDatum extends Model
 {
-	protected $table = 'analytics_data';
-	public $incrementing = false;
+    protected $table = 'analytics_data';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'average_score' => 'float'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'school_id',
-		'class_id',
-		'subject_id',
-		'average_score'
-	];
+    protected $casts = [
+        'average_score' => 'float',
+    ];
 
-	public function class()
-	{
-		return $this->belongsTo(Class::class);
-	}
+    protected $fillable = [
+        'school_id',
+        'class_id',
+        'subject_id',
+        'average_score',
+    ];
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    public function class()
+    {
+        return $this->belongsTo(SchoolClass::class);
+    }
 
-	public function subject()
-	{
-		return $this->belongsTo(Subject::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
+    }
 }

@@ -37,6 +37,7 @@ class SubjectTeacherAssignmentController extends Controller
      *     @OA\Parameter(name="class_section_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="session_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="search", in="query", required=false, description="Search subject or teacher", @OA\Schema(type="string")),
+     *
      *     @OA\Response(response=200, description="Assignments returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -112,8 +113,10 @@ class SubjectTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/subject-teacher-assignments",
      *     tags={"school-v1.7"},
      *     summary="Create teacher-subject assignment",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"staff_id","session_id"},
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
@@ -138,6 +141,7 @@ class SubjectTeacherAssignmentController extends Controller
      *             @OA\Property(property="session_id", type="string", format="uuid")
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Assignment created"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
      * )
@@ -301,13 +305,13 @@ class SubjectTeacherAssignmentController extends Controller
             'student_ids' => $assignment->student_ids,
             'session_id' => $assignment->session_id,
             'term_id' => $assignment->term_id,
-            'subject' => optional($assignment->subject)->only(['id','name','code']),
-            'staff' => optional($assignment->staff)->only(['id','full_name','email','phone','role']),
-            'school_class' => optional($assignment->school_class)->only(['id','name']),
-            'class_arm' => optional($assignment->class_arm)->only(['id','name']),
+            'subject' => optional($assignment->subject)->only(['id', 'name', 'code']),
+            'staff' => optional($assignment->staff)->only(['id', 'full_name', 'email', 'phone', 'role']),
+            'school_class' => optional($assignment->school_class)->only(['id', 'name']),
+            'class_arm' => optional($assignment->class_arm)->only(['id', 'name']),
             'class_section' => null,
-            'session' => optional($assignment->session)->only(['id','name']),
-            'term' => optional($assignment->term)->only(['id','name']),
+            'session' => optional($assignment->session)->only(['id', 'name']),
+            'term' => optional($assignment->term)->only(['id', 'name']),
         ]);
     }
 
@@ -316,16 +320,21 @@ class SubjectTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/subject-teacher-assignments/{id}",
      *     tags={"school-v1.7"},
      *     summary="Update teacher-subject assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid", nullable=true),
@@ -334,6 +343,7 @@ class SubjectTeacherAssignmentController extends Controller
      *             @OA\Property(property="session_id", type="string", format="uuid")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
@@ -532,13 +542,16 @@ class SubjectTeacherAssignmentController extends Controller
      *     path="/api/v1/settings/subject-teacher-assignments/{id}",
      *     tags={"school-v1.7"},
      *     summary="Delete teacher-subject assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )

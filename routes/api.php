@@ -1,41 +1,52 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\SchoolController;
-use App\Http\Controllers\Api\V1\SchoolRegistrationController;
-use App\Http\Controllers\Api\V1\EmailVerificationController;
-use App\Http\Controllers\Api\V1\AcademicSessionController;
-use App\Http\Controllers\Api\V1\ClassController;
-use App\Http\Controllers\Api\V1\SubjectController;
-use App\Http\Controllers\Api\V1\SubjectAssignmentController;
-use App\Http\Controllers\Api\V1\SubjectTeacherAssignmentController;
-use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
-use App\Http\Controllers\Api\V1\GradeScaleController;
-use App\Http\Controllers\Api\V1\LocationController;
-use App\Http\Controllers\Api\V1\AssessmentComponentController;
-use App\Http\Controllers\Api\V1\ResultController;
-use App\Http\Controllers\Api\V1\StudentSkillRatingController;
-use App\Http\Controllers\Api\V1\ResultPinController;
-use App\Http\Controllers\Api\V1\StudentTermSummaryController;
-use App\Http\Controllers\Api\V1\SkillCategoryController;
-use App\Http\Controllers\Api\V1\SkillTypeController;
-use App\Http\Controllers\Api\V1\PromotionController;
-use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\AcademicAnalyticsController;
-use App\Http\Controllers\Api\V1\StaffAttendanceController;
-use App\Http\Controllers\Api\V1\StudentAttendanceController;
+use App\Http\Controllers\Api\V1\AcademicSessionController;
+use App\Http\Controllers\Api\V1\AgentController;
+use App\Http\Controllers\Api\V1\AssessmentComponentController;
+use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
+use App\Http\Controllers\Api\V1\BankDetailController;
+use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
+use App\Http\Controllers\Api\V1\ClassController;
+use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
+use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
-use App\Http\Controllers\Api\V1\BankDetailController;
-use App\Http\Controllers\Api\V1\PermissionHierarchyController;
+use App\Http\Controllers\Api\V1\GradeScaleController;
+use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\PermissionHierarchyController;
+use App\Http\Controllers\Api\V1\PermissionSeedController;
+use App\Http\Controllers\Api\V1\PromotionController;
+use App\Http\Controllers\Api\V1\PublicSchoolWebsiteController;
+use App\Http\Controllers\Api\V1\QuizAnswerController;
+use App\Http\Controllers\Api\V1\QuizAttemptController;
+use App\Http\Controllers\Api\V1\QuizController;
+use App\Http\Controllers\Api\V1\QuizQuestionController;
+use App\Http\Controllers\Api\V1\QuizResultController;
+use App\Http\Controllers\Api\V1\ResultController;
+use App\Http\Controllers\Api\V1\ResultPinController;
 use App\Http\Controllers\Api\V1\RoleController;
-use App\Http\Controllers\Api\V1\UserRoleController;
-use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\SchoolController;
+use App\Http\Controllers\Api\V1\SchoolWebsiteController;
+use App\Http\Controllers\Api\V1\SkillCategoryController;
+use App\Http\Controllers\Api\V1\SkillTypeController;
+use App\Http\Controllers\Api\V1\StaffAttendanceController;
 use App\Http\Controllers\Api\V1\StaffSelfController;
-use App\Http\Controllers\Api\V1\TeacherDashboardController;
+use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
+use App\Http\Controllers\Api\V1\StudentBulkUploadController;
+use App\Http\Controllers\Api\V1\StudentSkillRatingController;
+use App\Http\Controllers\Api\V1\StudentTermSummaryController;
+use App\Http\Controllers\Api\V1\SubjectAssignmentController;
+use App\Http\Controllers\Api\V1\SubjectController;
+use App\Http\Controllers\Api\V1\SubjectTeacherAssignmentController;
+use App\Http\Controllers\Api\V1\Internal\SchoolActivationController;
+use App\Http\Controllers\Api\V1\TeacherDashboardController;
+use App\Http\Controllers\Api\V1\TermController;
+use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\UserRoleController;
 use App\Http\Controllers\ResultViewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\QuizController;
@@ -51,10 +62,9 @@ use App\Http\Controllers\Api\V1\AccountLookupController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
-Route::domain('{subdomain}.' . $host)->group(function () {
+Route::domain('{subdomain}.'.$host)->group(function () {
     // Add your school-specific routes here
 });
-
 
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
 
@@ -63,9 +73,7 @@ Route::prefix('api/v1')->group(function () {
         ->middleware('throttle:20,1');
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
-    Route::get('/email/verify', [EmailVerificationController::class, 'verify'])
-        ->name('api.v1.email.verify');
-
+    Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
 
@@ -95,21 +103,35 @@ Route::prefix('api/v1')->group(function () {
                 });
             });
         });
+    });
 
-        Route::prefix('students/{student}')->middleware('auth:student')->group(function () {
-            Route::post('parent', [StudentAuthController::class, 'upsertParent']);
-            Route::get('parent', [StudentAuthController::class, 'getParent']);
-        });
+    Route::prefix('students/{student}')->middleware('auth:student')->group(function () {
+        Route::post('parent', [StudentAuthController::class, 'upsertParent']);
+        Route::get('parent', [StudentAuthController::class, 'getParent']);
+    });
 
-        Route::get('cbt/public-quizzes', [QuizController::class, 'publicIndex']);
+    Route::get('cbt/public-quizzes', [QuizController::class, 'publicIndex']);
+
+    // Called only by sms-enterprise-edition (server-to-server), guarded by
+    // the shared-secret middleware, never reachable from a browser.
+    Route::middleware('internal-secret')->prefix('internal')->group(function () {
+        Route::post('/schools/{schoolId}/activate', [SchoolActivationController::class, 'activate'])
+            ->whereUuid('schoolId')
+            ->name('internal.schools.activate');
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [SchoolController::class, 'logout']);
         Route::post('/logout/other-devices', [SchoolController::class, 'logoutOtherDevices']);
         Route::get('/school', [SchoolController::class, 'showSchoolProfile']);
         Route::put('/school', [SchoolController::class, 'updateSchoolProfile']);
-        Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);            
+        Route::get('/user', [SchoolController::class, 'showSchoolAdminProfile']);
         Route::put('/user', [SchoolController::class, 'updateSchoolAdminProfile']);
+        Route::get('/school/website', [SchoolWebsiteController::class, 'show'])->name('school.website.show');
+        Route::put('/school/website', [SchoolWebsiteController::class, 'upsert'])->name('school.website.upsert');
+        Route::post('/school/website/preview-link', [SchoolWebsiteController::class, 'previewLink'])->name('school.website.preview-link');
+        Route::post('/school/website/go-live', [SchoolWebsiteController::class, 'goLive'])->name('school.website.go-live');
+        Route::get('/school/website/go-live', [SchoolWebsiteController::class, 'goLiveStatus'])->name('school.website.go-live.status');
 
         // RBAC - Permissions
         Route::get('permissions', [PermissionController::class, 'index'])
@@ -173,7 +195,7 @@ Route::prefix('api/v1')->group(function () {
 
         // Class and Class Arm Routes
         Route::apiResource('classes', ClassController::class)->parameters([
-            'classes' => 'schoolClass'
+            'classes' => 'schoolClass',
         ]);
         Route::prefix('classes/{schoolClass}')
             ->whereUuid('schoolClass')
@@ -209,9 +231,9 @@ Route::prefix('api/v1')->group(function () {
         Route::prefix('students/bulk')->group(function () {
             Route::get('template', [StudentBulkUploadController::class, 'template'])->name('students.bulk.template');
             Route::post('preview', [StudentBulkUploadController::class, 'preview'])->name('students.bulk.preview');
-        Route::post('{batch}/commit', [StudentBulkUploadController::class, 'commit'])
-            ->whereUuid('batch')
-            ->name('students.bulk.commit');
+            Route::post('{batch}/commit', [StudentBulkUploadController::class, 'commit'])
+                ->whereUuid('batch')
+                ->name('students.bulk.commit');
         });
         Route::get('students/{student}/results/print', [ResultViewController::class, 'show'])
             ->whereUuid('student');
@@ -318,7 +340,7 @@ Route::prefix('api/v1')->group(function () {
             Route::apiResource('items', FeeItemController::class)
                 ->parameters(['items' => 'feeItem'])
                 ->except(['create', 'edit']);
-            
+
             // Fee Structures
             Route::get('structures/by-session-term', [FeeStructureController::class, 'getBySessionTerm'])
                 ->name('fee-structures.by-session-term');
@@ -331,7 +353,7 @@ Route::prefix('api/v1')->group(function () {
                 ->name('fee-structures.copy');
             Route::get('structures/total', [FeeStructureController::class, 'getTotal'])
                 ->name('fee-structures.total');
-            
+
             // Bank Details
             Route::apiResource('bank-details', BankDetailController::class)
                 ->parameters(['bank-details' => 'bankDetail'])
@@ -365,7 +387,7 @@ Route::prefix('api/v1')->group(function () {
             Route::apiResource('assessment-components', AssessmentComponentController::class)
                 ->parameters(['assessment-components' => 'assessmentComponent'])
                 ->except(['create', 'edit']);
-            
+
             // Assessment Component Structures
             Route::prefix('assessment-component-structures')->group(function () {
                 Route::get('component/{assessmentComponent}', [AssessmentComponentStructureController::class, 'indexByComponent'])
@@ -411,7 +433,7 @@ Route::prefix('api/v1')->group(function () {
                     Route::post('reject', [CbtAssessmentLinkController::class, 'rejectScores'])
                         ->name('cbt-assessment-links.reject');
                 });
-            
+
             Route::apiResource('subject-assignments', SubjectAssignmentController::class)
                 ->parameters(['subject-assignments' => 'assignment'])
                 ->except(['create', 'edit']);
@@ -453,7 +475,73 @@ Route::prefix('api/v1')->group(function () {
             Route::get('blood-groups', [LocationController::class, 'bloodGroups']);
         });
 
-        
+        // Subscription & Payment Routes (Protected)
+        Route::prefix('terms')->middleware('auth:sanctum')->group(function () {
+            Route::get('{term}', [TermController::class, 'show'])
+                ->whereUuid('term')
+                ->name('terms.show');
+            Route::post('{term}/switch', [TermController::class, 'switchTerm'])
+                ->whereUuid('term')
+                ->name('terms.switch');
+            Route::get('school/all', [TermController::class, 'schoolTerms'])
+                ->name('terms.school.all');
+            Route::get('{term}/payment-details', [TermController::class, 'paymentDetails'])
+                ->whereUuid('term')
+                ->name('terms.payment-details');
+            Route::post('{term}/send-reminder', [TermController::class, 'sendPaymentReminder'])
+                ->whereUuid('term')
+                ->name('terms.send-reminder');
+            Route::post('{term}/paystack/initialize', [TermController::class, 'initializePaystackPayment'])
+                ->whereUuid('term')
+                ->name('terms.paystack.initialize');
+            Route::post('paystack/initialize-session', [TermController::class, 'initializeSessionPaystackPayment'])
+                ->name('terms.paystack.initialize-session');
+            Route::post('paystack/verify', [TermController::class, 'verifyPaystackPayment'])
+                ->name('terms.paystack.verify');
+            Route::get('payments/history', [TermController::class, 'paymentHistory'])
+                ->name('terms.payments.history');
+        });
+
+    });
+
+    // Agent Routes (Public registration, then Protected)
+    Route::prefix('agents')->group(function () {
+        // Public registration
+        Route::post('register', [AgentController::class, 'register'])
+            ->name('agents.register');
+        Route::post('google-auth', [AgentController::class, 'googleAuth'])
+            ->name('agents.google-auth');
+        Route::post('login', [AgentController::class, 'login'])
+            ->name('agents.login');
+        Route::get('email/verify', [AgentController::class, 'verifyEmail'])
+            ->name('agents.email.verify');
+        Route::post('password/forgot', [AgentController::class, 'requestPasswordReset'])
+            ->name('agents.password.forgot');
+        Route::post('password/reset', [AgentController::class, 'resetPassword'])
+            ->name('agents.password.reset');
+
+        // Protected agent routes
+        Route::middleware('auth:agent')->group(function () {
+            Route::get('profile', [AgentController::class, 'profile'])
+                ->name('agents.profile');
+            Route::put('profile', [AgentController::class, 'updateProfile'])
+                ->name('agents.profile.update');
+            Route::put('profile/password', [AgentController::class, 'changePassword'])
+                ->name('agents.profile.password');
+            Route::get('dashboard', [AgentController::class, 'dashboard'])
+                ->name('agents.dashboard');
+            Route::post('referrals/generate', [AgentController::class, 'generateReferral'])
+                ->name('agents.referrals.generate');
+            Route::get('referrals/{referral}', [AgentController::class, 'getReferral'])
+                ->whereUuid('referral')
+                ->name('agents.referrals.show');
+            Route::get('commissions/history', [AgentController::class, 'commissionHistory'])
+                ->name('agents.commissions.history');
+            Route::post('payouts/request', [AgentController::class, 'requestPayout'])
+                ->name('agents.payouts.request');
+            Route::get('payouts/history', [AgentController::class, 'payoutHistory'])
+                ->name('agents.payouts.history');
+        });
     });
 
     // CBT (Computer-Based Test) Routes

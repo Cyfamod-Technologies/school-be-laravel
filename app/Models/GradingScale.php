@@ -20,52 +20,50 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property Session|null $session
  * @property Collection|GradeRange[] $grade_ranges
  * @property Collection|PositionRange[] $position_ranges
  * @property Collection|CommentRange[] $comment_ranges
- *
- * @package App\Models
  */
 class GradingScale extends Model
 {
-	protected $table = 'grading_scales';
-	public $incrementing = false;
+    protected $table = 'grading_scales';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'id',
-		'school_id',
-		'session_id',
-		'name',
-		'description'
-	];
+    protected $keyType = 'string';
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'id',
+        'school_id',
+        'session_id',
+        'name',
+        'description',
+    ];
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function grade_ranges()
-	{
-		return $this->hasMany(GradeRange::class);
-	}
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
 
-	public function position_ranges()
-	{
-		return $this->hasMany(PositionRange::class);
-	}
+    public function grade_ranges()
+    {
+        return $this->hasMany(GradeRange::class);
+    }
 
-	public function comment_ranges()
-	{
-		return $this->hasMany(CommentRange::class);
-	}
+    public function position_ranges()
+    {
+        return $this->hasMany(PositionRange::class);
+    }
+
+    public function comment_ranges()
+    {
+        return $this->hasMany(CommentRange::class);
+    }
 }

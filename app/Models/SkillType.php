@@ -23,24 +23,22 @@ use App\Models\SchoolClass;
  * @property float|null $weight
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property SkillCategory $skill_category
  * @property School $school
  * @property Collection|School[] $schools
  * @property Collection|SkillRating[] $skill_ratings
- *
- * @package App\Models
  */
 class SkillType extends Model
 {
-	protected $table = 'skill_types';
-	public $incrementing = false;
+    protected $table = 'skill_types';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'weight' => 'float'
-	];
+    protected $keyType = 'string';
+
+    protected $casts = [
+        'weight' => 'float',
+    ];
 
 	protected $fillable = [
 		'id',
@@ -52,15 +50,15 @@ class SkillType extends Model
 		'weight'
 	];
 
-	public function skill_category()
-	{
-		return $this->belongsTo(SkillCategory::class);
-	}
+    public function skill_category()
+    {
+        return $this->belongsTo(SkillCategory::class);
+    }
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
 	public function school_class()
 	{
@@ -74,8 +72,8 @@ class SkillType extends Model
 					->withTimestamps();
 	}
 
-	public function skill_ratings()
-	{
-		return $this->hasMany(SkillRating::class);
-	}
+    public function skill_ratings()
+    {
+        return $this->hasMany(SkillRating::class);
+    }
 }

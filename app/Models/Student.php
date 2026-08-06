@@ -7,17 +7,16 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use App\Models\BloodGroup;
-use RuntimeException;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
-use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use RuntimeException;
 
 /**
  * Class Student
@@ -48,7 +47,6 @@ use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
  * @property string|null $medical_information
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property SchoolClass $school_class
  * @property ClassArm $class_arm
  * @property ClassSection|null $class_section
@@ -64,15 +62,15 @@ use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
  * @property Collection|SkillRating[] $skill_ratings
  * @property Collection|StudentEnrollment[] $student_enrollments
  * @property Collection|TermSummary[] $term_summaries
- *
- * @package App\Models
  */
 class Student extends Model implements AuthenticatableContract
 {
-    use HasApiTokens, AuthenticatableTrait;
+    use AuthenticatableTrait, HasApiTokens;
 
     protected $table = 'students';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $casts = [
@@ -91,8 +89,8 @@ class Student extends Model implements AuthenticatableContract
         'date_of_birth',
         'nationality',
         'state_of_origin',
-		'lga_of_origin',
-		'blood_group_id',
+        'lga_of_origin',
+        'blood_group_id',
         'house',
         'club',
         'current_session_id',
@@ -100,8 +98,8 @@ class Student extends Model implements AuthenticatableContract
         'school_class_id',
         'class_arm_id',
         'class_section_id',
-		'parent_id',
-		'blood_group_id',
+        'parent_id',
+        'blood_group_id',
         'admission_date',
         'photo_url',
         'status',
@@ -172,44 +170,45 @@ class Student extends Model implements AuthenticatableContract
         };
     }
 
-	public function setGenderAttribute($value): void
-	{
-		if ($value === null) {
-			$this->attributes['gender'] = null;
-			return;
-		}
+    public function setGenderAttribute($value): void
+    {
+        if ($value === null) {
+            $this->attributes['gender'] = null;
 
-		$normalized = strtolower((string) $value);
-		$map = [
-			'male' => 'M',
-			'm' => 'M',
-			'female' => 'F',
-			'f' => 'F',
-			'other' => 'O',
-			'others' => 'O',
-			'o' => 'O',
-		];
+            return;
+        }
 
-		$this->attributes['gender'] = $map[$normalized] ?? $value;
-	}
+        $normalized = strtolower((string) $value);
+        $map = [
+            'male' => 'M',
+            'm' => 'M',
+            'female' => 'F',
+            'f' => 'F',
+            'other' => 'O',
+            'others' => 'O',
+            'o' => 'O',
+        ];
 
-	public function getPhotoUrlAttribute($value)
-	{
-		if ($value === null || $value === '') {
-			return null;
-		}
+        $this->attributes['gender'] = $map[$normalized] ?? $value;
+    }
 
-		if (Str::startsWith($value, ['http://', 'https://'])) {
-			return $value;
-		}
+    public function getPhotoUrlAttribute($value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
 
-		$appUrl = rtrim(config('app.url'), '/');
+        if (Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
 
-		if (Str::startsWith($value, '/storage/')) {
-			return $appUrl . $value;
-		}
+        $appUrl = rtrim(config('app.url'), '/');
 
-		return $appUrl . Storage::url($value);
+        if (Str::startsWith($value, '/storage/')) {
+            return $appUrl.$value;
+        }
+
+        return $appUrl.Storage::url($value);
     }
 
     protected function normalizeNullableUuid($value): ?string
@@ -231,93 +230,93 @@ class Student extends Model implements AuthenticatableContract
         return $trimmed;
     }
 
-	public static function generateAdmissionNumber(School $school, Session $session): string
-	{
-		DB::table('schools')
-			->where('id', $school->id)
-			->lockForUpdate()
-			->value('id');
+    public static function generateAdmissionNumber(School $school, Session $session): string
+    {
+        DB::table('schools')
+            ->where('id', $school->id)
+            ->lockForUpdate()
+            ->value('id');
 
-		$school = $school->fresh();
-		$session = $session->fresh();
+        $school = $school->fresh();
+        $session = $session->fresh();
 
-		$sessionName = trim((string) ($session->name ?? ''));
+        $sessionName = trim((string) ($session->name ?? ''));
 
-		if ($sessionName === '') {
-			throw new RuntimeException('Cannot generate admission number without a session name.');
-		}
+        if ($sessionName === '') {
+            throw new RuntimeException('Cannot generate admission number without a session name.');
+        }
 
-		// Special format for An-Nur Model Islamic School Minna
-		if (strtolower($school->slug) === 'an-nur-model-islamic-school-minna') {
-			// Format: Amis/25/1034 (SchoolCode/YearOfAdmission/SerialNumber)
-			$schoolCode = 'Amis';
-			
-			// Extract year from session name (e.g., "2024/2025" -> "25")
-			$yearParts = explode('/', $sessionName);
-			$yearOfAdmission = isset($yearParts[1]) ? substr((string) $yearParts[1], -2) : '25';
-			
-			$prefix = "{$schoolCode}/{$yearOfAdmission}";
-			
-			$maxSequence = (int) DB::table('students')
-				->where('school_id', $school->id)
-				->where('current_session_id', $session->id)
-				->where('admission_no', 'like', $prefix . '/%')
-				->lockForUpdate()
-				->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
-				->value('max_sequence');
-			
-			$nextSequence = $maxSequence > 0 ? $maxSequence + 1 : 1;
-			$paddedSequence = str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
-			$candidate = "{$prefix}/{$paddedSequence}";
-			
-			while (
-				DB::table('students')
-					->where('admission_no', $candidate)
-					->exists()
-			) {
-				$nextSequence++;
-				$paddedSequence = str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
-				$candidate = "{$prefix}/{$paddedSequence}";
-			}
-			
-			return $candidate;
-		}
+        // Special format for An-Nur Model Islamic School Minna
+        if (strtolower($school->slug) === 'an-nur-model-islamic-school-minna') {
+            // Format: Amis/25/1034 (SchoolCode/YearOfAdmission/SerialNumber)
+            $schoolCode = 'Amis';
 
-		// Default format for other schools
-		$acronym = $school->resolved_acronym;
-		$code = $school->formatted_code_sequence;
+            // Extract year from session name (e.g., "2024/2025" -> "25")
+            $yearParts = explode('/', $sessionName);
+            $yearOfAdmission = isset($yearParts[1]) ? substr((string) $yearParts[1], -2) : '25';
 
-		if ($code === '000') {
-			$sequenceValue = (int) ($school->code_sequence ?? 0);
-			$code = str_pad((string) ($sequenceValue > 0 ? $sequenceValue : 1), 3, '0', STR_PAD_LEFT);
-		}
+            $prefix = "{$schoolCode}/{$yearOfAdmission}";
 
-		$currentYear = Carbon::now()->year;
-		$prefix = "{$acronym}{$code}/{$currentYear}";
+            $maxSequence = (int) DB::table('students')
+                ->where('school_id', $school->id)
+                ->where('current_session_id', $session->id)
+                ->where('admission_no', 'like', $prefix.'/%')
+                ->lockForUpdate()
+                ->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
+                ->value('max_sequence');
 
-		$maxSequence = DB::table('students')
-			->where('school_id', $school->id)
-			->where('admission_no', 'like', $prefix . '/%')
-			->lockForUpdate()
-			->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
-			->value('max_sequence');
+            $nextSequence = $maxSequence > 0 ? $maxSequence + 1 : 1;
+            $paddedSequence = str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
+            $candidate = "{$prefix}/{$paddedSequence}";
 
-		$maxSequenceValue = is_numeric($maxSequence) ? (int) $maxSequence : -1;
-		$nextSequence = $maxSequenceValue + 1;
+            while (
+                DB::table('students')
+                    ->where('admission_no', $candidate)
+                    ->exists()
+            ) {
+                $nextSequence++;
+                $paddedSequence = str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
+                $candidate = "{$prefix}/{$paddedSequence}";
+            }
 
-		$candidate = "{$prefix}/{$nextSequence}";
+            return $candidate;
+        }
 
-		while (
-			DB::table('students')
-				->where('admission_no', $candidate)
-				->exists()
-		) {
-			$nextSequence++;
-			$candidate = "{$prefix}/{$nextSequence}";
-		}
+        // Default format for other schools
+        $acronym = $school->resolved_acronym;
+        $code = $school->formatted_code_sequence;
 
-		return $candidate;
-	}
+        if ($code === '000') {
+            $sequenceValue = (int) ($school->code_sequence ?? 0);
+            $code = str_pad((string) ($sequenceValue > 0 ? $sequenceValue : 1), 3, '0', STR_PAD_LEFT);
+        }
+
+        $currentYear = Carbon::now()->year;
+        $prefix = "{$acronym}{$code}/{$currentYear}";
+
+        $maxSequence = DB::table('students')
+            ->where('school_id', $school->id)
+            ->where('admission_no', 'like', $prefix.'/%')
+            ->lockForUpdate()
+            ->selectRaw('MAX(CAST(SUBSTRING_INDEX(admission_no, "/", -1) AS UNSIGNED)) as max_sequence')
+            ->value('max_sequence');
+
+        $maxSequenceValue = is_numeric($maxSequence) ? (int) $maxSequence : -1;
+        $nextSequence = $maxSequenceValue + 1;
+
+        $candidate = "{$prefix}/{$nextSequence}";
+
+        while (
+            DB::table('students')
+                ->where('admission_no', $candidate)
+                ->exists()
+        ) {
+            $nextSequence++;
+            $candidate = "{$prefix}/{$nextSequence}";
+        }
+
+        return $candidate;
+    }
 
     protected function sanitizeUuidForeignKeys(): void
     {
@@ -331,17 +330,17 @@ class Student extends Model implements AuthenticatableContract
         }
     }
 
-	public static function fixLegacyForeignKeys(): void
-	{
-		$fields = [
-			'class_arm_id',
-			'class_section_id',
-			'parent_id',
-			'school_class_id',
-			'current_session_id',
-			'current_term_id',
-			'blood_group_id',
-		];
+    public static function fixLegacyForeignKeys(): void
+    {
+        $fields = [
+            'class_arm_id',
+            'class_section_id',
+            'parent_id',
+            'school_class_id',
+            'current_session_id',
+            'current_term_id',
+            'blood_group_id',
+        ];
 
         foreach ($fields as $field) {
             // Use raw SQL to avoid type comparison issues
@@ -453,7 +452,7 @@ class Student extends Model implements AuthenticatableContract
         return $this->belongsTo(Term::class, 'current_term_id');
     }
 
-	public function blood_group()
+    public function blood_group()
     {
         return $this->belongsTo(BloodGroup::class);
     }
@@ -462,11 +461,13 @@ class Student extends Model implements AuthenticatableContract
     {
         if (empty($value)) {
             $this->attributes['portal_password'] = null;
+
             return;
         }
 
         if (is_string($value) && Str::startsWith($value, '$2y$')) {
             $this->attributes['portal_password'] = $value;
+
             return;
         }
 

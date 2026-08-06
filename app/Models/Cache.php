@@ -14,24 +14,25 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $key
  * @property string $value
  * @property int $expiration
- *
- * @package App\Models
  */
 class Cache extends Model
 {
-	protected $table = 'cache';
-	protected $primaryKey = 'key';
-	public $incrementing = false;
+    protected $table = 'cache';
 
-	protected $keyType = 'string';
-	public $timestamps = false;
+    protected $primaryKey = 'key';
 
-	protected $casts = [
-		'expiration' => 'int'
-	];
+    public $incrementing = false;
 
-	protected $fillable = [
-		'value',
-		'expiration'
-	];
+    protected $keyType = 'string';
+
+    public $timestamps = false;
+
+    protected $casts = [
+        'expiration' => 'int',
+    ];
+
+    protected $fillable = [
+        'value',
+        'expiration',
+    ];
 }

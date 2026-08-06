@@ -28,58 +28,70 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $principal_comment
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Session $session
  * @property Student $student
  * @property Term $term
- *
- * @package App\Models
  */
 class TermSummary extends Model
 {
-	protected $table = 'term_summaries';
-	public $incrementing = false;
+    protected $table = 'term_summaries';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'total_marks_obtained' => 'int',
-		'total_marks_possible' => 'int',
-		'average_score' => 'float',
-		'position_in_class' => 'int',
-		'class_average_score' => 'float',
-		'days_present' => 'int',
-		'days_absent' => 'int'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'student_id',
-		'session_id',
-		'term_id',
-		'total_marks_obtained',
-		'total_marks_possible',
-		'average_score',
-		'position_in_class',
-		'class_average_score',
-		'days_present',
-		'days_absent',
-		'final_grade',
-		'overall_comment',
-		'principal_comment'
-	];
+    protected static function booted()
+    {
+        static::creating(function (self $model) {
+            if (empty($model->id)) {
+                $model->id = (string) \Illuminate\Support\Str::uuid();
+            }
+        });
+    }
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    protected $attributes = [
+        'overall_comment' => 'This student is good.',
+        'principal_comment' => 'This student is hardworking.',
+    ];
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class);
-	}
+    protected $casts = [
+        'total_marks_obtained' => 'int',
+        'total_marks_possible' => 'int',
+        'average_score' => 'float',
+        'position_in_class' => 'int',
+        'class_average_score' => 'float',
+        'days_present' => 'int',
+        'days_absent' => 'int',
+    ];
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
-	}
+    protected $fillable = [
+        'student_id',
+        'session_id',
+        'term_id',
+        'total_marks_obtained',
+        'total_marks_possible',
+        'average_score',
+        'position_in_class',
+        'class_average_score',
+        'days_present',
+        'days_absent',
+        'final_grade',
+        'overall_comment',
+        'principal_comment',
+    ];
+
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
 }

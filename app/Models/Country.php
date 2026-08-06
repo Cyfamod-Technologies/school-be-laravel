@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Country extends Model
 {
     use HasFactory;
 
-	protected $table = 'countries';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'countries';
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
@@ -29,8 +31,8 @@ class Country extends Model
         });
     }
 
-	public function states()
-	{
-		return $this->hasMany(State::class);
-	}
+    public function states()
+    {
+        return $this->hasMany(State::class);
+    }
 }

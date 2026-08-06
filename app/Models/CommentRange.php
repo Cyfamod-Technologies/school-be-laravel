@@ -20,14 +20,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $principal_comment
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property GradingScale $grading_scale
- *
- * @package App\Models
  */
 class CommentRange extends Model
 {
     protected $table = 'comment_ranges';
+
     public $incrementing = false;
 
     protected $keyType = 'string';

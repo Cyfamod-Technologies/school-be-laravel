@@ -20,52 +20,51 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $label
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
- * @package App\Models
  */
 class AssessmentComponent extends Model
 {
-	protected $table = 'assessment_components';
-	public $incrementing = false;
+    protected $table = 'assessment_components';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'weight' => 'float',
-		'order' => 'int'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'id',
-		'school_id',
-		'name',
-		'weight',
-		'order',
-		'label'
-	];
+    protected $casts = [
+        'weight' => 'float',
+        'order' => 'int',
+    ];
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'id',
+        'school_id',
+        'name',
+        'weight',
+        'order',
+        'label',
+    ];
 
-	public function subjects()
-	{
-		return $this->belongsToMany(
-			Subject::class,
-			'assessment_component_subject',
-			'assessment_component_id',
-			'subject_id'
-		);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function results()
-	{
-		return $this->hasMany(Result::class, 'assessment_component_id');
-	}
+    public function subjects()
+    {
+        return $this->belongsToMany(
+            Subject::class,
+            'assessment_component_subject',
+            'assessment_component_id',
+            'subject_id'
+        );
+    }
 
-	public function structures()
-	{
-		return $this->hasMany(AssessmentComponentStructure::class);
-	}
+    public function results()
+    {
+        return $this->hasMany(Result::class, 'assessment_component_id');
+    }
+
+    public function structures()
+    {
+        return $this->hasMany(AssessmentComponentStructure::class);
+    }
 }

@@ -19,14 +19,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $position
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property GradingScale $grading_scale
- *
- * @package App\Models
  */
 class PositionRange extends Model
 {
     protected $table = 'position_ranges';
+
     public $incrementing = false;
 
     protected $keyType = 'string';

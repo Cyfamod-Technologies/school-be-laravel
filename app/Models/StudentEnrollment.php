@@ -19,45 +19,53 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $term_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property ClassSection $class_section
  * @property Session $session
  * @property Student $student
  * @property Term $term
- *
- * @package App\Models
  */
 class StudentEnrollment extends Model
 {
-	protected $table = 'student_enrollments';
-	public $incrementing = false;
+    protected $table = 'student_enrollments';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'student_id',
-		'class_section_id',
-		'session_id',
-		'term_id'
-	];
+    protected $keyType = 'string';
 
-	public function class_section()
-	{
-		return $this->belongsTo(ClassSection::class);
-	}
+    protected $fillable = [
+        'id',
+        'student_id',
+        'class_section_id',
+        'session_id',
+        'term_id',
+    ];
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    protected static function booted()
+    {
+        static::creating(function (self $model) {
+            if (empty($model->id)) {
+                $model->id = (string) \Illuminate\Support\Str::uuid();
+            }
+        });
+    }
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class);
-	}
+    public function class_section()
+    {
+        return $this->belongsTo(ClassSection::class);
+    }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
-	}
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
 }

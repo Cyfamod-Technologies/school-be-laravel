@@ -28,12 +28,19 @@ use Spatie\Permission\PermissionRegistrar;
 class ComprehensiveSchoolSeeder extends Seeder
 {
     private ?School $school = null;
+
     private array $sessions = [];
+
     private array $terms = [];
+
     private array $classes = [];
+
     private array $subjects = [];
+
     private array $teachers = [];
+
     private array $parents = [];
+
     private array $components = [];
 
     /**
@@ -49,7 +56,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         'Fatima', 'Joy', 'Peace', 'Ada', 'Khadija', 'Funmi', 'Bukola', 'Adaeze',
         'Hauwa', 'Ebere', 'Folake', 'Zainab', 'Ifeoma', 'Bisola', 'Chiamaka', 'Halima',
         // Unisex
-        'Chika', 'Ayo', 'Bisi', 'Tobi', 'Tayo', 'Wale', 'Kemi'
+        'Chika', 'Ayo', 'Bisi', 'Tobi', 'Tayo', 'Wale', 'Kemi',
     ];
 
     /**
@@ -60,7 +67,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         'Oluwole', 'Bello', 'Eze', 'Adebayo', 'Musa', 'Okeke', 'Afolabi', 'Usman',
         'Chukwu', 'Ogunleye', 'Yakubu', 'Nnamdi', 'Adedayo', 'Suleiman', 'Onyeka', 'Obi',
         'Adewale', 'Garba', 'Nnaji', 'Bakare', 'Aliyu', 'Okafor', 'Ojo', 'Abdullahi',
-        'Chukwuemeka', 'Akinwale', 'Haruna', 'Ike', 'Ladipo', 'Balarabe', 'Nwankwo', 'Adeola'
+        'Chukwuemeka', 'Akinwale', 'Haruna', 'Ike', 'Ladipo', 'Balarabe', 'Nwankwo', 'Adeola',
     ];
 
     /**
@@ -85,6 +92,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         $existingSchool = School::where('subdomain', 'demo')->first();
         if ($existingSchool) {
             $this->command->warn('Demo school already exists. Skipping comprehensive seeding to avoid overwriting data.');
+
             return;
         }
 
@@ -104,7 +112,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             $this->assignTeachersToSubjects();
 
             // Update school with current session and term
-            if (!empty($this->sessions) && !empty($this->terms)) {
+            if (! empty($this->sessions) && ! empty($this->terms)) {
                 $this->school->update([
                     'current_session_id' => $this->sessions[0]->id,
                     'current_term_id' => $this->terms[0]->id,
@@ -118,12 +126,12 @@ class ComprehensiveSchoolSeeder extends Seeder
             $this->command->info('✓ Seeding completed successfully!');
             $this->command->info('=================================================');
             $this->command->info("School: {$this->school->name}");
-            $this->command->info("Login Email: demo@gmail.com");
-            $this->command->info("Password: 12345678");
+            $this->command->info('Login Email: demo@gmail.com');
+            $this->command->info('Password: 12345678');
             $this->command->info('=================================================');
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->command->error('Seeding failed: ' . $e->getMessage());
+            $this->command->error('Seeding failed: '.$e->getMessage());
             throw $e;
         }
     }
@@ -150,6 +158,14 @@ class ComprehensiveSchoolSeeder extends Seeder
                 'name' => 'Demo International School',
                 'slug' => 'demo-international-school',
                 'subdomain' => 'demo',
+                // Test values for the Website Management Go Live/custom
+                // domain feature -- not a real domain, just something to
+                // resolve against locally. Pre-activated so the demo
+                // school's public site works immediately after seeding,
+                // without needing to run the full Go Live/approval flow
+                // every time the database gets reset.
+                'custom_domain' => 'demo-international-school.test',
+                'activated' => true,
                 'acronym' => 'DIS',
                 'address' => '123 Education Avenue, Ikeja, Lagos State, Nigeria',
                 'email' => 'info@demointernational.edu.ng',
@@ -170,7 +186,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->where('school_id', $this->school->id)
             ->first();
 
-        if (!$admin) {
+        if (! $admin) {
             $admin = User::create([
                 'id' => (string) Str::uuid(),
                 'school_id' => $this->school->id,
@@ -196,7 +212,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->where('school_id', $this->school->id)
             ->first();
 
-        if ($adminRole && !$admin->hasRole($adminRole)) {
+        if ($adminRole && ! $admin->hasRole($adminRole)) {
             $admin->assignRole($adminRole);
         }
 
@@ -232,6 +248,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                 foreach ($existingTerms as $term) {
                     $this->terms[] = $term;
                 }
+
                 continue;
             }
 
@@ -264,7 +281,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                     'session_id' => $session->id,
                     'name' => $termData['name'],
                     'term_number' => $termData['term_number'],
-                    'slug' => Str::slug($termData['name'] . '-' . $session->name),
+                    'slug' => Str::slug($termData['name'].'-'.$session->name),
                     'start_date' => $startDate,
                     'end_date' => $endDate,
                     'status' => 'active',
@@ -275,7 +292,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
         }
 
-        $this->command->info('✓ Created ' . count($this->sessions) . ' sessions and ' . count($this->terms) . ' terms');
+        $this->command->info('✓ Created '.count($this->sessions).' sessions and '.count($this->terms).' terms');
     }
 
     /**
@@ -328,6 +345,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
 
             $this->command->info("✓ Loaded {$existingClassCount} existing classes in proper order");
+
             return;
         }
 
@@ -347,7 +365,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ];
 
             // Create arms if defined, or create a default arm for classes without arms
-            if (!empty($classData['arms'])) {
+            if (! empty($classData['arms'])) {
                 foreach ($classData['arms'] as $armName) {
                     $arm = ClassArm::create([
                         'id' => (string) Str::uuid(),
@@ -374,7 +392,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
         }
 
-        $this->command->info('✓ Created ' . count($this->classes) . ' classes');
+        $this->command->info('✓ Created '.count($this->classes).' classes');
     }
 
     /**
@@ -399,6 +417,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
 
             $this->command->info("✓ Loaded {$existingSubjectCount} existing subjects");
+
             return;
         }
 
@@ -457,7 +476,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ];
         }
 
-        $this->command->info('✓ Created ' . count($this->subjects) . ' subjects');
+        $this->command->info('✓ Created '.count($this->subjects).' subjects');
     }
 
     /**
@@ -471,6 +490,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         $existingComponentCount = AssessmentComponent::where('school_id', $this->school->id)->count();
         if ($existingComponentCount > 0) {
             $this->command->warn("Found {$existingComponentCount} existing assessment components. Skipping...");
+
             return;
         }
 
@@ -495,7 +515,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             $this->components[] = $component;
         }
 
-        $this->command->info('✓ Created ' . count($this->components) . ' assessment components');
+        $this->command->info('✓ Created '.count($this->components).' assessment components');
     }
 
     /**
@@ -509,6 +529,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         $existingSkillCount = SkillType::where('school_id', $this->school->id)->count();
         if ($existingSkillCount > 0) {
             $this->command->warn("Found {$existingSkillCount} existing skill types. Skipping...");
+
             return;
         }
 
@@ -517,7 +538,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->where('name', 'Skills and Behaviour')
             ->first();
 
-        if (!$category) {
+        if (! $category) {
             $category = SkillCategory::create([
                 'id' => (string) Str::uuid(),
                 'school_id' => $this->school->id,
@@ -553,7 +574,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('✓ Created ' . count($skills) . ' skill types');
+        $this->command->info('✓ Created '.count($skills).' skill types');
     }
 
     /**
@@ -566,11 +587,12 @@ class ComprehensiveSchoolSeeder extends Seeder
         // Check for existing subject assignments for this school
         $existingAssignmentCount = SubjectAssignment::whereIn(
             'school_class_id',
-            array_map(fn($classData) => $classData['class']->id, $this->classes)
+            array_map(fn ($classData) => $classData['class']->id, $this->classes)
         )->count();
 
         if ($existingAssignmentCount > 0) {
             $this->command->warn("Found {$existingAssignmentCount} existing subject assignments. Skipping...");
+
             return;
         }
 
@@ -588,7 +610,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                 $levels = $subjectInfo['levels'];
 
                 // Check if subject applies to this class level
-                if (!$this->subjectAppliesToLevel($levels, $level, $className)) {
+                if (! $this->subjectAppliesToLevel($levels, $level, $className)) {
                     continue;
                 }
 
@@ -662,6 +684,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
 
             $this->command->info("✓ Loaded {$existingTeacherCount} existing teachers");
+
             return;
         }
 
@@ -678,7 +701,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
             $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
             $fullName = "{$firstName} {$lastName}";
-            $email = strtolower(Str::slug($firstName . '-' . $lastName)) . '@demointernational.edu.ng';
+            $email = strtolower(Str::slug($firstName.'-'.$lastName)).'@demointernational.edu.ng';
 
             // Check if user already exists
             $user = User::where('email', $email)->first();
@@ -707,7 +730,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                 'user_id' => $user->id,
                 'full_name' => $fullName,
                 'email' => $email,
-                'phone' => '+234-' . rand(700, 999) . '-' . rand(100, 999) . '-' . rand(1000, 9999),
+                'phone' => '+234-'.rand(700, 999).'-'.rand(100, 999).'-'.rand(1000, 9999),
                 'role' => 'Teacher',
                 'gender' => $gender,
                 'employment_start_date' => Carbon::now()->subYears(rand(1, 5)),
@@ -719,7 +742,7 @@ class ComprehensiveSchoolSeeder extends Seeder
 
         $registrar->setPermissionsTeamId(null);
 
-        $this->command->info('✓ Created ' . count($this->teachers) . ' teachers');
+        $this->command->info('✓ Created '.count($this->teachers).' teachers');
     }
 
     /**
@@ -744,6 +767,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             }
 
             $this->command->info("✓ Loaded {$existingParentCount} existing parents");
+
             return;
         }
 
@@ -758,12 +782,12 @@ class ComprehensiveSchoolSeeder extends Seeder
         $nigerianOccupations = [
             'Engineer', 'Doctor', 'Lawyer', 'Teacher', 'Accountant', 'Businessman',
             'Civil Servant', 'Nurse', 'Pharmacist', 'Architect', 'Banker', 'Trader',
-            'Contractor', 'Lecturer', 'IT Professional', 'Sales Manager'
+            'Contractor', 'Lecturer', 'IT Professional', 'Sales Manager',
         ];
 
         $nigerianStates = [
             'Lagos', 'Oyo', 'Kano', 'Rivers', 'Enugu', 'Kaduna', 'Ogun',
-            'Delta', 'Anambra', 'Abuja', 'Imo', 'Kwara', 'Edo', 'Osun'
+            'Delta', 'Anambra', 'Abuja', 'Imo', 'Kwara', 'Edo', 'Osun',
         ];
 
         for ($i = 1; $i <= 20; $i++) {
@@ -771,7 +795,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
             $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
             $fullName = "{$firstName} {$lastName}";
-            $email = strtolower(Str::slug($firstName . '-' . $lastName)) . '-parent@demointernational.edu.ng';
+            $email = strtolower(Str::slug($firstName.'-'.$lastName)).'-parent@demointernational.edu.ng';
 
             // Check if user already exists
             $user = User::where('email', $email)->first();
@@ -800,8 +824,8 @@ class ComprehensiveSchoolSeeder extends Seeder
                 'user_id' => $user->id,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'phone' => '+234-' . rand(700, 999) . '-' . rand(100, 999) . '-' . rand(1000, 9999),
-                'address' => rand(1, 100) . ' ' . ['Allen Avenue', 'Victoria Island', 'Lekki', 'Ikeja GRA', 'Surulere'][array_rand(['Allen Avenue', 'Victoria Island', 'Lekki', 'Ikeja GRA', 'Surulere'])] . ', Lagos State',
+                'phone' => '+234-'.rand(700, 999).'-'.rand(100, 999).'-'.rand(1000, 9999),
+                'address' => rand(1, 100).' '.['Allen Avenue', 'Victoria Island', 'Lekki', 'Ikeja GRA', 'Surulere'][array_rand(['Allen Avenue', 'Victoria Island', 'Lekki', 'Ikeja GRA', 'Surulere'])].', Lagos State',
                 'occupation' => $nigerianOccupations[array_rand($nigerianOccupations)],
                 'nationality' => 'Nigerian',
                 'state_of_origin' => $nigerianStates[array_rand($nigerianStates)],
@@ -812,7 +836,7 @@ class ComprehensiveSchoolSeeder extends Seeder
 
         $registrar->setPermissionsTeamId(null);
 
-        $this->command->info('✓ Created ' . count($this->parents) . ' parents');
+        $this->command->info('✓ Created '.count($this->parents).' parents');
     }
 
     /**
@@ -826,6 +850,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         $existingStudentCount = Student::where('school_id', $this->school->id)->count();
         if ($existingStudentCount >= 200) {
             $this->command->warn("Found {$existingStudentCount} existing students. Skipping student creation...");
+
             return;
         }
 
@@ -849,7 +874,7 @@ class ComprehensiveSchoolSeeder extends Seeder
 
                 // Select arm if available
                 $armId = null;
-                if (!empty($arms)) {
+                if (! empty($arms)) {
                     $arm = $arms[array_rand($arms)];
                     $armId = $arm->id;
                 }
@@ -860,7 +885,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                 // Randomly assign a parent (60% chance of having a parent)
                 // Each parent can have multiple children (siblings)
                 $parentId = null;
-                if (!empty($this->parents) && rand(1, 100) <= 60) {
+                if (! empty($this->parents) && rand(1, 100) <= 60) {
                     $parent = $this->parents[array_rand($this->parents)];
                     $parentId = $parent->id;
                 }
@@ -879,6 +904,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                     'school_class_id' => $class->id,
                     'class_arm_id' => $armId,
                     'parent_id' => $parentId,
+                    'portal_password' => '123456',
                     'status' => 'active',
                     'nationality' => 'Nigerian',
                     'state_of_origin' => ['Lagos', 'Oyo', 'Kano', 'Rivers', 'Enugu'][array_rand(['Lagos', 'Oyo', 'Kano', 'Rivers', 'Enugu'])],
@@ -909,6 +935,7 @@ class ComprehensiveSchoolSeeder extends Seeder
 
         if ($existingTeacherAssignments > 0 || $existingClassTeachers > 0) {
             $this->command->warn("Found {$existingTeacherAssignments} existing subject-teacher assignments and {$existingClassTeachers} class teachers. Skipping...");
+
             return;
         }
 
@@ -983,6 +1010,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         if (str_contains($className, 'SS')) {
             return 'ss';
         }
+
         return 'unknown';
     }
 
@@ -1002,7 +1030,7 @@ class ComprehensiveSchoolSeeder extends Seeder
         // Check for department-specific levels
         if (str_starts_with($className, 'SS')) {
             foreach ($this->classes[$className]['arms'] as $arm) {
-                $departmentLevel = 'ss-' . strtolower($arm->name);
+                $departmentLevel = 'ss-'.strtolower($arm->name);
                 if (in_array($departmentLevel, $levels)) {
                     return true;
                 }
@@ -1021,18 +1049,18 @@ class ComprehensiveSchoolSeeder extends Seeder
             'Science' => [
                 'Mathematics', 'English Language', 'Physics', 'Chemistry', 'Biology',
                 'Further Mathematics', 'Computer Studies', 'Agricultural Science', 'Geography',
-                'Civic Education', 'Physical Education', 'Christian Religious Studies', 'Islamic Religious Studies'
+                'Civic Education', 'Physical Education', 'Christian Religious Studies', 'Islamic Religious Studies',
             ],
             'Arts' => [
                 'Mathematics', 'English Language', 'Literature in English', 'Government',
                 'History', 'Geography', 'Economics', 'Biology', 'Civic Education',
                 'Fine Arts', 'Music', 'French', 'Christian Religious Studies', 'Islamic Religious Studies',
-                'Physical Education', 'Computer Studies'
+                'Physical Education', 'Computer Studies',
             ],
             'Commercial' => [
                 'Mathematics', 'English Language', 'Economics', 'Commerce', 'Accounting',
                 'Business Studies', 'Government', 'Civic Education', 'Computer Studies',
-                'Christian Religious Studies', 'Islamic Religious Studies', 'Physical Education'
+                'Christian Religious Studies', 'Islamic Religious Studies', 'Physical Education',
             ],
         ];
 

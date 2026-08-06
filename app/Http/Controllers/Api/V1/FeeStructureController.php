@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\FeeStructure;
-use App\Models\FeeItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +25,7 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="List fee structures",
+     *
      *     @OA\Response(response=200, description="Fee structures returned")
      * )
      */
@@ -59,6 +59,7 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Create fee structure",
+     *
      *     @OA\Response(response=201, description="Created"),
      *     @OA\Response(response=422, description="Validation error or duplicate")
      * )
@@ -67,7 +68,7 @@ class FeeStructureController extends Controller
     {
         $school = $request->user()->school;
 
-        if (!$school) {
+        if (! $school) {
             return response()->json([
                 'message' => 'Authenticated user is not associated with any school.',
             ], 422);
@@ -91,7 +92,7 @@ class FeeStructureController extends Controller
 
         if ($exists) {
             throw ValidationException::withMessages([
-                'fee_structure' => ['A fee structure already exists for this class, session, term, and fee item combination.']
+                'fee_structure' => ['A fee structure already exists for this class, session, term, and fee item combination.'],
             ]);
         }
 
@@ -109,7 +110,9 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures/{feeStructure}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Get fee structure",
+     *
      *     @OA\Parameter(name="feeStructure", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Fee structure returned"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -130,7 +133,9 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures/{feeStructure}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Update fee structure",
+     *
      *     @OA\Parameter(name="feeStructure", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Updated"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -158,7 +163,9 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures/{feeStructure}",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Delete fee structure",
+     *
      *     @OA\Parameter(name="feeStructure", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=204, description="Deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -218,6 +225,7 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures/copy",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Copy fee structures between sessions/terms",
+     *
      *     @OA\Response(response=201, description="Structures copied"),
      *     @OA\Response(response=404, description="Source not found")
      * )
@@ -226,7 +234,7 @@ class FeeStructureController extends Controller
     {
         $school = $request->user()->school;
 
-        if (!$school) {
+        if (! $school) {
             return response()->json([
                 'message' => 'Authenticated user is not associated with any school.',
             ], 422);
@@ -269,6 +277,7 @@ class FeeStructureController extends Controller
 
                 if ($exists) {
                     $skipped[] = $source->feeItem->name;
+
                     continue;
                 }
 
@@ -298,6 +307,7 @@ class FeeStructureController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Failed to copy fee structures.',
                 'error' => $e->getMessage(),
@@ -310,6 +320,7 @@ class FeeStructureController extends Controller
      *     path="/api/v1/fees/structures/by-session-term",
      *     tags={"school-v2.4","school-v2.0"},
      *     summary="Fee structures by session and term",
+     *
      *     @OA\Response(response=200, description="Fee structures returned")
      * )
      */
@@ -329,7 +340,7 @@ class FeeStructureController extends Controller
             ->map(function ($structures, $classId) {
                 $class = $structures->first()->class;
                 $total = $structures->sum('amount');
-                
+
                 return [
                     'class' => $class,
                     'total_amount' => $total,

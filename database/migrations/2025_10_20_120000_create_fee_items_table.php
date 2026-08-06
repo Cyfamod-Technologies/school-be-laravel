@@ -24,7 +24,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('school_id')->references('id')->on('schools')->onDelete('cascade');
-            
+
             // Ensure unique fee item names per school
             $table->unique(['school_id', 'name']);
         });

@@ -21,12 +21,9 @@ use App\Models\SchoolClass;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property Collection|SchoolSkillType[] $school_skill_types
  * @property Collection|SkillType[] $skill_types
- *
- * @package App\Models
  */
 class SkillCategory extends Model
 {

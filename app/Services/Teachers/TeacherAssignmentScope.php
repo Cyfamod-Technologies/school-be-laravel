@@ -16,8 +16,7 @@ class TeacherAssignmentScope
         private ?Staff $staff,
         private Collection $subjectAssignments,
         private Collection $classAssignments,
-    ) {
-    }
+    ) {}
 
     public static function forNonTeacher(): self
     {
@@ -624,6 +623,7 @@ class TeacherAssignmentScope
         if (! is_array($ids) || empty($ids)) {
             return collect();
         }
+
         return collect($ids)->filter()->map(fn ($id) => (string) $id)->values();
     }
 }

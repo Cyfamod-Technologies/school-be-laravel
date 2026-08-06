@@ -23,44 +23,44 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $photo_url
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property User $user
- * @package App\Models
  */
 class Staff extends Model
 {
-	protected $table = 'staff';
-	public $incrementing = false;
-	protected $keyType = 'string';
+    protected $table = 'staff';
 
-	use HasUuids;
+    public $incrementing = false;
 
-	protected $casts = [
-		'employment_start_date' => 'date',
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'school_id',
-		'user_id',
-		'full_name',
-		'email',
-		'phone',
-		'role',
-		'gender',
-		'address',
-		'qualifications',
-		'employment_start_date',
-		'photo_url'
-	];
+    use HasUuids;
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $casts = [
+        'employment_start_date' => 'date',
+    ];
 
-	public function user()
-	{
-		return $this->belongsTo(User::class);
-	}
+    protected $fillable = [
+        'school_id',
+        'user_id',
+        'full_name',
+        'email',
+        'phone',
+        'role',
+        'gender',
+        'address',
+        'qualifications',
+        'employment_start_date',
+        'photo_url',
+    ];
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

@@ -78,9 +78,11 @@ class RbacManagementTest extends TestCase
             ]
         );
 
+        app(PermissionRegistrar::class)->setPermissionsTeamId($school->id);
         $teacher->assignRole($staffRole);
 
         Sanctum::actingAs($teacher);
+        config(['features.enforce_endpoint_permissions' => true]);
 
         $response = $this->postJson('/api/v1/roles', [
             'name' => 'unauthorized_role',
@@ -105,8 +107,19 @@ class RbacManagementTest extends TestCase
             'name' => 'Support User',
             'email' => 'support.user@example.com',
             'password' => bcrypt('password'),
-            'role' => 'support',
+            'role' => 'staff',
             'status' => 'active',
+        ]);
+
+        \App\Models\Staff::query()->create([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'user_id' => $supportUser->id,
+            'role' => 'support',
+            'full_name' => 'Support User',
+            'email' => $supportUser->email,
+            'phone' => '00000000000',
+            'gender' => 'male',
         ]);
 
         $role = Role::query()->updateOrCreate(
@@ -130,6 +143,7 @@ class RbacManagementTest extends TestCase
             ->assertJsonPath('data.user_id', $supportUser->id);
 
         $freshSupportUser = $supportUser->fresh();
+        app(PermissionRegistrar::class)->setPermissionsTeamId($school->id);
         $this->assertTrue($freshSupportUser->hasRole('subject_teacher'));
         $this->assertSame('staff', strtolower((string) $freshSupportUser->role));
     }

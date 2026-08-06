@@ -23,5 +23,3 @@ return new class extends Migration
         DB::statement("ALTER TABLE `users` MODIFY `role` ENUM('staff','parent','super_admin','accountant','admin') NOT NULL");
     }
 };
-
-

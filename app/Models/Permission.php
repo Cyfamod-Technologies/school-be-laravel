@@ -85,14 +85,14 @@ class Permission extends SpatiePermission
         $teamId = self::resolveTeamId();
 
         $permission = self::query()
-            ->where((new self())->getKeyName(), $id)
+            ->where((new self)->getKeyName(), $id)
             ->where('guard_name', $guardName)
             ->when($teamId !== null, fn ($query) => $query->where('school_id', $teamId))
             ->first();
 
         if (! $permission && $teamId !== null) {
             $permission = self::query()
-                ->where((new self())->getKeyName(), $id)
+                ->where((new self)->getKeyName(), $id)
                 ->where('guard_name', $guardName)
                 ->whereNull('school_id')
                 ->first();

@@ -13,449 +13,448 @@ use Illuminate\Support\Arr;
 
 class QuizQuestionController extends Controller
 {
-	public function __construct(private QuestionService $questionService)
-	{
-	}
-
-	private function ensureManager(Request $request): void
-	{
-		$this->ensurePermission($request, 'cbt.create');
-	}
-
-	private function formatOption(QuizOption $option, bool $includeCorrect = false): array
-	{
-		$data = [
-			'id' => $option->id,
-			'question_id' => $option->question_id,
-			'option_text' => $option->option_text,
-			'order' => $option->order,
-			'image_url' => $option->image_url,
-		];
-
-		if ($includeCorrect) {
-			$data['is_correct'] = $option->is_correct;
-		}
-
-		return $data;
-	}
-
-	private function formatQuestion(QuizQuestion $question, bool $includeCorrect = false): array
-	{
-		$payload = [
-			'id' => $question->id,
-			'quiz_id' => $question->quiz_id,
-			'question_text' => $question->question_text,
-			'question_type' => $question->question_type,
-			'marks' => $question->marks,
-			'order' => $question->order,
-			'image_url' => $question->image_url,
-			'explanation' => $question->explanation,
-			'options' => $question->options->map(function ($option) use ($includeCorrect) {
-				return $this->formatOption($option, $includeCorrect);
-			}),
-		];
-
-		if ($includeCorrect) {
-			$payload['short_answer_answers'] = $question->short_answer_answers ?? [];
-			$payload['short_answer_keywords'] = $question->short_answer_keywords ?? [];
-			$payload['short_answer_match'] = $question->short_answer_match ?? 'exact';
-		}
-
-		return $payload;
-	}
-
-	private function normalizeShortAnswerList(?array $values): array
-	{
-		if (!$values) {
-			return [];
-		}
-
-		$normalized = array_map(static function ($value) {
-			if (!is_string($value)) {
-				return '';
-			}
-			return trim($value);
-		}, $values);
-
-		$normalized = array_values(array_filter($normalized, static function ($value) {
-			return $value !== '';
-		}));
-
-		return array_values(array_unique($normalized));
-	}
-
-	private function clearOtherCorrectOptions(QuizQuestion $question, string $optionId): void
-	{
-		if (in_array($question->question_type, ['mcq', 'true_false'], true)) {
-			$question->options()
-				->where('id', '!=', $optionId)
-				->update(['is_correct' => false]);
-		}
-	}
-
-	public function store(Request $request, string $quizId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$quiz = Quiz::find($quizId);
-
-		if (!$quiz) {
-			return response()->json(['message' => 'Quiz not found'], 404);
-		}
-
-		$validated = $request->validate([
-			'question_text' => 'required|string',
-			'question_type' => 'required|in:mcq,multiple_select,true_false,short_answer',
-			'marks' => 'required|integer|min:1',
-			'order' => 'nullable|integer|min:1',
-			'image_url' => 'nullable|string',
-			'explanation' => 'nullable|string',
-			'short_answer_answers' => 'nullable|array',
-			'short_answer_answers.*' => 'string',
-			'short_answer_keywords' => 'nullable|array',
-			'short_answer_keywords.*' => 'string',
-			'short_answer_match' => 'nullable|in:exact,contains,keywords',
-			'options' => 'nullable|array',
-			'options.*.option_text' => 'required_with:options|string',
-			'options.*.is_correct' => 'boolean',
-			'options.*.order' => 'nullable|integer|min:1',
-			'options.*.image_url' => 'nullable|string',
-		]);
-
-		$questionType = $validated['question_type'];
-		$options = $validated['options'] ?? [];
-		$shortAnswerAnswers = $this->normalizeShortAnswerList($validated['short_answer_answers'] ?? []);
-		$shortAnswerKeywords = $this->normalizeShortAnswerList($validated['short_answer_keywords'] ?? []);
-		$shortAnswerMatch = $validated['short_answer_match'] ?? 'exact';
-
-		if (in_array($questionType, ['mcq', 'multiple_select', 'true_false'], true) && !empty($options) && count($options) < 2) {
-			return response()->json(['message' => 'At least two options are required.'], 422);
-		}
-
-		if (in_array($questionType, ['mcq', 'true_false'], true)) {
-			$correctCount = collect($options)->where('is_correct', true)->count();
-			if ($correctCount > 1) {
-				return response()->json(['message' => 'Only one correct option is allowed.'], 422);
-			}
-		}
-
-		if ($questionType === 'short_answer' && empty($shortAnswerAnswers) && empty($shortAnswerKeywords)) {
-			return response()->json(['message' => 'Provide accepted answers or keywords for short answer questions.'], 422);
-		}
-
-		$questionData = Arr::only($validated, [
-			'question_text',
-			'question_type',
-			'marks',
-			'order',
-			'image_url',
-			'explanation',
-		]);
-
-		if ($questionType === 'short_answer') {
-			$questionData['short_answer_answers'] = $shortAnswerAnswers;
-			$questionData['short_answer_keywords'] = $shortAnswerKeywords;
-			$questionData['short_answer_match'] = $shortAnswerMatch;
-		}
-
-		$question = $this->questionService->addQuestion($quiz, $questionData);
-
-		if ($questionType === 'true_false' && empty($options)) {
-			$options = [
-				[
-					'option_text' => 'True',
-					'order' => 1,
-					'is_correct' => false,
-				],
-				[
-					'option_text' => 'False',
-					'order' => 2,
-					'is_correct' => false,
-				],
-			];
-		}
-
-		if ($questionType !== 'short_answer') {
-			foreach ($options as $optionData) {
-				$this->questionService->addOption($question, [
-					'option_text' => $optionData['option_text'] ?? '',
-					'order' => $optionData['order'] ?? null,
-					'is_correct' => $optionData['is_correct'] ?? false,
-					'image_url' => $optionData['image_url'] ?? null,
-				]);
-			}
-		}
-
-		$question->load('options');
-		$quiz->update(['total_questions' => $quiz->questions()->count()]);
-
-		return response()->json([
-			'message' => 'Question created successfully',
-			'data' => $this->formatQuestion($question, true),
-		], 201);
-	}
-
-	public function update(Request $request, string $quizId, string $questionId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$quiz = Quiz::find($quizId);
-
-		if (!$quiz) {
-			return response()->json(['message' => 'Quiz not found'], 404);
-		}
-
-		$question = QuizQuestion::find($questionId);
-
-		if (!$question || $question->quiz_id !== $quiz->id) {
-			return response()->json(['message' => 'Question not found'], 404);
-		}
-
-		$validated = $request->validate([
-			'question_text' => 'sometimes|required|string',
-			'question_type' => 'sometimes|required|in:mcq,multiple_select,true_false,short_answer',
-			'marks' => 'sometimes|required|integer|min:1',
-			'order' => 'sometimes|integer|min:1',
-			'image_url' => 'nullable|string',
-			'explanation' => 'nullable|string',
-			'short_answer_answers' => 'nullable|array',
-			'short_answer_answers.*' => 'string',
-			'short_answer_keywords' => 'nullable|array',
-			'short_answer_keywords.*' => 'string',
-			'short_answer_match' => 'nullable|in:exact,contains,keywords',
-		]);
-
-		$questionData = Arr::only($validated, [
-			'question_text',
-			'question_type',
-			'marks',
-			'order',
-			'image_url',
-			'explanation',
-		]);
-
-		$nextQuestionType = $validated['question_type'] ?? $question->question_type;
-		if ($nextQuestionType === 'short_answer') {
-			$shortAnswerAnswers = array_key_exists('short_answer_answers', $validated)
-				? $this->normalizeShortAnswerList($validated['short_answer_answers'] ?? [])
-				: ($question->short_answer_answers ?? []);
-			$shortAnswerKeywords = array_key_exists('short_answer_keywords', $validated)
-				? $this->normalizeShortAnswerList($validated['short_answer_keywords'] ?? [])
-				: ($question->short_answer_keywords ?? []);
-			$shortAnswerMatch = $validated['short_answer_match'] ?? $question->short_answer_match ?? 'exact';
-
-			if (empty($shortAnswerAnswers) && empty($shortAnswerKeywords)) {
-				return response()->json(['message' => 'Provide accepted answers or keywords for short answer questions.'], 422);
-			}
-
-			$questionData['short_answer_answers'] = $shortAnswerAnswers;
-			$questionData['short_answer_keywords'] = $shortAnswerKeywords;
-			$questionData['short_answer_match'] = $shortAnswerMatch;
-		} else {
-			$questionData['short_answer_answers'] = null;
-			$questionData['short_answer_keywords'] = null;
-			$questionData['short_answer_match'] = 'exact';
-		}
-
-		if (!empty($questionData)) {
-			$this->questionService->updateQuestion($question, $questionData);
-		}
-
-		if (($validated['question_type'] ?? null) === 'short_answer') {
-			$question->options()->delete();
-		}
-
-		$question->load('options');
-
-		return response()->json([
-			'message' => 'Question updated successfully',
-			'data' => $this->formatQuestion($question, true),
-		]);
-	}
-
-	public function destroy(Request $request, string $quizId, string $questionId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$quiz = Quiz::find($quizId);
-
-		if (!$quiz) {
-			return response()->json(['message' => 'Quiz not found'], 404);
-		}
-
-		$question = QuizQuestion::find($questionId);
-
-		if (!$question || $question->quiz_id !== $quiz->id) {
-			return response()->json(['message' => 'Question not found'], 404);
-		}
-
-		$this->questionService->deleteQuestion($question);
-		$quiz->update(['total_questions' => $quiz->questions()->count()]);
-
-		return response()->json([
-			'message' => 'Question deleted successfully',
-		]);
-	}
-
-	public function reorder(Request $request, string $quizId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$quiz = Quiz::find($quizId);
-
-		if (!$quiz) {
-			return response()->json(['message' => 'Quiz not found'], 404);
-		}
-
-		$validated = $request->validate([
-			'order' => 'required|array',
-			'order.*' => 'uuid',
-		]);
-
-		$this->questionService->reorderQuestions($quiz, $validated['order']);
-
-		return response()->json([
-			'message' => 'Question order updated successfully',
-		]);
-	}
-
-	public function storeOption(Request $request, string $questionId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$question = QuizQuestion::find($questionId);
-
-		if (!$question) {
-			return response()->json(['message' => 'Question not found'], 404);
-		}
-
-		if ($question->question_type === 'short_answer') {
-			return response()->json(['message' => 'Options are not allowed for short answer questions.'], 422);
-		}
-
-		$validated = $request->validate([
-			'option_text' => 'required|string',
-			'is_correct' => 'boolean',
-			'order' => 'nullable|integer|min:1',
-			'image_url' => 'nullable|string',
-		]);
-
-		if (in_array($question->question_type, ['mcq', 'true_false'], true) && ($validated['is_correct'] ?? false)) {
-			$existingCorrect = $question->options()->where('is_correct', true)->exists();
-			if ($existingCorrect) {
-				$question->options()->update(['is_correct' => false]);
-			}
-		}
-
-		$option = $this->questionService->addOption($question, $validated);
-
-		if (($validated['is_correct'] ?? false) && in_array($question->question_type, ['mcq', 'true_false'], true)) {
-			$this->clearOtherCorrectOptions($question, $option->id);
-		}
-
-		return response()->json([
-			'message' => 'Option created successfully',
-			'data' => $this->formatOption($option, true),
-		], 201);
-	}
-
-	public function updateOption(Request $request, string $questionId, string $optionId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$question = QuizQuestion::find($questionId);
-
-		if (!$question) {
-			return response()->json(['message' => 'Question not found'], 404);
-		}
-
-		$option = QuizOption::find($optionId);
-
-		if (!$option || $option->question_id !== $question->id) {
-			return response()->json(['message' => 'Option not found'], 404);
-		}
-
-		$validated = $request->validate([
-			'option_text' => 'sometimes|required|string',
-			'is_correct' => 'boolean',
-			'order' => 'nullable|integer|min:1',
-			'image_url' => 'nullable|string',
-		]);
-
-		$this->questionService->updateOption($option, $validated);
-
-		if (($validated['is_correct'] ?? false) && in_array($question->question_type, ['mcq', 'true_false'], true)) {
-			$this->clearOtherCorrectOptions($question, $option->id);
-		}
-
-		return response()->json([
-			'message' => 'Option updated successfully',
-			'data' => $this->formatOption($option->fresh(), true),
-		]);
-	}
-
-	public function destroyOption(Request $request, string $questionId, string $optionId): JsonResponse
-	{
-		$user = $request->user();
-
-		if (!$user) {
-			return response()->json(['message' => 'Unauthenticated'], 401);
-		}
-
-		$this->ensureManager($request);
-
-		$question = QuizQuestion::find($questionId);
-
-		if (!$question) {
-			return response()->json(['message' => 'Question not found'], 404);
-		}
-
-		$option = QuizOption::find($optionId);
-
-		if (!$option || $option->question_id !== $question->id) {
-			return response()->json(['message' => 'Option not found'], 404);
-		}
-
-		$this->questionService->deleteOption($option);
-
-		return response()->json([
-			'message' => 'Option deleted successfully',
-		]);
-	}
+    public function __construct(private QuestionService $questionService) {}
+
+    private function ensureManager(Request $request): void
+    {
+        $this->ensurePermission($request, 'cbt.create');
+    }
+
+    private function formatOption(QuizOption $option, bool $includeCorrect = false): array
+    {
+        $data = [
+            'id' => $option->id,
+            'question_id' => $option->question_id,
+            'option_text' => $option->option_text,
+            'order' => $option->order,
+            'image_url' => $option->image_url,
+        ];
+
+        if ($includeCorrect) {
+            $data['is_correct'] = $option->is_correct;
+        }
+
+        return $data;
+    }
+
+    private function formatQuestion(QuizQuestion $question, bool $includeCorrect = false): array
+    {
+        $payload = [
+            'id' => $question->id,
+            'quiz_id' => $question->quiz_id,
+            'question_text' => $question->question_text,
+            'question_type' => $question->question_type,
+            'marks' => $question->marks,
+            'order' => $question->order,
+            'image_url' => $question->image_url,
+            'explanation' => $question->explanation,
+            'options' => $question->options->map(function ($option) use ($includeCorrect) {
+                return $this->formatOption($option, $includeCorrect);
+            }),
+        ];
+
+        if ($includeCorrect) {
+            $payload['short_answer_answers'] = $question->short_answer_answers ?? [];
+            $payload['short_answer_keywords'] = $question->short_answer_keywords ?? [];
+            $payload['short_answer_match'] = $question->short_answer_match ?? 'exact';
+        }
+
+        return $payload;
+    }
+
+    private function normalizeShortAnswerList(?array $values): array
+    {
+        if (! $values) {
+            return [];
+        }
+
+        $normalized = array_map(static function ($value) {
+            if (! is_string($value)) {
+                return '';
+            }
+
+            return trim($value);
+        }, $values);
+
+        $normalized = array_values(array_filter($normalized, static function ($value) {
+            return $value !== '';
+        }));
+
+        return array_values(array_unique($normalized));
+    }
+
+    private function clearOtherCorrectOptions(QuizQuestion $question, string $optionId): void
+    {
+        if (in_array($question->question_type, ['mcq', 'true_false'], true)) {
+            $question->options()
+                ->where('id', '!=', $optionId)
+                ->update(['is_correct' => false]);
+        }
+    }
+
+    public function store(Request $request, string $quizId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $quiz = Quiz::find($quizId);
+
+        if (! $quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'question_text' => 'required|string',
+            'question_type' => 'required|in:mcq,multiple_select,true_false,short_answer',
+            'marks' => 'required|integer|min:1',
+            'order' => 'nullable|integer|min:1',
+            'image_url' => 'nullable|string',
+            'explanation' => 'nullable|string',
+            'short_answer_answers' => 'nullable|array',
+            'short_answer_answers.*' => 'string',
+            'short_answer_keywords' => 'nullable|array',
+            'short_answer_keywords.*' => 'string',
+            'short_answer_match' => 'nullable|in:exact,contains,keywords',
+            'options' => 'nullable|array',
+            'options.*.option_text' => 'required_with:options|string',
+            'options.*.is_correct' => 'boolean',
+            'options.*.order' => 'nullable|integer|min:1',
+            'options.*.image_url' => 'nullable|string',
+        ]);
+
+        $questionType = $validated['question_type'];
+        $options = $validated['options'] ?? [];
+        $shortAnswerAnswers = $this->normalizeShortAnswerList($validated['short_answer_answers'] ?? []);
+        $shortAnswerKeywords = $this->normalizeShortAnswerList($validated['short_answer_keywords'] ?? []);
+        $shortAnswerMatch = $validated['short_answer_match'] ?? 'exact';
+
+        if (in_array($questionType, ['mcq', 'multiple_select', 'true_false'], true) && ! empty($options) && count($options) < 2) {
+            return response()->json(['message' => 'At least two options are required.'], 422);
+        }
+
+        if (in_array($questionType, ['mcq', 'true_false'], true)) {
+            $correctCount = collect($options)->where('is_correct', true)->count();
+            if ($correctCount > 1) {
+                return response()->json(['message' => 'Only one correct option is allowed.'], 422);
+            }
+        }
+
+        if ($questionType === 'short_answer' && empty($shortAnswerAnswers) && empty($shortAnswerKeywords)) {
+            return response()->json(['message' => 'Provide accepted answers or keywords for short answer questions.'], 422);
+        }
+
+        $questionData = Arr::only($validated, [
+            'question_text',
+            'question_type',
+            'marks',
+            'order',
+            'image_url',
+            'explanation',
+        ]);
+
+        if ($questionType === 'short_answer') {
+            $questionData['short_answer_answers'] = $shortAnswerAnswers;
+            $questionData['short_answer_keywords'] = $shortAnswerKeywords;
+            $questionData['short_answer_match'] = $shortAnswerMatch;
+        }
+
+        $question = $this->questionService->addQuestion($quiz, $questionData);
+
+        if ($questionType === 'true_false' && empty($options)) {
+            $options = [
+                [
+                    'option_text' => 'True',
+                    'order' => 1,
+                    'is_correct' => false,
+                ],
+                [
+                    'option_text' => 'False',
+                    'order' => 2,
+                    'is_correct' => false,
+                ],
+            ];
+        }
+
+        if ($questionType !== 'short_answer') {
+            foreach ($options as $optionData) {
+                $this->questionService->addOption($question, [
+                    'option_text' => $optionData['option_text'] ?? '',
+                    'order' => $optionData['order'] ?? null,
+                    'is_correct' => $optionData['is_correct'] ?? false,
+                    'image_url' => $optionData['image_url'] ?? null,
+                ]);
+            }
+        }
+
+        $question->load('options');
+        $quiz->update(['total_questions' => $quiz->questions()->count()]);
+
+        return response()->json([
+            'message' => 'Question created successfully',
+            'data' => $this->formatQuestion($question, true),
+        ], 201);
+    }
+
+    public function update(Request $request, string $quizId, string $questionId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $quiz = Quiz::find($quizId);
+
+        if (! $quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
+
+        $question = QuizQuestion::find($questionId);
+
+        if (! $question || $question->quiz_id !== $quiz->id) {
+            return response()->json(['message' => 'Question not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'question_text' => 'sometimes|required|string',
+            'question_type' => 'sometimes|required|in:mcq,multiple_select,true_false,short_answer',
+            'marks' => 'sometimes|required|integer|min:1',
+            'order' => 'sometimes|integer|min:1',
+            'image_url' => 'nullable|string',
+            'explanation' => 'nullable|string',
+            'short_answer_answers' => 'nullable|array',
+            'short_answer_answers.*' => 'string',
+            'short_answer_keywords' => 'nullable|array',
+            'short_answer_keywords.*' => 'string',
+            'short_answer_match' => 'nullable|in:exact,contains,keywords',
+        ]);
+
+        $questionData = Arr::only($validated, [
+            'question_text',
+            'question_type',
+            'marks',
+            'order',
+            'image_url',
+            'explanation',
+        ]);
+
+        $nextQuestionType = $validated['question_type'] ?? $question->question_type;
+        if ($nextQuestionType === 'short_answer') {
+            $shortAnswerAnswers = array_key_exists('short_answer_answers', $validated)
+                ? $this->normalizeShortAnswerList($validated['short_answer_answers'] ?? [])
+                : ($question->short_answer_answers ?? []);
+            $shortAnswerKeywords = array_key_exists('short_answer_keywords', $validated)
+                ? $this->normalizeShortAnswerList($validated['short_answer_keywords'] ?? [])
+                : ($question->short_answer_keywords ?? []);
+            $shortAnswerMatch = $validated['short_answer_match'] ?? $question->short_answer_match ?? 'exact';
+
+            if (empty($shortAnswerAnswers) && empty($shortAnswerKeywords)) {
+                return response()->json(['message' => 'Provide accepted answers or keywords for short answer questions.'], 422);
+            }
+
+            $questionData['short_answer_answers'] = $shortAnswerAnswers;
+            $questionData['short_answer_keywords'] = $shortAnswerKeywords;
+            $questionData['short_answer_match'] = $shortAnswerMatch;
+        } else {
+            $questionData['short_answer_answers'] = null;
+            $questionData['short_answer_keywords'] = null;
+            $questionData['short_answer_match'] = 'exact';
+        }
+
+        if (! empty($questionData)) {
+            $this->questionService->updateQuestion($question, $questionData);
+        }
+
+        if (($validated['question_type'] ?? null) === 'short_answer') {
+            $question->options()->delete();
+        }
+
+        $question->load('options');
+
+        return response()->json([
+            'message' => 'Question updated successfully',
+            'data' => $this->formatQuestion($question, true),
+        ]);
+    }
+
+    public function destroy(Request $request, string $quizId, string $questionId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $quiz = Quiz::find($quizId);
+
+        if (! $quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
+
+        $question = QuizQuestion::find($questionId);
+
+        if (! $question || $question->quiz_id !== $quiz->id) {
+            return response()->json(['message' => 'Question not found'], 404);
+        }
+
+        $this->questionService->deleteQuestion($question);
+        $quiz->update(['total_questions' => $quiz->questions()->count()]);
+
+        return response()->json([
+            'message' => 'Question deleted successfully',
+        ]);
+    }
+
+    public function reorder(Request $request, string $quizId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $quiz = Quiz::find($quizId);
+
+        if (! $quiz) {
+            return response()->json(['message' => 'Quiz not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'order' => 'required|array',
+            'order.*' => 'uuid',
+        ]);
+
+        $this->questionService->reorderQuestions($quiz, $validated['order']);
+
+        return response()->json([
+            'message' => 'Question order updated successfully',
+        ]);
+    }
+
+    public function storeOption(Request $request, string $questionId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $question = QuizQuestion::find($questionId);
+
+        if (! $question) {
+            return response()->json(['message' => 'Question not found'], 404);
+        }
+
+        if ($question->question_type === 'short_answer') {
+            return response()->json(['message' => 'Options are not allowed for short answer questions.'], 422);
+        }
+
+        $validated = $request->validate([
+            'option_text' => 'required|string',
+            'is_correct' => 'boolean',
+            'order' => 'nullable|integer|min:1',
+            'image_url' => 'nullable|string',
+        ]);
+
+        if (in_array($question->question_type, ['mcq', 'true_false'], true) && ($validated['is_correct'] ?? false)) {
+            $existingCorrect = $question->options()->where('is_correct', true)->exists();
+            if ($existingCorrect) {
+                $question->options()->update(['is_correct' => false]);
+            }
+        }
+
+        $option = $this->questionService->addOption($question, $validated);
+
+        if (($validated['is_correct'] ?? false) && in_array($question->question_type, ['mcq', 'true_false'], true)) {
+            $this->clearOtherCorrectOptions($question, $option->id);
+        }
+
+        return response()->json([
+            'message' => 'Option created successfully',
+            'data' => $this->formatOption($option, true),
+        ], 201);
+    }
+
+    public function updateOption(Request $request, string $questionId, string $optionId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $question = QuizQuestion::find($questionId);
+
+        if (! $question) {
+            return response()->json(['message' => 'Question not found'], 404);
+        }
+
+        $option = QuizOption::find($optionId);
+
+        if (! $option || $option->question_id !== $question->id) {
+            return response()->json(['message' => 'Option not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'option_text' => 'sometimes|required|string',
+            'is_correct' => 'boolean',
+            'order' => 'nullable|integer|min:1',
+            'image_url' => 'nullable|string',
+        ]);
+
+        $this->questionService->updateOption($option, $validated);
+
+        if (($validated['is_correct'] ?? false) && in_array($question->question_type, ['mcq', 'true_false'], true)) {
+            $this->clearOtherCorrectOptions($question, $option->id);
+        }
+
+        return response()->json([
+            'message' => 'Option updated successfully',
+            'data' => $this->formatOption($option->fresh(), true),
+        ]);
+    }
+
+    public function destroyOption(Request $request, string $questionId, string $optionId): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $this->ensureManager($request);
+
+        $question = QuizQuestion::find($questionId);
+
+        if (! $question) {
+            return response()->json(['message' => 'Question not found'], 404);
+        }
+
+        $option = QuizOption::find($optionId);
+
+        if (! $option || $option->question_id !== $question->id) {
+            return response()->json(['message' => 'Option not found'], 404);
+        }
+
+        $this->questionService->deleteOption($option);
+
+        return response()->json([
+            'message' => 'Option deleted successfully',
+        ]);
+    }
 }

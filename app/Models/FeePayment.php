@@ -23,50 +23,48 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon $payment_date
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Session $session
  * @property Student $student
  * @property Term $term
- *
- * @package App\Models
  */
 class FeePayment extends Model
 {
-	protected $table = 'fee_payments';
-	public $incrementing = false;
+    protected $table = 'fee_payments';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $casts = [
-		'amount_paid' => 'float',
-		'amount_due' => 'float',
-		'balance' => 'float',
-		'payment_date' => 'datetime'
-	];
+    protected $keyType = 'string';
 
-	protected $fillable = [
-		'student_id',
-		'session_id',
-		'term_id',
-		'amount_paid',
-		'amount_due',
-		'balance',
-		'status',
-		'payment_date'
-	];
+    protected $casts = [
+        'amount_paid' => 'float',
+        'amount_due' => 'float',
+        'balance' => 'float',
+        'payment_date' => 'datetime',
+    ];
 
-	public function session()
-	{
-		return $this->belongsTo(Session::class);
-	}
+    protected $fillable = [
+        'student_id',
+        'session_id',
+        'term_id',
+        'amount_paid',
+        'amount_due',
+        'balance',
+        'status',
+        'payment_date',
+    ];
 
-	public function student()
-	{
-		return $this->belongsTo(Student::class);
-	}
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
+    }
 
-	public function term()
-	{
-		return $this->belongsTo(Term::class);
-	}
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
 }

@@ -17,8 +17,8 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
-use App\Models\SubjectAssignment;
 use App\Models\Student;
+use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
@@ -37,27 +37,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's result",
      *     description="Renders the printable result sheet for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -87,27 +94,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's early years report",
      *     description="Renders the printable early years report for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -135,41 +149,52 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Bulk print class results",
      *     description="Generates printable result sheets for a class (optionally filtered by arm/section).",
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=true,
      *         description="Session ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=true,
      *         description="Term ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="school_class_id",
      *         in="query",
      *         required=true,
      *         description="Class ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_arm_id",
      *         in="query",
      *         required=false,
      *         description="Arm ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_section_id",
      *         in="query",
      *         required=false,
      *         description="Section ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view or JSON error"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -238,7 +263,8 @@ class ResultViewController extends Controller
                     } catch (\Exception $e) {
                         // Skip students without results or with errors instead of failing entire bulk print
                         // Log the error for debugging but continue with other students
-                        \Log::info("Skipped student {$record->id} in bulk print: " . $e->getMessage());
+                        \Log::info("Skipped student {$record->id} in bulk print: ".$e->getMessage());
+
                         return null;
                     }
                 })
@@ -324,7 +350,7 @@ class ResultViewController extends Controller
 
             throw new HttpResponseException(
                 response()->json([
-                    'message' => 'Bulk result printing failed. Please contact support with code: ' . $errorRef,
+                    'message' => 'Bulk result printing failed. Please contact support with code: '.$errorRef,
                 ], 500)
             );
         }
@@ -1386,7 +1412,7 @@ class ResultViewController extends Controller
             return null;
         }
 
-        return 'Q' . $number;
+        return 'Q'.$number;
     }
 
     private function buildComponentColumns(Collection $results, Student $student, ?Term $term): Collection
@@ -1819,8 +1845,7 @@ class ResultViewController extends Controller
         Collection $results,
         Collection $positionRanges,
         int $classSize
-    ): array
-    {
+    ): array {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
             return [
                 'subjects' => collect(),
@@ -2283,6 +2308,6 @@ class ResultViewController extends Controller
             return asset($trimmed);
         }
 
-        return asset('storage/' . $trimmed);
+        return asset('storage/'.$trimmed);
     }
 }

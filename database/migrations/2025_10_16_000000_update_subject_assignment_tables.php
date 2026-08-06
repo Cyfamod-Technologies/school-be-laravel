@@ -79,17 +79,17 @@ return new class extends Migration
 
                 // Ensure referencing column exactly matches
                 DB::statement(
-                    "ALTER TABLE subject_teacher_assignments MODIFY class_section_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL"
+                    'ALTER TABLE subject_teacher_assignments MODIFY class_section_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL'
                 );
 
-                DB::statement("
+                DB::statement('
                     UPDATE subject_teacher_assignments sta
                     LEFT JOIN class_sections cs ON cs.id = sta.class_section_id
                     SET sta.class_section_id = NULL
                     WHERE cs.id IS NULL
-                ");
+                ');
 
-                DB::statement("
+                DB::statement('
                     UPDATE subject_teacher_assignments sta
                     SET sta.class_section_id = NULL
                     WHERE sta.class_section_id IS NOT NULL
@@ -97,7 +97,7 @@ return new class extends Migration
                           SELECT 1 FROM class_sections cs
                           WHERE cs.id = sta.class_section_id
                       )
-                ");
+                ');
                 $this->syncColumnDefinition('class_sections', 'id', 'subject_teacher_assignments', 'class_section_id', true);
             }
 
@@ -182,7 +182,7 @@ return new class extends Migration
             });
 
             if (Schema::hasColumn('subject_teacher_assignments', 'class_section_id')) {
-                DB::statement("DELETE FROM subject_teacher_assignments WHERE class_section_id IS NULL");
+                DB::statement('DELETE FROM subject_teacher_assignments WHERE class_section_id IS NULL');
 
                 $this->syncColumnDefinition('class_sections', 'id', 'subject_teacher_assignments', 'class_section_id', false);
 
@@ -232,13 +232,13 @@ return new class extends Migration
     {
         $databaseName = DB::getDatabaseName();
 
-        $result = DB::selectOne("
+        $result = DB::selectOne('
             SELECT CONSTRAINT_NAME
             FROM information_schema.REFERENTIAL_CONSTRAINTS
             WHERE CONSTRAINT_SCHEMA = ?
               AND TABLE_NAME = ?
               AND CONSTRAINT_NAME = ?
-        ", [$databaseName, $table, $foreignKey]);
+        ', [$databaseName, $table, $foreignKey]);
 
         return $result !== null;
     }
@@ -255,21 +255,21 @@ return new class extends Migration
 
         $databaseName = DB::getDatabaseName();
 
-        $column = DB::selectOne("
+        $column = DB::selectOne('
             SELECT COLUMN_TYPE, CHARACTER_SET_NAME, COLLATION_NAME
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = ?
               AND TABLE_NAME = ?
               AND COLUMN_NAME = ?
-        ", [$databaseName, $sourceTable, $sourceColumn]);
+        ', [$databaseName, $sourceTable, $sourceColumn]);
 
         if (! $column || ! $column->COLUMN_TYPE) {
             return;
         }
 
         $type = strtoupper($column->COLUMN_TYPE);
-        $charset = $column->CHARACTER_SET_NAME ? ' CHARACTER SET ' . $column->CHARACTER_SET_NAME : '';
-        $collation = $column->COLLATION_NAME ? ' COLLATE ' . $column->COLLATION_NAME : '';
+        $charset = $column->CHARACTER_SET_NAME ? ' CHARACTER SET '.$column->CHARACTER_SET_NAME : '';
+        $collation = $column->COLLATION_NAME ? ' COLLATE '.$column->COLLATION_NAME : '';
         $nullability = $nullable ? ' NULL' : ' NOT NULL';
 
         $sql = sprintf(
@@ -289,13 +289,13 @@ return new class extends Migration
     {
         $databaseName = DB::getDatabaseName();
 
-        $result = DB::selectOne("
+        $result = DB::selectOne('
             SELECT INDEX_NAME
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = ?
               AND TABLE_NAME = ?
               AND INDEX_NAME = ?
-        ", [$databaseName, $table, $indexName]);
+        ', [$databaseName, $table, $indexName]);
 
         return $result !== null;
     }

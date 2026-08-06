@@ -4,6 +4,7 @@ namespace App\Services\BulkUpload;
 
 use App\Exceptions\BulkUploadValidationException;
 use App\Models\BulkUploadBatch;
+use App\Models\Role;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
@@ -11,11 +12,9 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\User;
-use App\Models\Role;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -44,9 +43,7 @@ class StudentBulkUploadService
     /**
      * Generate a clean CSV template for bulk student upload.
      *
-     * @param School $school
-     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
-     * @return string
+     * @param  array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null}  $preselected
      */
     public function generateTemplate(School $school, array $preselected = []): string
     {
@@ -56,13 +53,13 @@ class StudentBulkUploadService
         $preselectedSession = null;
         $preselectedClass = null;
         $preselectedArm = null;
-        if (!empty($preselected['session_id'])) {
+        if (! empty($preselected['session_id'])) {
             $preselectedSession = $school->sessions()->find($preselected['session_id']);
         }
-        if (!empty($preselected['class_id'])) {
+        if (! empty($preselected['class_id'])) {
             $preselectedClass = SchoolClass::where('school_id', $school->id)->find($preselected['class_id']);
         }
-        if (!empty($preselected['class_arm_id']) && $preselectedClass) {
+        if (! empty($preselected['class_arm_id']) && $preselectedClass) {
             $preselectedArm = $preselectedClass->class_arms()->find($preselected['class_arm_id']);
         }
 
@@ -98,16 +95,14 @@ class StudentBulkUploadService
         fputcsv($handle, $exampleRow);
 
         rewind($handle);
+
         return stream_get_contents($handle) ?: '';
     }
 
     /**
      * Validate and prepare uploaded CSV for bulk student creation.
      *
-     * @param School $school
-     * @param UploadedFile $file
-     * @param User $user
-     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
+     * @param  array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null}  $preselected
      * @return array<string, mixed>
      *
      * @throws BulkUploadValidationException
@@ -256,7 +251,7 @@ class StudentBulkUploadService
             }
 
             $rowData = $this->mapRowToData($row, $normalizedHeader, $columnMap);
-            
+
             // Inject preselected values if they were provided
             if ($hasSessionClassPreselection) {
                 $rowData['student.current_session_id'] = $preselectedSession->id;
@@ -287,6 +282,7 @@ class StudentBulkUploadService
 
             if (! empty($rowErrors)) {
                 array_push($errors, ...$rowErrors);
+
                 continue;
             }
 
@@ -390,6 +386,7 @@ class StudentBulkUploadService
 
                 if ($action === 'skip') {
                     $skippedRows++;
+
                     continue;
                 }
 
@@ -412,6 +409,7 @@ class StudentBulkUploadService
                         $existingStudent->fill($studentData);
                         $existingStudent->save();
                         $updatedStudents++;
+
                         continue;
                     }
                 }
@@ -462,13 +460,13 @@ class StudentBulkUploadService
 
     /**
      * Build column definitions for the CSV template.
-     * 
-     * @param array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null} $preselected
+     *
+     * @param  array{session_id?: string|null, class_id?: string|null, class_arm_id?: string|null}  $preselected
      * @return array<int, array<string, mixed>>
      */
     private function buildColumnDefinitions(array $preselected = []): array
     {
-        $student = new Student();
+        $student = new Student;
         $studentFillable = collect($student->getFillable());
 
         // Determine which columns to exclude based on preselected values
@@ -606,6 +604,12 @@ class StudentBulkUploadService
                 'required' => ! $hasArmPreselection,
                 'example' => 'A',
             ],
+            [
+                'key' => 'student.class_section_id',
+                'header' => 'Class Section',
+                'required' => false,
+                'example' => 'Blue',
+            ],
             // Parent columns
             [
                 'key' => 'parent.first_name',
@@ -654,6 +658,7 @@ class StudentBulkUploadService
         return $filteredColumns
             ->map(function (array $column) {
                 $column['header_key'] = $this->normalizeHeaderValue($column['header']);
+
                 return $column;
             })
             ->values()
@@ -946,7 +951,6 @@ class StudentBulkUploadService
 
     /**
      * @param  array<int, string>  $header
-     *
      * @return array<string, int>
      */
     private function normalizeHeaderRow(array $header): array
@@ -968,7 +972,6 @@ class StudentBulkUploadService
      * @param  array<int, string>  $row
      * @param  array<string, int>  $headerIndex
      * @param  Collection<string, array<string, mixed>>  $columns
-     *
      * @return array<string, string|null>
      */
     private function mapRowToData(array $row, array $headerIndex, Collection $columns): array
@@ -1038,6 +1041,7 @@ class StudentBulkUploadService
                     'message' => 'This field is required.',
                 ];
             }
+
             return $value;
         };
 
@@ -1080,7 +1084,7 @@ class StudentBulkUploadService
             $errors[] = [
                 'row' => $rowNumber,
                 'column' => $columns['student.status']['header'],
-                'message' => 'Status must be one of: ' . implode(', ', self::STATUS_OPTIONS),
+                'message' => 'Status must be one of: '.implode(', ', self::STATUS_OPTIONS),
             ];
         } else {
             $studentData['status'] = $status ?: 'active';
@@ -1157,7 +1161,24 @@ class StudentBulkUploadService
             $studentData['class_arm_id'] = $classArm->id;
         }
 
-        $studentData['class_section_id'] = null;
+        $sectionValue = $getValue('student.class_section_id');
+        if ($sectionValue && $classArm) {
+            $classSection = $classArm->class_sections->first(function ($sec) use ($sectionValue) {
+                return $this->matchesNameOrId($sectionValue, $sec->id, $sec->name);
+            });
+
+            if (! $classSection) {
+                $errors[] = [
+                    'row' => $rowNumber,
+                    'column' => $columns['student.class_section_id']['header'],
+                    'message' => 'Class section not found for the selected class arm.',
+                ];
+            } else {
+                $studentData['class_section_id'] = $classSection->id;
+            }
+        } else {
+            $studentData['class_section_id'] = null;
+        }
 
         $parentData['first_name'] = $getValue('parent.first_name');
         $parentData['last_name'] = $getValue('parent.last_name');
@@ -1357,6 +1378,7 @@ class StudentBulkUploadService
         }
 
         rewind($handle);
+
         return stream_get_contents($handle) ?: '';
     }
 
@@ -1488,7 +1510,7 @@ class StudentBulkUploadService
                 ->get();
 
             foreach ($students as $student) {
-                $key = strtolower(trim($student->first_name)) . '|' . strtolower(trim($student->last_name));
+                $key = strtolower(trim($student->first_name)).'|'.strtolower(trim($student->last_name));
                 $byName[$key] = $student;
             }
         }
@@ -1507,7 +1529,7 @@ class StudentBulkUploadService
                 $firstName = $row['student']['first_name'] ?? null;
                 $lastName = $row['student']['last_name'] ?? null;
                 if ($firstName && $lastName) {
-                    $key = strtolower(trim($firstName)) . '|' . strtolower(trim($lastName));
+                    $key = strtolower(trim($firstName)).'|'.strtolower(trim($lastName));
                     $match = $byName[$key] ?? null;
                     if ($match) {
                         $duplicate = $this->formatDuplicateInfo($match, 'name');
@@ -1544,6 +1566,7 @@ class StudentBulkUploadService
             }
             $normalized[(string) $rowKey] = $action;
         }
+
         return $normalized;
     }
 
@@ -1787,7 +1810,7 @@ class StudentBulkUploadService
     /**
      * Detect delimiter by inspecting the first non-skippable line.
      *
-     * @param resource $handle
+     * @param  resource  $handle
      */
     private function detectDelimiter($handle): string
     {
@@ -1823,6 +1846,7 @@ class StudentBulkUploadService
         }
 
         rewind($handle);
+
         return $delimiter;
     }
 

@@ -45,7 +45,7 @@ class PasswordResetController extends Controller
             ]
         );
 
-        $resetUrl = url('/reset-password?token=' . urlencode($token) . '&email=' . urlencode($user->email));
+        $resetUrl = url('/reset-password?token='.urlencode($token).'&email='.urlencode($user->email));
 
         try {
             Mail::to($user->email)->send(new ResetPassword($user, $resetUrl, $expiresAt));
@@ -120,4 +120,3 @@ class PasswordResetController extends Controller
         ]);
     }
 }
-

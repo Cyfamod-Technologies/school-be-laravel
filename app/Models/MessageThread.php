@@ -19,27 +19,25 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $receiver_role
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property User $user
- *
- * @package App\Models
  */
 class MessageThread extends Model
 {
-	protected $table = 'message_threads';
-	public $incrementing = false;
+    protected $table = 'message_threads';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'sender_id',
-		'receiver_id',
-		'sender_role',
-		'receiver_role'
-	];
+    protected $keyType = 'string';
 
-	public function user()
-	{
-		return $this->belongsTo(User::class, 'sender_id');
-	}
+    protected $fillable = [
+        'sender_id',
+        'receiver_id',
+        'sender_role',
+        'receiver_role',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'sender_id');
+    }
 }

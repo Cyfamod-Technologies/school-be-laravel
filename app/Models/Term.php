@@ -26,7 +26,6 @@ use Illuminate\Support\Str;
  * @property bool $use_position_ranges
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property Session $session
  * @property Collection|AssessmentComponent[] $assessment_components
@@ -39,8 +38,6 @@ use Illuminate\Support\Str;
  * @property Collection|Student[] $students
  * @property Collection|SubjectTeacherAssignment[] $subject_teacher_assignments
  * @property Collection|TermSummary[] $term_summaries
- *
- * @package App\Models
  */
 class Term extends Model
 {

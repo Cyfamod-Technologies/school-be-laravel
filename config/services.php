@@ -39,4 +39,29 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
+    'paystack' => [
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+        'timeout' => (int) env('PAYSTACK_TIMEOUT', 30),
+        'connect_timeout' => (int) env('PAYSTACK_CONNECT_TIMEOUT', 15),
+        'retry_times' => (int) env('PAYSTACK_RETRY_TIMES', 2),
+        'retry_sleep_ms' => (int) env('PAYSTACK_RETRY_SLEEP_MS', 400),
+    ],
+
+    // sms-enterprise-edition -- the private service handling Website
+    // Management's Go Live / domain activation workflow. This backend
+    // calls out to it (school website admin clicks Go Live) and it calls
+    // back in (once domain automation succeeds, to flip `activated`) --
+    // INTERNAL_SHARED_SECRET must match exactly in both apps' .env files.
+    'enterprise_edition' => [
+        'base_url' => env('ENTERPRISE_EDITION_BASE_URL', 'http://127.0.0.1:8001'),
+    ],
+
+    'internal_shared_secret' => env('INTERNAL_SHARED_SECRET'),
+
 ];

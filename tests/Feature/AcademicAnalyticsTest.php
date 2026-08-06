@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
@@ -12,7 +13,6 @@ use App\Models\SubjectAssignment;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
-use App\Models\Result;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -26,6 +26,10 @@ beforeEach(function () {
         'role' => 'admin',
         'status' => 'active',
     ]);
+
+    $role = \App\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'sanctum', 'school_id' => $this->school->id]);
+    app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->school->id);
+    $this->admin->assignRole($role);
 
     $this->nonAdmin = User::factory()->create([
         'school_id' => $this->school->id,

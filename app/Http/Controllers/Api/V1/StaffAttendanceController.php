@@ -29,6 +29,7 @@ class StaffAttendanceController extends Controller
      *     path="/api/v1/attendance/staff",
      *     tags={"school-v2.0"},
      *     summary="List staff attendance",
+     *
      *     @OA\Response(response=200, description="Attendance returned")
      * )
      */
@@ -53,10 +54,13 @@ class StaffAttendanceController extends Controller
      *     path="/api/v1/attendance/staff",
      *     tags={"school-v2.0"},
      *     summary="Record staff attendance",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"date"},
+     *
      *             @OA\Property(property="date", type="string", format="date"),
      *             @OA\Property(property="staff_id", type="string", format="uuid"),
      *             @OA\Property(property="status", type="string", example="present"),
@@ -71,6 +75,7 @@ class StaffAttendanceController extends Controller
      *             ))
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Attendance saved"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -107,6 +112,7 @@ class StaffAttendanceController extends Controller
 
         if ($staffMembers->count() !== $staffIds->count()) {
             $missing = $staffIds->diff($staffMembers->keys())->values();
+
             return response()->json([
                 'message' => 'One or more staff records could not be found in your school.',
                 'missing_staff_ids' => $missing,
@@ -224,12 +230,13 @@ class StaffAttendanceController extends Controller
      *     path="/api/v1/attendance/staff/{id}",
      *     tags={"school-v2.0"},
      *     summary="Delete staff attendance record",
+     *
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Attendance deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )
      */
-
     public function report(Request $request): JsonResponse
     {
         $query = $this->baseQuery($request);
@@ -334,9 +341,9 @@ class StaffAttendanceController extends Controller
             ->get()
             ->map(fn (StaffAttendance $attendance) => $this->transformAttendance($attendance));
 
-        $builder = new SimplePdfBuilder();
+        $builder = new SimplePdfBuilder;
         $builder->addLine('Staff Attendance Report')
-            ->addLine('Generated: ' . now()->toDateTimeString())
+            ->addLine('Generated: '.now()->toDateTimeString())
             ->addBlankLine();
 
         foreach ($records as $record) {
@@ -410,9 +417,9 @@ class StaffAttendanceController extends Controller
         if ($request->filled('search')) {
             $search = trim($request->input('search'));
             $query->whereHas('staff', function ($staffQuery) use ($search) {
-                $staffQuery->where('full_name', 'like', '%' . $search . '%')
-                    ->orWhere('email', 'like', '%' . $search . '%')
-                    ->orWhere('phone', 'like', '%' . $search . '%');
+                $staffQuery->where('full_name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('phone', 'like', '%'.$search.'%');
             });
         }
 
@@ -480,6 +487,6 @@ class StaffAttendanceController extends Controller
 
         $escaped = str_replace('"', '""', $value);
 
-        return $needsQuotes ? '"' . $escaped . '"' : $escaped;
+        return $needsQuotes ? '"'.$escaped.'"' : $escaped;
     }
 }

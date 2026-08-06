@@ -31,12 +31,12 @@ return new class extends Migration
             $table->timestamp('end_time')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            
+
             $table->foreign('school_id')->references('id')->on('schools')->onDelete('cascade');
             $table->foreign('subject_id')->references('id')->on('subjects')->onDelete('set null');
             $table->foreign('class_id')->references('id')->on('classes')->onDelete('set null');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('cascade');
-            
+
             $table->index('status');
             $table->index(['school_id', 'status']);
         });

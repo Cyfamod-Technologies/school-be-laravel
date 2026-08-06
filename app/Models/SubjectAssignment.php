@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class SubjectAssignment extends Model
 {
     protected $table = 'subject_school_class_assignments';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

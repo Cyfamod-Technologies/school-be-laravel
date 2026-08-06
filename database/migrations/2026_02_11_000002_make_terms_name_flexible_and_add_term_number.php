@@ -66,6 +66,7 @@ return new class extends Migration
 
         if (in_array($driver, ['mysql', 'mariadb'], true)) {
             DB::statement('ALTER TABLE terms MODIFY COLUMN name VARCHAR(100) NOT NULL');
+
             return;
         }
 
@@ -80,6 +81,7 @@ return new class extends Migration
 
         if (in_array($driver, ['mysql', 'mariadb'], true)) {
             DB::statement("ALTER TABLE terms MODIFY COLUMN name ENUM('1st','2nd','3rd') NOT NULL");
+
             return;
         }
 

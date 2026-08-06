@@ -6,7 +6,6 @@ use App\Models\ClassArm;
 use App\Models\PromotionLog;
 use App\Models\Result;
 use App\Models\SchoolClass;
-use App\Models\Student;
 use App\Models\Session;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;

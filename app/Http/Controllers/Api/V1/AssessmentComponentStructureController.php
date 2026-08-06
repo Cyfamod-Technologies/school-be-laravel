@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\AssessmentComponentStructure;
 use App\Models\AssessmentComponent;
-use App\Models\SchoolClass;
+use App\Models\AssessmentComponentStructure;
 use App\Models\Term;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AssessmentComponentStructureController extends Controller
 {
@@ -23,7 +22,7 @@ class AssessmentComponentStructureController extends Controller
     public function indexByComponent($assessmentComponentId): JsonResponse
     {
         $user = auth()->user();
-        
+
         $component = AssessmentComponent::where('school_id', $user->school_id)
             ->findOrFail($assessmentComponentId);
 

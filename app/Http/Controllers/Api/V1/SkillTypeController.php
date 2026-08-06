@@ -8,7 +8,6 @@ use App\Models\SchoolClass;
 use App\Models\SkillType;
 use App\Support\SkillScope;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,13 +24,16 @@ class SkillTypeController extends Controller
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="List skill types",
      *     description="Returns skill types for the authenticated school. Supports filtering by skill_category_id.",
+     *
      *     @OA\Parameter(
      *         name="skill_category_id",
      *         in="query",
      *         required=false,
      *         description="Filter by skill category",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="List returned"),
      *     @OA\Response(response=422, description="User not linked to a school")
      * )
@@ -75,16 +77,20 @@ class SkillTypeController extends Controller
      *     path="/api/v1/settings/skill-types",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Create a skill type",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"skill_category_id","name"},
+     *
      *             @OA\Property(property="skill_category_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(property="name", type="string", example="Teamwork"),
      *             @OA\Property(property="description", type="string", example="Ability to collaborate effectively"),
      *             @OA\Property(property="weight", type="number", format="float", example=10.5)
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Skill type created"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -135,20 +141,26 @@ class SkillTypeController extends Controller
      *     path="/api/v1/settings/skill-types/bulk",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Create multiple skill types",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"skill_category_id","names"},
+     *
      *             @OA\Property(property="skill_category_id", type="string", format="uuid", example="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
      *             @OA\Property(
      *                 property="names",
      *                 type="array",
+     *
      *                 @OA\Items(type="string", example="Teamwork")
      *             ),
+     *
      *             @OA\Property(property="description", type="string", example="Optional shared description for all skills"),
      *             @OA\Property(property="weight", type="number", format="float", example=10.5)
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Skill types created"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -398,22 +410,28 @@ class SkillTypeController extends Controller
      *     path="/api/v1/settings/skill-types/{skillType}",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Update a skill type",
+     *
      *     @OA\Parameter(
      *         name="skillType",
      *         in="path",
      *         required=true,
      *         description="Skill type ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="skill_category_id", type="string", format="uuid"),
      *             @OA\Property(property="name", type="string", example="Creativity"),
      *             @OA\Property(property="description", type="string", example="Problem solving and originality"),
      *             @OA\Property(property="weight", type="number", format="float", example=5.0)
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Skill type updated"),
      *     @OA\Response(response=403, description="Forbidden"),
      *     @OA\Response(response=422, description="Validation error")
@@ -474,13 +492,16 @@ class SkillTypeController extends Controller
      *     path="/api/v1/settings/skill-types/{skillType}",
      *     tags={"school-v1.4","school-v1.9"},
      *     summary="Delete a skill type",
+     *
      *     @OA\Parameter(
      *         name="skillType",
      *         in="path",
      *         required=true,
      *         description="Skill type ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Skill type deleted"),
      *     @OA\Response(response=403, description="Forbidden")
      * )

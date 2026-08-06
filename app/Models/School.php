@@ -10,8 +10,9 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Class School
@@ -29,7 +30,6 @@ use Illuminate\Support\Facades\Storage;
  * @property string $status
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property Collection|AnalyticsDatum[] $analytics_data
  * @property Collection|AssessmentComponent[] $assessment_components
  * @property Collection|Class[] $classes
@@ -43,8 +43,6 @@ use Illuminate\Support\Facades\Storage;
  * @property Collection|Student[] $students
  * @property Collection|Subject[] $subjects
  * @property Collection|Term[] $terms
- *
- * @package App\Models
  */
 class School extends Model
 {

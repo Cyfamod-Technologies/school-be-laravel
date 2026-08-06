@@ -18,38 +18,36 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $skill_type_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property SkillCategory $skill_category
  * @property SkillType $skill_type
- *
- * @package App\Models
  */
 class SchoolSkillType extends Model
 {
-	protected $table = 'school_skill_types';
-	public $incrementing = false;
+    protected $table = 'school_skill_types';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'school_id',
-		'skill_category_id',
-		'skill_type_id'
-	];
+    protected $keyType = 'string';
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'school_id',
+        'skill_category_id',
+        'skill_type_id',
+    ];
 
-	public function skill_category()
-	{
-		return $this->belongsTo(SkillCategory::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function skill_type()
-	{
-		return $this->belongsTo(SkillType::class);
-	}
+    public function skill_category()
+    {
+        return $this->belongsTo(SkillCategory::class);
+    }
+
+    public function skill_type()
+    {
+        return $this->belongsTo(SkillType::class);
+    }
 }

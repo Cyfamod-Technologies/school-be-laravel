@@ -76,11 +76,11 @@ it('downloads a dynamic student bulk template', function () {
     $response = get(route('students.bulk.template'));
 
     $response->assertOk()
-        ->assertHeader('Content-Type', 'text/csv');
+        ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
 
-    expect($response->streamedContent())
+    expect($response->getContent())
         ->toContain('Admission Number')
-        ->toContain('Class (Name or ID)');
+        ->toContain('Class');
 });
 
 it('downloads template when session and class are selected without class arm', function () {
@@ -90,9 +90,9 @@ it('downloads template when session and class are selected without class arm', f
     ]));
 
     $response->assertOk()
-        ->assertHeader('Content-Type', 'text/csv');
+        ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
 
-    $content = $response->streamedContent();
+    $content = $response->getContent();
     $lines = array_values(array_filter(array_map('trim', explode("\n", $content))));
     $headerLine = collect($lines)->first(fn ($line) => str_contains($line, 'First Name'));
     $headerColumns = $headerLine ? str_getcsv($headerLine) : [];
@@ -109,7 +109,7 @@ it('downloads template when session and class are selected without class arm', f
 
 it('validates and commits a bulk student upload', function () {
     $csv = implode("\n", [
-        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status (active/inactive/graduated/withdrawn),Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session (Name or ID),Term (Name or ID),Class (Name or ID),Class Arm (Name or ID),Class Section (Name or ID),Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
+        'Admission Number,First Name,Middle Name,Last Name,Gender (M/F/O),Date of Birth (YYYY-MM-DD),Admission Date (YYYY-MM-DD),Status,Student Nationality,Student State of Origin,Student LGA,House,Club,Student Address,Medical Information,Session,Term,Class,Class Arm,Class Section,Parent First Name,Parent Last Name,Parent Email,Parent Phone,Parent Address,Parent Occupation,Parent Nationality,Parent State of Origin,Parent LGA',
         '2025/010,Chinedu,,Okafor,M,2012-01-02,2024-09-01,active,Nigerian,Anambra,Onitsha,Red,Music,12 Unity Close,Asthma,2025/2026,First Term,Grade 6,Arm B,Section Blue,Grace,Okafor,grace.okafor@example.test,08020000000,Market Road,Trader,Nigerian,Anambra,Onitsha',
     ]);
 

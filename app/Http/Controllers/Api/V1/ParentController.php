@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\SchoolParent;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -31,12 +30,15 @@ class ParentController extends Controller
      *      tags={"school-v1.3"},
      *      summary="Get list of parents",
      *      description="Returns list of parents",
+     *
      *      @OA\Parameter(
      *          name="search",
      *          description="Search by name or phone",
      *          in="query",
+     *
      *          @OA\Schema(type="string")
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -64,9 +66,9 @@ class ParentController extends Controller
                 WHERE students.parent_id = parents.id
             ) as students_count')
             ->when($request->has('search'), function ($query) use ($request) {
-                $query->where('first_name', 'like', '%' . $request->search . '%')
-                    ->orWhere('last_name', 'like', '%' . $request->search . '%')
-                    ->orWhere('phone', 'like', '%' . $request->search . '%');
+                $query->where('first_name', 'like', '%'.$request->search.'%')
+                    ->orWhere('last_name', 'like', '%'.$request->search.'%')
+                    ->orWhere('phone', 'like', '%'.$request->search.'%');
             })
             ->paginate(10);
 
@@ -100,7 +102,6 @@ class ParentController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     /**
@@ -110,10 +111,13 @@ class ParentController extends Controller
      *      tags={"school-v1.3"},
      *      summary="Store new parent",
      *      description="Returns parent data",
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              type="object",
+     *
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="last_name", type="string", example="Doe"),
      *              @OA\Property(property="phone", type="string", example="1234567890"),
@@ -122,6 +126,7 @@ class ParentController extends Controller
      *              @OA\Property(property="occupation", type="string", example="Engineer"),
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=201,
      *          description="Successful operation",
@@ -192,7 +197,6 @@ class ParentController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param  \App\Models\SchoolParent  $parent
      * @return \Illuminate\Http\Response
      */
     /**
@@ -202,15 +206,18 @@ class ParentController extends Controller
      *      tags={"school-v1.3"},
      *      summary="Get parent information",
      *      description="Returns parent data",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Parent id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -239,8 +246,6 @@ class ParentController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\SchoolParent  $parent
      * @return \Illuminate\Http\Response
      */
     /**
@@ -250,19 +255,24 @@ class ParentController extends Controller
      *      tags={"school-v1.3"},
      *      summary="Update existing parent",
      *      description="Returns updated parent data",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Parent id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\RequestBody(
      *          required=true,
+     *
      *          @OA\JsonContent(
      *              type="object",
+     *
      *              @OA\Property(property="first_name", type="string", example="John"),
      *              @OA\Property(property="last_name", type="string", example="Doe"),
      *              @OA\Property(property="phone", type="string", example="1234567890"),
@@ -271,6 +281,7 @@ class ParentController extends Controller
      *              @OA\Property(property="occupation", type="string", example="Engineer"),
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation",
@@ -348,7 +359,6 @@ class ParentController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Models\SchoolParent  $parent
      * @return \Illuminate\Http\Response
      */
     /**
@@ -358,15 +368,18 @@ class ParentController extends Controller
      *      tags={"school-v1.3"},
      *      summary="Delete existing parent",
      *      description="Deletes a record and returns no content",
+     *
      *      @OA\Parameter(
      *          name="id",
      *          description="Parent id",
      *          required=true,
      *          in="path",
+     *
      *          @OA\Schema(
      *              type="string"
      *          )
      *      ),
+     *
      *      @OA\Response(
      *          response=204,
      *          description="Successful operation",

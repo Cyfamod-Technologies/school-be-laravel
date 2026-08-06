@@ -15,6 +15,7 @@ class LocationController extends Controller
      *     path="/api/v1/locations/countries",
      *     tags={"school-v1.4"},
      *     summary="List countries",
+     *
      *     @OA\Response(response=200, description="Countries returned")
      * )
      */
@@ -32,13 +33,16 @@ class LocationController extends Controller
      *     path="/api/v1/locations/states",
      *     tags={"school-v1.4"},
      *     summary="List states",
+     *
      *     @OA\Parameter(
      *         name="country_id",
      *         in="query",
      *         required=false,
      *         description="Filter states by country",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="States returned")
      * )
      */
@@ -62,13 +66,16 @@ class LocationController extends Controller
      *     path="/api/v1/locations/states/{state}/lgas",
      *     tags={"school-v1.4"},
      *     summary="List LGAs for a state",
+     *
      *     @OA\Parameter(
      *         name="state",
      *         in="path",
      *         required=true,
      *         description="State ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="LGAs returned")
      * )
      */
@@ -88,6 +95,7 @@ class LocationController extends Controller
      *     path="/api/v1/locations/blood-groups",
      *     tags={"school-v1.4"},
      *     summary="List blood groups",
+     *
      *     @OA\Response(response=200, description="Blood groups returned")
      * )
      */

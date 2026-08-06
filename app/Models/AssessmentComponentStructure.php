@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AssessmentComponentStructure extends Model
@@ -48,7 +48,7 @@ class AssessmentComponentStructure extends Model
 
     /**
      * Get the max score for a specific assessment component
-     * 
+     *
      * Priority order:
      * 1. Specific class + specific term
      * 2. Specific class + any term
@@ -66,12 +66,12 @@ class AssessmentComponentStructure extends Model
         // Build scoring logic for priority matching
         $structure = $query
             ->orderByRaw(
-                "CASE 
+                'CASE 
                     WHEN class_id IS NOT NULL AND term_id IS NOT NULL THEN 1
                     WHEN class_id IS NOT NULL THEN 2
                     WHEN term_id IS NOT NULL THEN 3
                     ELSE 4
-                END"
+                END'
             )
             ->where(function ($q) use ($classId) {
                 $q->whereNull('class_id')->orWhere('class_id', $classId);
@@ -95,6 +95,7 @@ class AssessmentComponentStructure extends Model
         }
 
         $weight = (float) $component->weight;
+
         return $weight > 0 ? $weight : null;
     }
 

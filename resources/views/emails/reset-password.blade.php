@@ -8,7 +8,7 @@
     <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; margin:0 auto; background-color:#ffffff; border-radius:8px; padding:32px;">
         <tr>
             <td>
-                <h2 style="margin-top:0; color:#111827;">Hi {{ $user->name }},</h2>
+                <h2 style="margin-top:0; color:#111827;">Hi {{ $displayName ?? $user->name ?? $user->full_name ?? 'there' }},</h2>
                 <p style="line-height:1.5; margin-bottom:16px;">
                     We received a request to reset the password for your {{ config('app.name') }} account.
                 </p>
@@ -35,4 +35,3 @@
     </table>
 </body>
 </html>
-

@@ -10,6 +10,7 @@ class PermissionHierarchyController extends Controller
     public function index(RbacService $rbacService)
     {
         $permissions = $rbacService->getCorePermissionsWithChildren();
+
         return response()->json($permissions);
     }
 }
