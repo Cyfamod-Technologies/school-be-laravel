@@ -8,6 +8,7 @@ use App\Models\Result;
 use App\Models\ResultPin;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\SubjectAssignment;
 use App\Models\Term;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -90,8 +91,6 @@ class StudentAuthController extends Controller
             }
         }
 
-        $student->loadMissing(['school_class.subjects:id,name']);
-
         $token = $student->createToken('student-portal', ['student'])->plainTextToken;
 
         return response()->json([
@@ -135,7 +134,6 @@ class StudentAuthController extends Controller
             'school.currentSession:id,name,slug',
             'school.currentTerm:id,name,session_id',
             'school_class:id,name,school_id',
-            'school_class.subjects:id,name',
             'class_arm:id,name',
             'session:id,name',
             'term:id,name',
@@ -597,11 +595,43 @@ class StudentAuthController extends Controller
             'current_term' => ($schoolCurrentTerm ?? $student->term)?->only(['id', 'name']),
             'school_class' => $student->school_class?->only(['id', 'name']),
             'class_arm' => $student->class_arm?->only(['id', 'name']),
-            'subjects' => $student->school_class?->subjects?->map(fn ($subject) => [
+            'subjects' => $this->resolveStudentSubjects($student)->map(fn ($subject) => [
                 'id' => $subject->id,
                 'name' => $subject->name,
             ])->values()->all() ?? [],
         ];
+    }
+
+    /**
+     * Return class-wide subjects and subjects assigned to the student's arm,
+     * excluding assignments that belong to another arm in the same class.
+     */
+    private function resolveStudentSubjects(Student $student)
+    {
+        if (! $student->school_class_id) {
+            return collect();
+        }
+
+        $assignments = SubjectAssignment::query()
+            ->with('subject:id,name')
+            ->where('school_class_id', $student->school_class_id)
+            ->when(
+                $student->class_arm_id,
+                fn ($query, $classArmId) => $query->where(
+                    fn ($armQuery) => $armQuery
+                        ->whereNull('class_arm_id')
+                        ->orWhere('class_arm_id', $classArmId)
+                ),
+                fn ($query) => $query->whereNull('class_arm_id')
+            )
+            ->get();
+
+        return $assignments
+            ->pluck('subject')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 
     /**
