@@ -48,7 +48,13 @@
                     @if ($index > 0)
                         <br>
                     @endif
-                    {{ strtoupper($line) }}
+                    @php
+                        $hasRtlScript = preg_match('/[\x{0590}-\x{08FF}]/u', $line) === 1;
+                        $displaySchoolLine = function_exists('mb_strtoupper')
+                            ? mb_strtoupper($line, 'UTF-8')
+                            : strtoupper($line);
+                    @endphp
+                    <span class="school-name-line {{ $hasRtlScript ? 'school-name-line--rtl' : '' }}">{{ $displaySchoolLine }}</span>
                 @endforeach
             </h1>
             <p>
