@@ -52,7 +52,9 @@ class BroadsheetController extends Controller
         $class = SchoolClass::query()->find($validated['school_class_id']);
         $classArm = null;
         if (! empty($validated['class_arm_id'])) {
-            $classArm = ClassArm::query()->whereKey($validated['class_arm_id'])->first();
+            $classArm = ClassArm::query()
+                ->where('school_class_id', $validated['school_class_id'])
+                ->findOrFail($validated['class_arm_id']);
         }
 
         // Subjects assigned to this class (optionally filtered by arm)

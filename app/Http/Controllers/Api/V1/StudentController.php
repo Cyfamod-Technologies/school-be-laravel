@@ -196,7 +196,7 @@ class StudentController extends Controller
                 ->whereIn('student_id', $studentIds)
                 ->where('session_id', $request->input('session_id'))
                 ->when($request->input('term_id'), fn ($builder, $termId) => $builder->where('term_id', $termId))
-                ->whereNotNull('school_class_id')
+                ->whereNotNull('school_class_id')->orderByDesc('created_at')
                 ->get(['student_id', 'school_class_id', 'class_arm_id', 'class_section_id'])
                 ->unique('student_id')
                 ->keyBy('student_id');

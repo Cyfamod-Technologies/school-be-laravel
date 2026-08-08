@@ -330,7 +330,7 @@ class ResultPinController extends Controller
         }
 
         $alreadySent = $pins->filter(
-            fn (ResultPin $pin) => $pin->sent_at !== null && $pin->status !== 'revoked'
+            fn (ResultPin $pin) => $pin->sent_at !== null && $this->effectivePinStatus($pin) === 'active'
         );
         $available = $pins->filter(fn (ResultPin $pin) => $this->isPinAvailableForDistribution($pin));
         $fulfilledCount = $alreadySent->count() + $available->count();
