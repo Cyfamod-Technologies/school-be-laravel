@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\AcademicAnalyticsController;
 use App\Http\Controllers\Api\V1\StaffAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
+use App\Http\Controllers\Api\V1\StudentPortalAttendanceController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\BankDetailController;
@@ -79,6 +80,8 @@ Route::prefix('api/v1')->group(function () {
                 Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
                 Route::post('password/change', [StudentAuthController::class, 'changePassword']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
+                Route::get('attendance', [StudentPortalAttendanceController::class, 'index'])
+                    ->name('student.attendance.index');
                 Route::get('result-pins', [ResultPinController::class, 'studentDashboard'])
                     ->name('student.result-pins.index');
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);

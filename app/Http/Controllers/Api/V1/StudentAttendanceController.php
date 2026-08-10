@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Student;
-use App\Support\SimplePdfBuilder;
 use App\Services\Teachers\TeacherAccessService;
+use App\Support\SimplePdfBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,9 +24,8 @@ use Illuminate\Validation\Rule;
 class StudentAttendanceController extends Controller
 {
     private const STATUSES = ['present', 'absent', 'late', 'excused'];
-    public function __construct(private TeacherAccessService $teacherAccess)
-    {
-    }
+
+    public function __construct(private TeacherAccessService $teacherAccess) {}
 
     /**
      * @OA\Get(
@@ -34,7 +33,9 @@ class StudentAttendanceController extends Controller
      *     tags={"school-v2.0"},
      *     summary="List student attendance",
      *     description="Paginated student attendance with filters based on permissions.",
+     *
      *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", minimum=1)),
+     *
      *     @OA\Response(response=200, description="Attendance returned")
      * )
      */
@@ -60,10 +61,13 @@ class StudentAttendanceController extends Controller
      *     path="/api/v1/attendance/students",
      *     tags={"school-v2.0"},
      *     summary="Record student attendance",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"date"},
+     *
      *             @OA\Property(property="date", type="string", format="date"),
      *             @OA\Property(property="session_id", type="string", format="uuid"),
      *             @OA\Property(property="term_id", type="string", format="uuid"),
@@ -81,6 +85,7 @@ class StudentAttendanceController extends Controller
      *             ))
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Attendance saved"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -121,6 +126,7 @@ class StudentAttendanceController extends Controller
 
         if ($students->count() !== $studentIds->count()) {
             $missing = $studentIds->diff($students->keys())->values();
+
             return response()->json([
                 'message' => 'One or more students could not be found in your school.',
                 'missing_student_ids' => $missing,
@@ -133,7 +139,7 @@ class StudentAttendanceController extends Controller
             foreach ($studentIds as $studentId) {
                 $student = $students->get($studentId);
 
-                if (! $student || ! $scope->allowsStudent($student)) {
+                if (! $student || ! $scope->allowsClassTeacherStudent($student)) {
                     abort(403, 'You are not allowed to record attendance for one or more students.');
                 }
             }
@@ -145,6 +151,33 @@ class StudentAttendanceController extends Controller
         $classId = $validated['school_class_id'] ?? null;
         $classArmId = $validated['class_arm_id'] ?? null;
         $classSectionId = $validated['class_section_id'] ?? null;
+
+        if ($scope->isTeacher()) {
+            $school = $user->school()->with(['currentSession', 'currentTerm'])->first();
+            $currentSession = $school?->currentSession;
+            $currentTerm = $school?->currentTerm;
+            $attendanceDate = Carbon::parse($date)->startOfDay();
+
+            if (! $currentSession || ! $currentTerm) {
+                return response()->json([
+                    'message' => 'The school must set a current session and term before attendance can be recorded.',
+                ], 422);
+            }
+
+            if ($attendanceDate->isFuture()) {
+                return response()->json(['message' => 'Attendance cannot be recorded for a future date.'], 422);
+            }
+
+            if (($sessionId && (string) $sessionId !== (string) $currentSession->id)
+                || ($termId && (string) $termId !== (string) $currentTerm->id)) {
+                return response()->json([
+                    'message' => 'Attendance session and term must match the school current academic period.',
+                ], 422);
+            }
+
+            $sessionId = $currentSession->id;
+            $termId = $currentTerm->id;
+        }
 
         $missingContext = collect();
 
@@ -179,18 +212,20 @@ class StudentAttendanceController extends Controller
             $classId,
             $classArmId,
             $classSectionId,
+            $scope,
             &$created,
             &$updated
         ) {
             foreach ($entries as $entry) {
                 $student = $students->get($entry['student_id']);
 
+                $teacherMode = $scope->isTeacher();
                 $payload = [
-                    'session_id' => $sessionId ?? $student->current_session_id,
-                    'term_id' => $termId ?? $student->current_term_id,
-                    'school_class_id' => $classId ?? $student->school_class_id,
-                    'class_arm_id' => $classArmId ?? $student->class_arm_id,
-                    'class_section_id' => $classSectionId ?? $student->class_section_id,
+                    'session_id' => $teacherMode ? $student->current_session_id : ($sessionId ?? $student->current_session_id),
+                    'term_id' => $teacherMode ? $student->current_term_id : ($termId ?? $student->current_term_id),
+                    'school_class_id' => $teacherMode ? $student->school_class_id : ($classId ?? $student->school_class_id),
+                    'class_arm_id' => $teacherMode ? $student->class_arm_id : ($classArmId ?? $student->class_arm_id),
+                    'class_section_id' => $teacherMode ? $student->class_section_id : ($classSectionId ?? $student->class_section_id),
                     'status' => $entry['status'],
                     'recorded_by' => $user->id,
                     'metadata' => $entry['metadata'] ?? null,
@@ -292,12 +327,13 @@ class StudentAttendanceController extends Controller
      *     path="/api/v1/attendance/students/{id}",
      *     tags={"school-v2.0"},
      *     summary="Delete student attendance record",
+     *
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Attendance deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )
      */
-
     public function report(Request $request): JsonResponse
     {
         $this->ensurePermission($request, 'attendance.students');
@@ -357,7 +393,7 @@ class StudentAttendanceController extends Controller
 
                 return [
                     'student_id' => $row->student_id,
-                    'student_name' => trim($student->first_name . ' ' . $student->last_name),
+                    'student_name' => trim($student->first_name.' '.$student->last_name),
                     'admission_no' => $student->admission_no,
                     'absent_days' => (int) $row->absent_days,
                     'late_days' => (int) $row->late_days,
@@ -444,9 +480,9 @@ class StudentAttendanceController extends Controller
             ->get()
             ->map(fn (Attendance $attendance) => $this->transformAttendance($attendance));
 
-        $builder = new SimplePdfBuilder();
+        $builder = new SimplePdfBuilder;
         $builder->addLine('Student Attendance Report')
-            ->addLine('Generated: ' . now()->toDateTimeString())
+            ->addLine('Generated: '.now()->toDateTimeString())
             ->addBlankLine();
 
         foreach ($records as $record) {
@@ -488,7 +524,7 @@ class StudentAttendanceController extends Controller
             ->whereHas('student', fn ($q) => $q->where('school_id', $user->school_id));
 
         $scope = $this->teacherAccess->forUser($user);
-        $scope->restrictAttendanceQuery($query);
+        $scope->restrictClassTeacherAttendanceQuery($query);
 
         return $this->applyFilters($query, $request);
     }
@@ -539,9 +575,9 @@ class StudentAttendanceController extends Controller
             $search = trim($request->input('search'));
             $query->whereHas('student', function ($studentQuery) use ($search) {
                 $studentQuery->where(function ($inner) use ($search) {
-                    $inner->where('first_name', 'like', '%' . $search . '%')
-                        ->orWhere('last_name', 'like', '%' . $search . '%')
-                        ->orWhere('admission_no', 'like', '%' . $search . '%');
+                    $inner->where('first_name', 'like', '%'.$search.'%')
+                        ->orWhere('last_name', 'like', '%'.$search.'%')
+                        ->orWhere('admission_no', 'like', '%'.$search.'%');
                 });
             });
         }
@@ -561,7 +597,7 @@ class StudentAttendanceController extends Controller
             'student' => $student ? [
                 'id' => $student->id,
                 'admission_no' => $student->admission_no,
-                'name' => trim($student->first_name . ' ' . $student->last_name),
+                'name' => trim($student->first_name.' '.$student->last_name),
             ] : null,
             'session' => $attendance->session ? [
                 'id' => $attendance->session->id,
@@ -620,7 +656,7 @@ class StudentAttendanceController extends Controller
 
         $scope = $this->teacherAccess->forUser($user);
 
-        if ($scope->isTeacher() && ! $scope->allowsStudent($attendance->student)) {
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($attendance->student)) {
             abort(403, 'You are not authorized to modify this attendance record.');
         }
     }
@@ -632,6 +668,6 @@ class StudentAttendanceController extends Controller
 
         $escaped = str_replace('"', '""', $value);
 
-        return $needsQuotes ? '"' . $escaped . '"' : $escaped;
+        return $needsQuotes ? '"'.$escaped.'"' : $escaped;
     }
 }
