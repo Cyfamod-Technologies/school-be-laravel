@@ -50,9 +50,11 @@
                     @endif
                     @php
                         $hasRtlScript = preg_match('/[\x{0590}-\x{08FF}]/u', $line) === 1;
-                        $displaySchoolLine = function_exists('mb_strtoupper')
-                            ? mb_strtoupper($line, 'UTF-8')
-                            : strtoupper($line);
+                        $displaySchoolLine = $hasRtlScript && ($shapeArabicForPdf ?? false)
+                            ? \App\Support\ArabicPdfText::forDompdf($line)
+                            : (function_exists('mb_strtoupper')
+                                ? mb_strtoupper($line, 'UTF-8')
+                                : strtoupper($line));
                     @endphp
                     <span class="school-name-line {{ $hasRtlScript ? 'school-name-line--rtl' : '' }}">{{ $displaySchoolLine }}</span>
                 @endforeach
@@ -92,7 +94,7 @@
                     @endif
                 </td>
                 <td colspan="2" class="student-meta">
-                    Admission No.: {{ $studentInfo['admission_no'] ?? 'N/A' }}<br>
+                    <span class="student-meta-line student-meta-line--admission"><strong>Admission No.:</strong> {{ $studentInfo['admission_no'] ?? 'N/A' }}</span><br>
                     Name: {{ $studentInfo['name'] ?? 'N/A' }}<br>
                     Gender: {{ $studentInfo['gender'] ?? 'N/A' }}<br>
                     Class: {{ $classLabel ?: 'N/A' }}
