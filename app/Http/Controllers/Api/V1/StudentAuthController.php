@@ -32,14 +32,18 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/login",
      *     tags={"school-v2.6"},
      *     summary="Student login",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"admission_no","password"},
+     *
      *             @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *             @OA\Property(property="password", type="string", format="password", example="secret")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Logged in"),
      *     @OA\Response(response=422, description="Invalid credentials")
      * )
@@ -104,6 +108,7 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/logout",
      *     tags={"school-v2.6"},
      *     summary="Student logout",
+     *
      *     @OA\Response(response=200, description="Logged out")
      * )
      */
@@ -123,6 +128,7 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/profile",
      *     tags={"school-v2.6"},
      *     summary="Get student profile",
+     *
      *     @OA\Response(response=200, description="Profile returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -225,6 +231,7 @@ class StudentAuthController extends Controller
                     ->map(function (Result $row) {
                         $component = $row->assessment_component;
                         $label = strtoupper($component->label ?? $component->name ?? 'Component');
+
                         return [
                             'id' => $component->id,
                             'label' => $label,
@@ -264,8 +271,10 @@ class StudentAuthController extends Controller
      *     tags={"school-v2.6"},
      *     summary="Download student result",
      *     description="Downloads the student's result for a given session and term.",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Result file or payload returned"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")
@@ -614,6 +623,7 @@ class StudentAuthController extends Controller
 
         $assignments = SubjectAssignment::query()
             ->with('subject:id,name')
+            ->where('session_id', $student->school?->current_session_id ?? $student->current_session_id)
             ->where('school_class_id', $student->school_class_id)
             ->when(
                 $student->class_arm_id,
@@ -700,7 +710,7 @@ class StudentAuthController extends Controller
             // Create new parent and associated user
             $parentUser = \App\Models\User::create([
                 'id' => (string) Str::uuid(),
-                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'name' => $validated['first_name'].' '.$validated['last_name'],
                 'email' => $validated['email'],
                 'school_id' => $student->school_id,
                 'password' => Hash::make(Str::random(16)),
@@ -743,19 +753,19 @@ class StudentAuthController extends Controller
         $student = $this->resolveStudentUser($request);
 
         $validated = $request->validate([
-            'first_name'          => 'sometimes|string|max:255',
-            'middle_name'         => 'nullable|string|max:255',
-            'last_name'           => 'sometimes|string|max:255',
-            'gender'              => ['sometimes', \Illuminate\Validation\Rule::in(['male','female','other','others','Male','Female','Other','Others','m','f','o','M','F','O'])],
-            'date_of_birth'       => 'sometimes|date',
-            'nationality'         => 'nullable|string|max:255',
-            'state_of_origin'     => 'nullable|string|max:255',
-            'lga_of_origin'       => 'nullable|string|max:255',
-            'house'               => 'nullable|string|max:255',
-            'club'                => 'nullable|string|max:255',
-            'address'             => 'nullable|string|max:500',
+            'first_name' => 'sometimes|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'gender' => ['sometimes', \Illuminate\Validation\Rule::in(['male', 'female', 'other', 'others', 'Male', 'Female', 'Other', 'Others', 'm', 'f', 'o', 'M', 'F', 'O'])],
+            'date_of_birth' => 'sometimes|date',
+            'nationality' => 'nullable|string|max:255',
+            'state_of_origin' => 'nullable|string|max:255',
+            'lga_of_origin' => 'nullable|string|max:255',
+            'house' => 'nullable|string|max:255',
+            'club' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:500',
             'medical_information' => 'nullable|string',
-            'blood_group_id'      => 'sometimes|nullable|uuid|exists:blood_groups,id',
+            'blood_group_id' => 'sometimes|nullable|uuid|exists:blood_groups,id',
         ]);
 
         // Handle passport/photo file upload
@@ -889,7 +899,7 @@ class StudentAuthController extends Controller
             // Create new parent and associated user
             $parentUser = \App\Models\User::create([
                 'id' => (string) Str::uuid(),
-                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'name' => $validated['first_name'].' '.$validated['last_name'],
                 'email' => $validated['email'],
                 'school_id' => $student->school_id,
                 'password' => Hash::make(Str::random(16)),

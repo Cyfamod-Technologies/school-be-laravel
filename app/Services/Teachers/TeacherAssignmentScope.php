@@ -450,7 +450,11 @@ class TeacherAssignmentScope
                 // If this is a class teacher assignment, fetch all subjects for the class
                 if ($entry['is_class_teacher'] && $entry['class']) {
                     $classId = $entry['class']['id'];
-                    $classSubjects = \App\Models\SchoolClass::find($classId)?->subjects ?? collect();
+                    $classSubjects = \App\Models\Subject::query()
+                        ->whereHas('assignments', fn (Builder $query) => $query
+                            ->where('school_class_id', $classId)
+                            ->where('session_id', $entry['session']['id'] ?? null))
+                        ->get();
 
                     foreach ($classSubjects as $subject) {
                         // Only add if not already present (subject teacher assignments take precedence)

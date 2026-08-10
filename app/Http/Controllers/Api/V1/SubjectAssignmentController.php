@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\ClassArm;
 use App\Models\SchoolClass;
+use App\Models\Session;
 use App\Models\Subject;
 use App\Models\SubjectAssignment;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,12 +27,14 @@ class SubjectAssignmentController extends Controller
      *     tags={"school-v1.7"},
      *     summary="List subject-to-class assignments",
      *     description="Paginated list filtered by subject, class, arm, section, or search.",
+     *
      *     @OA\Parameter(name="subject_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="school_class_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_arm_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="class_section_id", in="query", required=false, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="search", in="query", required=false, description="Search subject name/code", @OA\Schema(type="string")),
      *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", minimum=1)),
+     *
      *     @OA\Response(response=200, description="Assignments returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -47,6 +50,13 @@ class SubjectAssignmentController extends Controller
             ], 422);
         }
 
+        $sessionId = $request->input('session_id', $school->current_session_id);
+        if (! $sessionId || ! Session::query()->whereKey($sessionId)->where('school_id', $school->id)->exists()) {
+            return response()->json([
+                'message' => 'Select a valid academic session for this school.',
+            ], 422);
+        }
+
         $perPage = max((int) $request->input('per_page', 15), 1);
         $sortBy = $request->input('sortBy', 'created_at');
         $sortDirection = strtolower($request->input('sortDirection', 'desc')) === 'asc' ? 'asc' : 'desc';
@@ -58,9 +68,11 @@ class SubjectAssignmentController extends Controller
         $query = SubjectAssignment::query()
             ->with([
                 'subject:id,name,code,school_id',
+                'session:id,name,school_id',
                 'school_class:id,name,slug,school_id',
                 'class_arm:id,name,school_class_id',
             ])
+            ->where('session_id', $sessionId)
             ->whereHas('subject', fn (Builder $builder) => $builder->where('school_id', $school->id));
 
         if ($request->filled('subject_id')) {
@@ -95,21 +107,27 @@ class SubjectAssignmentController extends Controller
      *     path="/api/v1/settings/subject-assignments",
      *     tags={"school-v1.7"},
      *     summary="Create subject-to-class assignment",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"school_class_id"},
+     *
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
      *             @OA\Property(
      *                 property="subject_ids",
      *                 type="array",
+     *
      *                 @OA\Items(type="string", format="uuid")
      *             ),
+     *
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true)
      *         )
      *     ),
+     *
      *     @OA\Response(response=201, description="Assignment created"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
      * )
@@ -131,7 +149,20 @@ class SubjectAssignmentController extends Controller
             'subject_ids.*' => ['uuid', 'distinct'],
             'school_class_id' => ['required', 'uuid'],
             'class_arm_id' => ['nullable', 'uuid'],
+            'session_id' => ['nullable', 'uuid'],
         ]);
+
+        $sessionId = $school->current_session_id;
+        if (! $sessionId) {
+            return response()->json([
+                'message' => 'The school must set a current session before subjects can be assigned.',
+            ], 422);
+        }
+        if (isset($validated['session_id']) && (string) $validated['session_id'] !== (string) $sessionId) {
+            return response()->json([
+                'message' => 'Subject assignments can only be changed for the current session.',
+            ], 422);
+        }
 
         $subjectIds = collect($validated['subject_ids'] ?? [$validated['subject_id'] ?? null])
             ->filter()
@@ -152,19 +183,21 @@ class SubjectAssignmentController extends Controller
         $createdAssignmentIds = [];
         $skippedSubjectIds = [];
 
-        DB::transaction(function () use ($subjectIds, $subjectsById, $class, $classArm, &$createdAssignmentIds, &$skippedSubjectIds): void {
+        DB::transaction(function () use ($subjectIds, $subjectsById, $class, $classArm, $sessionId, &$createdAssignmentIds, &$skippedSubjectIds): void {
             foreach ($subjectIds as $subjectId) {
                 /** @var \App\Models\Subject $subject */
                 $subject = $subjectsById->get($subjectId);
 
-                if ($this->assignmentExists($subject->id, $class->id, $classArm?->id)) {
+                if ($this->assignmentExists($subject->id, $sessionId, $class->id, $classArm?->id)) {
                     $skippedSubjectIds[] = $subject->id;
+
                     continue;
                 }
 
                 $assignment = SubjectAssignment::create([
                     'id' => (string) Str::uuid(),
                     'subject_id' => $subject->id,
+                    'session_id' => $sessionId,
                     'school_class_id' => $class->id,
                     'class_arm_id' => $classArm?->id,
                     'class_section_id' => null,
@@ -186,6 +219,7 @@ class SubjectAssignmentController extends Controller
         $createdAssignments = SubjectAssignment::query()
             ->with([
                 'subject:id,name,code',
+                'session:id,name',
                 'school_class:id,name',
                 'class_arm:id,name',
             ])
@@ -211,6 +245,7 @@ class SubjectAssignmentController extends Controller
             'skipped_subject_ids' => $skippedSubjectIds,
         ], 201);
     }
+
     public function show(Request $request, SubjectAssignment $assignment)
     {
         $this->authorizeAssignment($request, $assignment);
@@ -218,10 +253,12 @@ class SubjectAssignmentController extends Controller
         return response()->json([
             'id' => $assignment->id,
             'subject_id' => $assignment->subject_id,
+            'session_id' => $assignment->session_id,
             'school_class_id' => $assignment->school_class_id,
             'class_arm_id' => $assignment->class_arm_id,
             'class_section_id' => null,
             'subject' => optional($assignment->subject)->only(['id', 'name', 'code']),
+            'session' => optional($assignment->session)->only(['id', 'name']),
             'school_class' => optional($assignment->school_class)->only(['id', 'name']),
             'class_arm' => optional($assignment->class_arm)->only(['id', 'name']),
             'class_section' => null,
@@ -233,22 +270,28 @@ class SubjectAssignmentController extends Controller
      *     path="/api/v1/settings/subject-assignments/{id}",
      *     tags={"school-v1.7"},
      *     summary="Update subject-to-class assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\RequestBody(
      *         required=false,
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="subject_id", type="string", format="uuid"),
      *             @OA\Property(property="school_class_id", type="string", format="uuid"),
      *             @OA\Property(property="class_arm_id", type="string", format="uuid"),
      *             @OA\Property(property="class_section_id", type="string", format="uuid", nullable=true)
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment updated"),
      *     @OA\Response(response=404, description="Not found"),
      *     @OA\Response(response=422, description="Validation error or duplicate assignment")
@@ -279,6 +322,12 @@ class SubjectAssignmentController extends Controller
             ], 422);
         }
 
+        if (! $school->current_session_id || (string) $assignment->session_id !== (string) $school->current_session_id) {
+            return response()->json([
+                'message' => 'Historical subject assignments are read-only. Switch to the current session to make changes.',
+            ], 422);
+        }
+
         [$subject, $class, $classArm] = $this->resolveAssignmentEntities(
             $school->id,
             $subjectId,
@@ -286,7 +335,7 @@ class SubjectAssignmentController extends Controller
             $classArmId
         );
 
-        if ($this->assignmentExists($subject->id, $class->id, $classArm?->id, $assignment->id)) {
+        if ($this->assignmentExists($subject->id, $assignment->session_id, $class->id, $classArm?->id, $assignment->id)) {
             return response()->json([
                 'message' => 'Subject is already assigned to the selected class context.',
             ], 422);
@@ -307,6 +356,7 @@ class SubjectAssignmentController extends Controller
             'message' => 'Subject assignment updated successfully.',
             'data' => $assignment->fresh()->load([
                 'subject:id,name,code',
+                'session:id,name',
                 'school_class:id,name',
                 'class_arm:id,name',
             ]),
@@ -318,13 +368,16 @@ class SubjectAssignmentController extends Controller
      *     path="/api/v1/settings/subject-assignments/{id}",
      *     tags={"school-v1.7"},
      *     summary="Delete subject-to-class assignment",
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Assignment ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Assignment deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )
@@ -333,6 +386,12 @@ class SubjectAssignmentController extends Controller
     {
         $this->ensurePermission($request, ['subject.assignments.delete', 'subject.assignments.class']);
         $this->authorizeAssignment($request, $assignment);
+        $school = $request->user()->school;
+        if (! $school?->current_session_id || (string) $assignment->session_id !== (string) $school->current_session_id) {
+            return response()->json([
+                'message' => 'Historical subject assignments are read-only. Switch to the current session to make changes.',
+            ], 422);
+        }
         $assignment->delete();
 
         return response()->json([
@@ -377,10 +436,11 @@ class SubjectAssignmentController extends Controller
         return $subject;
     }
 
-    private function assignmentExists(string $subjectId, string $classId, ?string $classArmId, ?string $ignoreId = null): bool
+    private function assignmentExists(string $subjectId, string $sessionId, string $classId, ?string $classArmId, ?string $ignoreId = null): bool
     {
         $query = SubjectAssignment::query()
             ->where('subject_id', $subjectId)
+            ->where('session_id', $sessionId)
             ->where('school_class_id', $classId)
             ->when(
                 $classArmId,

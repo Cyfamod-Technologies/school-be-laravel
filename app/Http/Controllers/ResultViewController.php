@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\AssessmentComponentStructure;
 use App\Models\Attendance;
 use App\Models\ClassArm;
@@ -17,8 +16,8 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
-use App\Models\SubjectAssignment;
 use App\Models\Student;
+use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
@@ -37,27 +36,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's result",
      *     description="Renders the printable result sheet for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -87,27 +93,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's early years report",
      *     description="Renders the printable early years report for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -135,41 +148,52 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Bulk print class results",
      *     description="Generates printable result sheets for a class (optionally filtered by arm/section).",
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=true,
      *         description="Session ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=true,
      *         description="Term ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="school_class_id",
      *         in="query",
      *         required=true,
      *         description="Class ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_arm_id",
      *         in="query",
      *         required=false,
      *         description="Arm ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_section_id",
      *         in="query",
      *         required=false,
      *         description="Section ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view or JSON error"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -238,7 +262,8 @@ class ResultViewController extends Controller
                     } catch (\Exception $e) {
                         // Skip students without results or with errors instead of failing entire bulk print
                         // Log the error for debugging but continue with other students
-                        \Log::info("Skipped student {$record->id} in bulk print: " . $e->getMessage());
+                        \Log::info("Skipped student {$record->id} in bulk print: ".$e->getMessage());
+
                         return null;
                     }
                 })
@@ -324,7 +349,7 @@ class ResultViewController extends Controller
 
             throw new HttpResponseException(
                 response()->json([
-                    'message' => 'Bulk result printing failed. Please contact support with code: ' . $errorRef,
+                    'message' => 'Bulk result printing failed. Please contact support with code: '.$errorRef,
                 ], 500)
             );
         }
@@ -391,7 +416,8 @@ class ResultViewController extends Controller
                             $schoolId
                         );
                     } catch (\Exception $e) {
-                        \Log::info("Skipped student {$record->id} in session result print: " . $e->getMessage());
+                        \Log::info("Skipped student {$record->id} in session result print: ".$e->getMessage());
+
                         return null;
                     }
                 })
@@ -468,7 +494,7 @@ class ResultViewController extends Controller
 
             throw new HttpResponseException(
                 response()->json([
-                    'message' => 'Session result printing failed. Please contact support with code: ' . $errorRef,
+                    'message' => 'Session result printing failed. Please contact support with code: '.$errorRef,
                 ], 500)
             );
         }
@@ -601,7 +627,7 @@ class ResultViewController extends Controller
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
-        $subjectCount = $this->resolveSubjectCount($student);
+        $subjectCount = $this->resolveSubjectCount($student, $session?->id);
         if ($subjectCount <= 0) {
             $subjectCount = $subjectRows->count();
         }
@@ -1386,7 +1412,7 @@ class ResultViewController extends Controller
             return null;
         }
 
-        return 'Q' . $number;
+        return 'Q'.$number;
     }
 
     private function buildComponentColumns(Collection $results, Student $student, ?Term $term): Collection
@@ -1449,7 +1475,7 @@ class ResultViewController extends Controller
             ? (string) (int) $maxScore
             : rtrim(rtrim(number_format($maxScore, 2, '.', ''), '0'), '.');
 
-        return preg_replace('/(?<!\d)%/', $scoreLabel . '%', $trimmedLabel) ?? $trimmedLabel;
+        return preg_replace('/(?<!\d)%/', $scoreLabel.'%', $trimmedLabel) ?? $trimmedLabel;
     }
 
     private function buildSubjectRows(Collection $results, Collection $componentColumns, Collection $gradeRanges, Collection $subjectStats): Collection
@@ -1548,8 +1574,7 @@ class ResultViewController extends Controller
         Collection $positionRanges,
         int $classSize,
         bool $collapseCa
-    ): Collection
-    {
+    ): Collection {
         return $terms
             ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize, $collapseCa) {
                 $termResults = $results
@@ -1758,7 +1783,7 @@ class ResultViewController extends Controller
             ->where('session_id', $sessionId)
             ->whereIn('term_id', $termIds)
             ->get()
-            ->groupBy(fn (Result $result) => $result->subject_id . ':' . $result->term_id)
+            ->groupBy(fn (Result $result) => $result->subject_id.':'.$result->term_id)
             ->map(fn (Collection $entries) => $this->resolveResultTotalForEntries($entries))
             ->filter(fn ($score) => $score !== null)
             ->values();
@@ -1774,7 +1799,7 @@ class ResultViewController extends Controller
             ->when($student->class_arm_id, fn ($query, $armId) => $query->where('class_arm_id', $armId))
             ->when($student->class_section_id, fn ($query, $sectionId) => $query->where('class_section_id', $sectionId))
             ->get()
-            ->groupBy(fn (Result $result) => $result->student_id . ':' . $result->subject_id . ':' . $result->term_id)
+            ->groupBy(fn (Result $result) => $result->student_id.':'.$result->subject_id.':'.$result->term_id)
             ->map(fn (Collection $entries) => [
                 'student_id' => (string) optional($entries->first())->student_id,
                 'score' => $this->resolveResultTotalForEntries($entries),
@@ -1819,8 +1844,7 @@ class ResultViewController extends Controller
         Collection $results,
         Collection $positionRanges,
         int $classSize
-    ): array
-    {
+    ): array {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
             return [
                 'subjects' => collect(),
@@ -1831,7 +1855,7 @@ class ResultViewController extends Controller
 
         // Every report for the same class context must use the same subject
         // population when calculating class-wide totals and averages.
-        $subjectIds = $this->resolveSubjectIds($student);
+        $subjectIds = $this->resolveSubjectIds($student, $sessionId);
 
         if ($subjectIds->isEmpty()) {
             $subjectIds = $results
@@ -1937,8 +1961,7 @@ class ResultViewController extends Controller
         int $existingClassSize,
         Collection $positionRanges,
         int $offeredSubjectCount = 0
-    ): array
-    {
+    ): array {
         $subjectCount = max(1, $offeredSubjectCount ?: $subjectStats->count());
 
         $studentTotal = $overallTotals->get($student->id);
@@ -2046,18 +2069,19 @@ class ResultViewController extends Controller
         return $totals->isEmpty() ? null : round((float) $totals->sum(), 2);
     }
 
-    private function resolveSubjectCount(Student $student): int
+    private function resolveSubjectCount(Student $student, ?string $sessionId): int
     {
-        return $this->resolveSubjectIds($student)->count();
+        return $this->resolveSubjectIds($student, $sessionId)->count();
     }
 
-    private function resolveSubjectIds(Student $student): Collection
+    private function resolveSubjectIds(Student $student, ?string $sessionId): Collection
     {
         if (! $student->school_class_id) {
             return collect();
         }
 
         $baseQuery = SubjectAssignment::query()
+            ->where('session_id', $sessionId)
             ->where('school_class_id', $student->school_class_id);
 
         if ($student->class_arm_id) {
@@ -2283,6 +2307,6 @@ class ResultViewController extends Controller
             return asset($trimmed);
         }
 
-        return asset('storage/' . $trimmed);
+        return asset('storage/'.$trimmed);
     }
 }

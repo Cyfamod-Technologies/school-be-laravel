@@ -36,6 +36,10 @@ it('returns only class-wide and matching-arm subjects in the student profile', f
         'end_date' => now()->addMonths(3),
         'status' => 'active',
     ]);
+    $school->update([
+        'current_session_id' => $session->id,
+        'current_term_id' => $term->id,
+    ]);
 
     $class = SchoolClass::create([
         'id' => (string) Str::uuid(),
@@ -105,6 +109,7 @@ it('returns only class-wide and matching-arm subjects in the student profile', f
         SubjectAssignment::create([
             'id' => (string) Str::uuid(),
             'subject_id' => $subjects[$subjectName]->id,
+            'session_id' => $session->id,
             'school_class_id' => $classId,
             'class_arm_id' => $armId,
             'class_section_id' => null,

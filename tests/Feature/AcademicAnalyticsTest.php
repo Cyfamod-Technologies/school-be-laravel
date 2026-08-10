@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ClassArm;
+use App\Models\Result;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\SchoolParent;
@@ -12,7 +13,6 @@ use App\Models\SubjectAssignment;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
-use App\Models\Result;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -90,12 +90,14 @@ beforeEach(function () {
     SubjectAssignment::create([
         'id' => (string) Str::uuid(),
         'subject_id' => $this->math->id,
+        'session_id' => $this->session->id,
         'school_class_id' => $this->classA->id,
     ]);
 
     SubjectAssignment::create([
         'id' => (string) Str::uuid(),
         'subject_id' => $this->english->id,
+        'session_id' => $this->session->id,
         'school_class_id' => $this->classA->id,
     ]);
 
