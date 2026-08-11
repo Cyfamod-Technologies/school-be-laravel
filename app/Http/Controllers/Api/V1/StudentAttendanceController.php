@@ -169,6 +169,15 @@ class StudentAttendanceController extends Controller
                 return response()->json(['message' => 'Attendance cannot be recorded for a future date.'], 422);
             }
 
+            if (($currentTerm->start_date && $attendanceDate->lt($currentTerm->start_date->startOfDay()))
+                || ($currentTerm->end_date && $attendanceDate->gt($currentTerm->end_date->endOfDay()))) {
+                return response()->json([
+                    'message' => 'Attendance date must be within the current term start and end dates.',
+                    'term_start_date' => optional($currentTerm->start_date)->toDateString(),
+                    'term_end_date' => optional($currentTerm->end_date)->toDateString(),
+                ], 422);
+            }
+
             if (($sessionId && (string) $sessionId !== (string) $currentSession->id)
                 || ($termId && (string) $termId !== (string) $currentTerm->id)) {
                 return response()->json([

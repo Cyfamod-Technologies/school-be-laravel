@@ -169,7 +169,7 @@ class StudentAuthController extends Controller
                 ->where('session_id', $session->id)
                 ->where('school_id', $student->school_id)
                 ->orderBy('start_date')
-                ->get(['id', 'name', 'session_id']);
+                ->get(['id', 'name', 'session_id', 'start_date', 'end_date']);
 
             return [
                 'id' => $session->id,
@@ -178,6 +178,8 @@ class StudentAuthController extends Controller
                 'terms' => $terms->map(fn (Term $term) => [
                     'id' => $term->id,
                     'name' => $term->name,
+                    'start_date' => optional($term->start_date)->toDateString(),
+                    'end_date' => optional($term->end_date)->toDateString(),
                 ]),
             ];
         });

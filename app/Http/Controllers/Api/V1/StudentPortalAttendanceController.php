@@ -55,6 +55,15 @@ class StudentPortalAttendanceController extends Controller
         $monthStart = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
 
+        if (($term->start_date && $monthEnd->lt($term->start_date->startOfDay()))
+            || ($term->end_date && $monthStart->gt($term->end_date->endOfDay()))) {
+            return response()->json([
+                'message' => "The selected month is outside {$term->name}'s date range.",
+                'term_start_date' => optional($term->start_date)->toDateString(),
+                'term_end_date' => optional($term->end_date)->toDateString(),
+            ], 422);
+        }
+
         $days = (clone $query)
             ->whereBetween('date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->orderBy('date')

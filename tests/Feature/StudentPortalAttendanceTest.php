@@ -133,6 +133,30 @@ it('returns only the authenticated student attendance with term and month summar
         ->assertJsonPath('days.1.status', 'absent');
 });
 
+it('returns term date boundaries and rejects attendance months outside them', function () {
+    Sanctum::actingAs($this->student, [], 'student');
+
+    getJson('/api/v1/student/sessions')
+        ->assertOk()
+        ->assertJsonPath('data.0.terms.0.start_date', '2026-04-20')
+        ->assertJsonPath('data.0.terms.0.end_date', '2026-08-14');
+
+    getJson(route('student.attendance.index', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'month' => '2026-03',
+    ]))
+        ->assertStatus(422)
+        ->assertJsonPath('term_start_date', '2026-04-20')
+        ->assertJsonPath('term_end_date', '2026-08-14');
+
+    getJson(route('student.attendance.index', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'month' => '2026-09',
+    ]))->assertStatus(422);
+});
+
 it('prevents a subject teacher from recording daily class attendance', function () {
     $teacherUser = User::factory()->create([
         'school_id' => $this->school->id,
@@ -227,7 +251,7 @@ it('allows the assigned class teacher to autosave current-term attendance', func
         ->and($attendance->recorded_by)->toBe($teacherUser->id);
 });
 
-it('uses the configured current term even when its calendar dates are stale', function () {
+it('rejects teacher attendance outside the configured current term dates', function () {
     $this->term->update([
         'start_date' => '2025-01-01',
         'end_date' => '2025-04-30',
@@ -269,6 +293,10 @@ it('uses the configured current term even when its calendar dates are stale', fu
             'status' => 'present',
         ]],
     ])
-        ->assertOk()
-        ->assertJsonPath('created', 1);
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Attendance date must be within the current term start and end dates.')
+        ->assertJsonPath('term_start_date', '2025-01-01')
+        ->assertJsonPath('term_end_date', '2025-04-30');
+
+    expect(Attendance::query()->where('student_id', $this->student->id)->exists())->toBeFalse();
 });
