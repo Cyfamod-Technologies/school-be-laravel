@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SendResultPinNotification;
 use App\Models\ClassArm;
 use App\Models\ResultPin;
 use App\Models\School;
@@ -9,6 +10,7 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -134,6 +136,8 @@ describe('Result PIN management', function () {
     });
 
     it('sends generated pins to selected student dashboards', function () {
+        Queue::fake();
+
         foreach ($this->students->take(2) as $student) {
             postJson(route('students.result-pins.store', ['student' => $student->id]), [
                 'session_id' => $this->session->id,
@@ -154,6 +158,8 @@ describe('Result PIN management', function () {
 
         expect(ResultPin::query()->whereIn('student_id', $selectedStudentIds)->whereNotNull('sent_at')->count())
             ->toBe(2);
+
+        Queue::assertPushed(SendResultPinNotification::class, 2);
 
         Sanctum::actingAs($this->student, [], 'student');
 

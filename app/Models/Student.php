@@ -493,6 +493,16 @@ class Student extends Model implements AuthenticatableContract
         return $this->hasMany(ResultPin::class);
     }
 
+    public function devices()
+    {
+        return $this->hasMany(StudentDevice::class);
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(StudentNotification::class);
+    }
+
     public function results()
     {
         return $this->hasMany(Result::class);

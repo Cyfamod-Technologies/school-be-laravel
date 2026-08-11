@@ -39,4 +39,11 @@ return [
         ],
     ],
 
+    'firebase' => [
+        'enabled' => env('FIREBASE_NOTIFICATIONS_ENABLED', false),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'attendance_delay_minutes' => (int) env('ATTENDANCE_NOTIFICATION_DELAY_MINUTES', 30),
+    ],
+
 ];

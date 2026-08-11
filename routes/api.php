@@ -37,6 +37,8 @@ use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\StaffSelfController;
 use App\Http\Controllers\Api\V1\TeacherDashboardController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
+use App\Http\Controllers\Api\V1\StudentDeviceController;
+use App\Http\Controllers\Api\V1\StudentNotificationController;
 use App\Http\Controllers\ResultViewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\QuizController;
@@ -84,6 +86,17 @@ Route::prefix('api/v1')->group(function () {
                     ->name('student.attendance.index');
                 Route::get('result-pins', [ResultPinController::class, 'studentDashboard'])
                     ->name('student.result-pins.index');
+                Route::post('devices', [StudentDeviceController::class, 'store'])
+                    ->name('student.devices.store');
+                Route::delete('devices', [StudentDeviceController::class, 'destroy'])
+                    ->name('student.devices.destroy');
+                Route::get('notifications', [StudentNotificationController::class, 'index'])
+                    ->name('student.notifications.index');
+                Route::put('notifications/read-all', [StudentNotificationController::class, 'markAllRead'])
+                    ->name('student.notifications.read-all');
+                Route::put('notifications/{notification}/read', [StudentNotificationController::class, 'markRead'])
+                    ->whereUuid('notification')
+                    ->name('student.notifications.read');
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
                 Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
                 Route::get('parent', [StudentAuthController::class, 'getParent']);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SendAttendanceNotification;
 use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\School;
@@ -12,6 +13,7 @@ use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -116,8 +118,9 @@ beforeEach(function () {
         'employment_start_date' => Carbon::parse('2022-01-01'),
     ]);
 });
-
 it('records student attendance and updates duplicates', function () {
+    Queue::fake();
+
     postJson(route('attendance.students.store'), [
         'date' => '2025-10-20',
         'session_id' => $this->session->id,
@@ -151,7 +154,11 @@ it('records student attendance and updates duplicates', function () {
         ->assertJsonPath('updated', 1);
 
     expect(Attendance::where('student_id', $this->student->id)->count())->toBe(1)
-        ->and(Attendance::where('student_id', $this->student->id)->value('status'))->toBe('late');
+        ->and(Attendance::where('student_id', $this->student->id)->value('status'))->toBe('late')
+        ->and(Attendance::where('student_id', $this->student->id)->value('notification_revision'))->toBe(2);
+
+    Queue::assertPushed(SendAttendanceNotification::class, 2);
+    Queue::assertPushed(fn (SendAttendanceNotification $job) => $job->revision === 2 && $job->delay !== null);
 });
 
 it('returns student attendance reports with status breakdowns', function () {

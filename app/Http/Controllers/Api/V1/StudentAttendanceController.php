@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendAttendanceNotification;
 use App\Models\Attendance;
 use App\Models\Student;
 use App\Services\Teachers\TeacherAccessService;
@@ -201,6 +202,7 @@ class StudentAttendanceController extends Controller
 
         $created = 0;
         $updated = 0;
+        $notificationJobs = [];
 
         DB::transaction(function () use (
             $entries,
@@ -214,7 +216,8 @@ class StudentAttendanceController extends Controller
             $classSectionId,
             $scope,
             &$created,
-            &$updated
+            &$updated,
+            &$notificationJobs
         ) {
             foreach ($entries as $entry) {
                 $student = $students->get($entry['student_id']);
@@ -239,6 +242,14 @@ class StudentAttendanceController extends Controller
                     $payload
                 );
 
+                $attendance->notification_revision = ((int) $attendance->notification_revision) + 1;
+                $attendance->save();
+
+                $notificationJobs[] = [
+                    'id' => (string) $attendance->id,
+                    'revision' => (int) $attendance->notification_revision,
+                ];
+
                 if ($attendance->wasRecentlyCreated) {
                     $created++;
                 } else {
@@ -246,6 +257,13 @@ class StudentAttendanceController extends Controller
                 }
             }
         });
+
+        foreach ($notificationJobs as $notificationJob) {
+            SendAttendanceNotification::dispatch(
+                $notificationJob['id'],
+                $notificationJob['revision'],
+            )->delay(now()->addMinutes((int) config('services.firebase.attendance_delay_minutes', 30)));
+        }
 
         return response()->json([
             'message' => 'Attendance saved successfully.',
@@ -292,7 +310,13 @@ class StudentAttendanceController extends Controller
 
         if ($attendance->isDirty()) {
             $attendance->recorded_by = $request->user()->id;
+            $attendance->notification_revision = ((int) $attendance->notification_revision) + 1;
             $attendance->save();
+
+            SendAttendanceNotification::dispatch(
+                (string) $attendance->id,
+                (int) $attendance->notification_revision,
+            )->delay(now()->addMinutes((int) config('services.firebase.attendance_delay_minutes', 30)));
         }
 
         $attendance->loadMissing([
