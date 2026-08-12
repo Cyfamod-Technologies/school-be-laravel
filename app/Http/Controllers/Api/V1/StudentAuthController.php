@@ -169,7 +169,7 @@ class StudentAuthController extends Controller
                 ->where('session_id', $session->id)
                 ->where('school_id', $student->school_id)
                 ->orderBy('start_date')
-                ->get(['id', 'name', 'session_id', 'start_date', 'end_date']);
+                ->get(['id', 'name', 'session_id', 'start_date', 'end_date', 'attendance_entry_mode']);
 
             return [
                 'id' => $session->id,
@@ -180,6 +180,7 @@ class StudentAuthController extends Controller
                     'name' => $term->name,
                     'start_date' => optional($term->start_date)->toDateString(),
                     'end_date' => optional($term->end_date)->toDateString(),
+                    'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
                 ]),
             ];
         });

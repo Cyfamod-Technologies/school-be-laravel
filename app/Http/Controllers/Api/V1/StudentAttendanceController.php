@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendAttendanceNotification;
 use App\Models\Attendance;
 use App\Models\Student;
+use App\Models\Term;
 use App\Services\Teachers\TeacherAccessService;
 use App\Support\SimplePdfBuilder;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,30 @@ class StudentAttendanceController extends Controller
     private const STATUSES = ['present', 'absent', 'late', 'excused'];
 
     public function __construct(private TeacherAccessService $teacherAccess) {}
+
+    public function mode(Request $request): JsonResponse
+    {
+        $this->ensurePermission($request, 'attendance.students');
+        $term = $this->resolveAttendanceModeTerm($request);
+
+        return response()->json(['data' => $this->serializeAttendanceMode($term)]);
+    }
+
+    public function updateMode(Request $request): JsonResponse
+    {
+        $this->ensureAttendanceModeAdministrator($request);
+        $term = $this->resolveAttendanceModeTerm($request, true);
+
+        $term->attendance_entry_mode = $request->validate([
+            'attendance_entry_mode' => ['required', Rule::in(['daily', 'manual'])],
+        ])['attendance_entry_mode'];
+        $term->save();
+
+        return response()->json([
+            'message' => 'Attendance entry mode updated successfully.',
+            'data' => $this->serializeAttendanceMode($term),
+        ]);
+    }
 
     /**
      * @OA\Get(
@@ -209,6 +234,13 @@ class StudentAttendanceController extends Controller
             ], 422);
         }
 
+        $resolvedTermIds = $entries
+            ->map(fn (array $entry) => $termId ?? $students->get($entry['student_id'])?->current_term_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $this->ensureTermsUseDailyAttendance($user->school_id, $resolvedTermIds);
+
         $created = 0;
         $updated = 0;
         $notificationJobs = [];
@@ -297,6 +329,11 @@ class StudentAttendanceController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
 
+        $this->ensureTermsUseDailyAttendance(
+            $request->user()->school_id,
+            collect([$validated['term_id'] ?? $attendance->term_id])
+        );
+
         $attendance->fill($validated);
 
         if (array_key_exists('date', $validated)) {
@@ -348,6 +385,10 @@ class StudentAttendanceController extends Controller
     {
         $this->ensurePermission($request, 'attendance.students');
         $this->authorizeAttendance($attendance, $request);
+        $this->ensureTermsUseDailyAttendance(
+            $request->user()->school_id,
+            collect([$attendance->term_id])
+        );
         $attendance->delete();
 
         return response()->json([
@@ -691,6 +732,56 @@ class StudentAttendanceController extends Controller
 
         if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($attendance->student)) {
             abort(403, 'You are not authorized to modify this attendance record.');
+        }
+    }
+
+    private function resolveAttendanceModeTerm(Request $request, bool $includeMode = false): Term
+    {
+        $rules = [
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+        ];
+        if ($includeMode) {
+            $rules['attendance_entry_mode'] = ['required', Rule::in(['daily', 'manual'])];
+        }
+        $validated = $request->validate($rules);
+
+        return Term::query()
+            ->whereKey($validated['term_id'])
+            ->where('session_id', $validated['session_id'])
+            ->where('school_id', $request->user()->school_id)
+            ->firstOrFail();
+    }
+
+    private function serializeAttendanceMode(Term $term): array
+    {
+        return [
+            'session_id' => $term->session_id,
+            'term_id' => $term->id,
+            'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
+        ];
+    }
+
+    private function ensureAttendanceModeAdministrator(Request $request): void
+    {
+        $user = $request->user();
+        $role = strtolower(trim((string) ($user?->role ?? '')));
+        $isAdministrator = in_array($role, ['admin', 'super_admin', 'superadmin', 'administrator'], true)
+            || ($user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin', 'super_admin']));
+
+        abort_unless($isAdministrator, 403, 'Only a school administrator can change attendance entry mode.');
+    }
+
+    private function ensureTermsUseDailyAttendance(string $schoolId, Collection $termIds): void
+    {
+        $manualTerm = Term::query()
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $termIds->filter()->unique())
+            ->where('attendance_entry_mode', 'manual')
+            ->first();
+
+        if ($manualTerm) {
+            abort(422, 'Daily attendance is locked because Manual Summary is selected for this term.');
         }
     }
 

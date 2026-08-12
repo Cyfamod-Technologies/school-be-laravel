@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
+use App\Models\TermSummary;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -156,6 +157,39 @@ it('returns term date boundaries and rejects attendance months outside them', fu
         'term_id' => $this->term->id,
         'month' => '2026-09',
     ]))->assertStatus(422);
+});
+
+it('returns the term manual summary without daily calendar records in manual mode', function () {
+    $this->term->update(['attendance_entry_mode' => 'manual']);
+    TermSummary::create([
+        'id' => (string) Str::uuid(),
+        'student_id' => $this->student->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'total_marks_obtained' => 0,
+        'total_marks_possible' => 0,
+        'average_score' => 0,
+        'position_in_class' => 0,
+        'class_average_score' => 0,
+        'days_present' => 8,
+        'days_absent' => 2,
+    ]);
+
+    Sanctum::actingAs($this->student, [], 'student');
+
+    getJson(route('student.attendance.index', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'month' => '2026-08',
+    ]))
+        ->assertOk()
+        ->assertJsonPath('attendance_entry_mode', 'manual')
+        ->assertJsonPath('summary_scope', 'term')
+        ->assertJsonPath('summary.present', 8)
+        ->assertJsonPath('summary.absent', 2)
+        ->assertJsonPath('summary.recorded_days', 10)
+        ->assertJsonPath('summary.percentage', 80)
+        ->assertJsonCount(0, 'days');
 });
 
 it('prevents a subject teacher from recording daily class attendance', function () {

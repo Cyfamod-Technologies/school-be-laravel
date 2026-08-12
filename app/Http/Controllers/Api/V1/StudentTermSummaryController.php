@@ -7,6 +7,7 @@ use App\Models\CommentRange;
 use App\Models\GradingScale;
 use App\Models\Result;
 use App\Models\Student;
+use App\Models\Term;
 use App\Models\TermSummary;
 use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,7 @@ class StudentTermSummaryController extends Controller
             'class_arm_id' => ['nullable', 'uuid'],
             'class_section_id' => ['nullable', 'uuid'],
         ]);
+        $term = $this->resolveTerm($user->school_id, $validated['session_id'], $validated['term_id']);
 
         $studentQuery = Student::query()
             ->where('school_id', $user->school_id)
@@ -79,6 +81,7 @@ class StudentTermSummaryController extends Controller
             ->keyBy('student_id');
 
         return response()->json([
+            'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
             'data' => $students
                 ->map(fn (Student $student) => $this->serializeBatchSummary(
                     $student,
@@ -109,6 +112,9 @@ class StudentTermSummaryController extends Controller
             'entries.*.days_present' => ['nullable', 'integer', 'min:0'],
             'entries.*.days_absent' => ['nullable', 'integer', 'min:0'],
         ]);
+        $this->ensureManualAttendanceMode(
+            $this->resolveTerm($user->school_id, $validated['session_id'], $validated['term_id'])
+        );
 
         $entries = collect($validated['entries'])
             ->map(fn (array $entry) => [
@@ -284,6 +290,7 @@ class StudentTermSummaryController extends Controller
             ->where('session_id', $sessionId)
             ->where('term_id', $termId)
             ->first();
+        $term = $this->resolveTerm($student->school_id, $sessionId, $termId);
 
         $useAutomaticComments = $this->usesAutomaticCommentMode($student);
         $average = $this->resolveStudentAverage($student, $sessionId, $termId, $termSummary);
@@ -315,6 +322,7 @@ class StudentTermSummaryController extends Controller
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary?->days_present,
                 'days_absent' => $termSummary?->days_absent,
+                'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
             ],
         ]);
     }
@@ -367,6 +375,16 @@ class StudentTermSummaryController extends Controller
             'days_present' => ['nullable', 'integer', 'min:0', 'required_with:days_absent'],
             'days_absent' => ['nullable', 'integer', 'min:0', 'required_with:days_present'],
         ]);
+
+        if (array_key_exists('days_present', $validated) || array_key_exists('days_absent', $validated)) {
+            $this->ensureManualAttendanceMode(
+                $this->resolveTerm(
+                    $student->school_id,
+                    $validated['session_id'],
+                    $validated['term_id']
+                )
+            );
+        }
 
         $termSummary = TermSummary::query()
             ->where('student_id', $student->id)
@@ -437,6 +455,11 @@ class StudentTermSummaryController extends Controller
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary->days_present,
                 'days_absent' => $termSummary->days_absent,
+                'attendance_entry_mode' => $this->resolveTerm(
+                    $student->school_id,
+                    $validated['session_id'],
+                    $validated['term_id']
+                )->attendance_entry_mode ?: 'daily',
             ],
         ]);
     }
@@ -452,6 +475,22 @@ class StudentTermSummaryController extends Controller
         $scope = $this->teacherAccess->forUser($user);
         if ($scope->isTeacher() && ! $scope->allowsStudent($student)) {
             abort(403, 'You are not allowed to manage records for this student.');
+        }
+    }
+
+    private function resolveTerm(string $schoolId, string $sessionId, string $termId): Term
+    {
+        return Term::query()
+            ->whereKey($termId)
+            ->where('school_id', $schoolId)
+            ->where('session_id', $sessionId)
+            ->firstOrFail();
+    }
+
+    private function ensureManualAttendanceMode(Term $term): void
+    {
+        if (($term->attendance_entry_mode ?: 'daily') !== 'manual') {
+            abort(422, 'Manual attendance is locked because Daily Register is selected for this term.');
         }
     }
 

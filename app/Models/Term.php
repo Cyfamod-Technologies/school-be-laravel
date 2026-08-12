@@ -24,6 +24,7 @@ use Illuminate\Support\Str;
  * @property Carbon $end_date
  * @property string $status
  * @property bool $use_position_ranges
+ * @property string $attendance_entry_mode
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -66,6 +67,7 @@ class Term extends Model
 		'end_date',
 		'status',
 		'use_position_ranges',
+		'attendance_entry_mode',
 	];
 
 	protected static function booted(): void

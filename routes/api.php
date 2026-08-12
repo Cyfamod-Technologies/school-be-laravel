@@ -293,6 +293,10 @@ Route::prefix('api/v1')->group(function () {
             ->name('analytics.academics');
 
         Route::prefix('attendance')->group(function () {
+            Route::get('mode', [StudentAttendanceController::class, 'mode'])
+                ->name('attendance.mode.show');
+            Route::put('mode', [StudentAttendanceController::class, 'updateMode'])
+                ->name('attendance.mode.update');
             Route::get('students', [StudentAttendanceController::class, 'index'])
                 ->name('attendance.students.index');
             Route::post('students', [StudentAttendanceController::class, 'store'])

@@ -661,8 +661,13 @@ class ResultViewController extends Controller
             ->first();
 
         $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
-        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? 0;
-        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? 0;
+        $usesManualAttendance = ($term?->attendance_entry_mode ?: 'daily') === 'manual';
+        $attendancePresent = $usesManualAttendance
+            ? ($termSummary?->days_present ?? 0)
+            : ($attendanceCounts['present'] ?? 0);
+        $attendanceAbsent = $usesManualAttendance
+            ? ($termSummary?->days_absent ?? 0)
+            : ($attendanceCounts['absent'] ?? 0);
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -1106,8 +1111,13 @@ class ResultViewController extends Controller
             ->first();
 
         $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
-        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? null;
-        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? null;
+        $usesManualAttendance = ($term?->attendance_entry_mode ?: 'daily') === 'manual';
+        $attendancePresent = $usesManualAttendance
+            ? $termSummary?->days_present
+            : ($attendanceCounts['present'] ?? null);
+        $attendanceAbsent = $usesManualAttendance
+            ? $termSummary?->days_absent
+            : ($attendanceCounts['absent'] ?? null);
         $schoolOpenedDays = optional($student->school)->term_school_opened_days;
 
         $classSize = $this->resolveHistoricalClassSize($student, $session?->id, $term?->id);

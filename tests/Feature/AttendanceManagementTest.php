@@ -19,6 +19,7 @@ use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
 beforeEach(function () {
     $this->school = School::factory()->create();
@@ -159,6 +160,37 @@ it('records student attendance and updates duplicates', function () {
 
     Queue::assertPushed(SendAttendanceNotification::class, 2);
     Queue::assertPushed(fn (SendAttendanceNotification $job) => $job->revision === 2 && $job->delay !== null);
+});
+
+it('lets an administrator switch term attendance mode and locks daily writes', function () {
+    getJson(route('attendance.mode.show', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]))
+        ->assertOk()
+        ->assertJsonPath('data.attendance_entry_mode', 'daily');
+
+    putJson(route('attendance.mode.update'), [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'attendance_entry_mode' => 'manual',
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.attendance_entry_mode', 'manual');
+
+    postJson(route('attendance.students.store'), [
+        'date' => '2025-10-20',
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'entries' => [[
+            'student_id' => $this->student->id,
+            'status' => 'present',
+        ]],
+    ])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Daily attendance is locked because Manual Summary is selected for this term.');
+
+    expect(Attendance::query()->where('student_id', $this->student->id)->exists())->toBeFalse();
 });
 
 it('returns student attendance reports with status breakdowns', function () {

@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\Session;
 use App\Models\Student;
 use App\Models\Term;
+use App\Models\TermSummary;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -59,28 +60,44 @@ class StudentPortalAttendanceController extends Controller
         $rangeEnd = $termEnd && $termEnd->lt($monthEnd) ? $termEnd : $monthEnd;
         $dateRange = [$rangeStart->toDateString(), $rangeEnd->toDateString()];
 
-        $statusBreakdown = (clone $query)
-            ->whereBetween('date', $dateRange)
-            ->select('status', DB::raw('COUNT(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status');
+        $attendanceEntryMode = $term->attendance_entry_mode ?: 'daily';
 
-        $present = (int) ($statusBreakdown['present'] ?? 0);
-        $absent = (int) ($statusBreakdown['absent'] ?? 0);
-        $late = (int) ($statusBreakdown['late'] ?? 0);
-        $excused = (int) ($statusBreakdown['excused'] ?? 0);
+        if ($attendanceEntryMode === 'manual') {
+            $termSummary = TermSummary::query()
+                ->where('student_id', $student->id)
+                ->where('session_id', $session->id)
+                ->where('term_id', $term->id)
+                ->first();
+            $present = (int) ($termSummary?->days_present ?? 0);
+            $absent = (int) ($termSummary?->days_absent ?? 0);
+            $late = 0;
+            $excused = 0;
+            $days = collect();
+        } else {
+            $statusBreakdown = (clone $query)
+                ->whereBetween('date', $dateRange)
+                ->select('status', DB::raw('COUNT(*) as total'))
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $present = (int) ($statusBreakdown['present'] ?? 0);
+            $absent = (int) ($statusBreakdown['absent'] ?? 0);
+            $late = (int) ($statusBreakdown['late'] ?? 0);
+            $excused = (int) ($statusBreakdown['excused'] ?? 0);
+
+            $days = (clone $query)
+                ->whereBetween('date', $dateRange)
+                ->orderBy('date')
+                ->get(['id', 'date', 'status', 'updated_at'])
+                ->map(fn (Attendance $attendance) => [
+                    'id' => $attendance->id,
+                    'date' => $attendance->date?->toDateString(),
+                    'status' => $attendance->status,
+                    'updated_at' => optional($attendance->updated_at)->toISOString(),
+                ]);
+        }
+
         $recordedDays = $present + $absent + $late + $excused;
-
-        $days = (clone $query)
-            ->whereBetween('date', $dateRange)
-            ->orderBy('date')
-            ->get(['id', 'date', 'status', 'updated_at'])
-            ->map(fn (Attendance $attendance) => [
-                'id' => $attendance->id,
-                'date' => $attendance->date?->toDateString(),
-                'status' => $attendance->status,
-                'updated_at' => optional($attendance->updated_at)->toISOString(),
-            ]);
 
         return response()->json([
             'session' => [
@@ -96,6 +113,8 @@ class StudentPortalAttendanceController extends Controller
                 'end_date' => optional($term->end_date)->toDateString(),
             ],
             'month' => $month,
+            'attendance_entry_mode' => $attendanceEntryMode,
+            'summary_scope' => $attendanceEntryMode === 'manual' ? 'term' : 'month',
             'summary' => [
                 'present' => $present,
                 'absent' => $absent,
