@@ -40,7 +40,27 @@ class StudentPortalAttendanceController extends Controller
             ->where('session_id', $session->id)
             ->where('term_id', $term->id);
 
+        $month = $validated['month'] ?? now()->format('Y-m');
+        $monthStart = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+        $termStart = $term->start_date?->copy()->startOfDay();
+        $termEnd = $term->end_date?->copy()->endOfDay();
+
+        if (($termStart && $monthEnd->lt($termStart))
+            || ($termEnd && $monthStart->gt($termEnd))) {
+            return response()->json([
+                'message' => "The selected month is outside {$term->name}'s date range.",
+                'term_start_date' => $termStart?->toDateString(),
+                'term_end_date' => $termEnd?->toDateString(),
+            ], 422);
+        }
+
+        $rangeStart = $termStart && $termStart->gt($monthStart) ? $termStart : $monthStart;
+        $rangeEnd = $termEnd && $termEnd->lt($monthEnd) ? $termEnd : $monthEnd;
+        $dateRange = [$rangeStart->toDateString(), $rangeEnd->toDateString()];
+
         $statusBreakdown = (clone $query)
+            ->whereBetween('date', $dateRange)
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -51,21 +71,8 @@ class StudentPortalAttendanceController extends Controller
         $excused = (int) ($statusBreakdown['excused'] ?? 0);
         $recordedDays = $present + $absent + $late + $excused;
 
-        $month = $validated['month'] ?? now()->format('Y-m');
-        $monthStart = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
-        $monthEnd = $monthStart->copy()->endOfMonth();
-
-        if (($term->start_date && $monthEnd->lt($term->start_date->startOfDay()))
-            || ($term->end_date && $monthStart->gt($term->end_date->endOfDay()))) {
-            return response()->json([
-                'message' => "The selected month is outside {$term->name}'s date range.",
-                'term_start_date' => optional($term->start_date)->toDateString(),
-                'term_end_date' => optional($term->end_date)->toDateString(),
-            ], 422);
-        }
-
         $days = (clone $query)
-            ->whereBetween('date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->whereBetween('date', $dateRange)
             ->orderBy('date')
             ->get(['id', 'date', 'status', 'updated_at'])
             ->map(fn (Attendance $attendance) => [

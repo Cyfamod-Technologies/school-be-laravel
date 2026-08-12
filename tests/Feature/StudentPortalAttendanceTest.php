@@ -81,7 +81,7 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-it('returns only the authenticated student attendance with term and month summaries', function () {
+it('returns only the authenticated student attendance with a summary for the selected month', function () {
     $otherStudent = Student::create([
         'id' => (string) Str::uuid(),
         'school_id' => $this->school->id,
@@ -126,8 +126,9 @@ it('returns only the authenticated student attendance with term and month summar
         ->assertOk()
         ->assertJsonPath('summary.present', 1)
         ->assertJsonPath('summary.absent', 1)
-        ->assertJsonPath('summary.late', 1)
-        ->assertJsonPath('summary.recorded_days', 3)
+        ->assertJsonPath('summary.late', 0)
+        ->assertJsonPath('summary.recorded_days', 2)
+        ->assertJsonPath('summary.percentage', 50)
         ->assertJsonCount(2, 'days')
         ->assertJsonPath('days.0.date', '2026-08-03')
         ->assertJsonPath('days.1.status', 'absent');
