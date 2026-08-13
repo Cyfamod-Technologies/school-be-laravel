@@ -132,24 +132,10 @@ class ResultPinController extends Controller
             $options
         );
 
-        $pin->forceFill([
-            'sent_at' => now(),
-            'sent_by' => $request->user()->id,
-        ])->save();
-
-        $registeredDeviceCount = $student->devices()->count();
-        SendResultPinNotification::dispatch((string) $pin->id);
-
         return response()->json([
-            'message' => $registeredDeviceCount > 0
-                ? 'Result PIN generated and phone notification queued successfully.'
-                : 'Result PIN generated, but this student has no registered mobile device for phone notifications.',
-            'notification_queued' => true,
-            'phone_notification_status' => $registeredDeviceCount > 0
-                ? 'queued'
-                : 'no_registered_device',
-            'registered_device_count' => $registeredDeviceCount,
-            'data' => $this->transformPin($pin->fresh()),
+            'message' => 'Result PIN generated successfully. Use the send action to release it to the student.',
+            'notification_queued' => false,
+            'data' => $this->transformPin($pin),
         ], 201);
     }
 

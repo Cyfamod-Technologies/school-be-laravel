@@ -113,10 +113,8 @@ describe('Result PIN management', function () {
         ])->assertCreated()
             ->assertJsonPath('data.student_id', $this->student->id)
             ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.distribution_status', 'sent')
-            ->assertJsonPath('notification_queued', true)
-            ->assertJsonPath('phone_notification_status', 'no_registered_device')
-            ->assertJsonPath('registered_device_count', 0)
+            ->assertJsonPath('data.distribution_status', 'not_sent')
+            ->assertJsonPath('notification_queued', false)
             ->assertJsonPath('data.max_usage', 5);
 
         $pin = ResultPin::query()->where('student_id', $this->student->id)->first();
@@ -124,15 +122,12 @@ describe('Result PIN management', function () {
         expect($pin)->not->toBeNull()
             ->and($pin->max_usage)->toBe(5)
             ->and($pin->use_count)->toBe(0)
-            ->and($pin->sent_at)->not->toBeNull();
+            ->and($pin->sent_at)->toBeNull();
 
-        Queue::assertPushed(
-            SendResultPinNotification::class,
-            fn (SendResultPinNotification $job) => $job->resultPinId === $pin->id
-        );
+        Queue::assertNotPushed(SendResultPinNotification::class);
     });
 
-    it('releases a generated student pin immediately to the student dashboard', function () {
+    it('hides generated pins from the student until an administrator sends them', function () {
         Queue::fake();
 
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
@@ -145,8 +140,7 @@ describe('Result PIN management', function () {
 
         getJson(route('student.result-pins.index'))
             ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.distribution_status', 'sent');
+            ->assertJsonCount(0, 'data');
     });
 
     it('sends generated pins to selected student dashboards', function () {
@@ -167,8 +161,8 @@ describe('Result PIN management', function () {
             'term_id' => $this->term->id,
             'student_ids' => $selectedStudentIds,
         ])->assertOk()
-            ->assertJsonPath('sent_count', 0)
-            ->assertJsonPath('already_sent_count', 2);
+            ->assertJsonPath('sent_count', 2)
+            ->assertJsonPath('already_sent_count', 0);
 
         expect(ResultPin::query()->whereIn('student_id', $selectedStudentIds)->whereNotNull('sent_at')->count())
             ->toBe(2);
@@ -185,13 +179,10 @@ describe('Result PIN management', function () {
     });
 
     it('does not partially send class pins when generated pins are insufficient', function () {
-        ResultPin::create([
-            'student_id' => $this->student->id,
+        postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
-            'pin_code' => 'UNSENTPIN1',
-            'status' => 'active',
-        ]);
+        ])->assertCreated();
 
         postJson(route('result-pins.distribute'), [
             'session_id' => $this->session->id,
