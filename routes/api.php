@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\BroadsheetController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 use App\Http\Controllers\Api\V1\AccountLookupController;
+use App\Http\Controllers\Api\V1\QueueWorkerController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -62,6 +63,10 @@ Route::domain('{subdomain}.' . $host)->group(function () {
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
 
 Route::prefix('api/v1')->group(function () {
+    Route::post('/system/process-queue', QueueWorkerController::class)
+        ->middleware('throttle:6,1')
+        ->name('system.process-queue');
+
     Route::post('/find-account', AccountLookupController::class)
         ->middleware('throttle:20,1');
     Route::post('/register-school', [SchoolController::class, 'register']);

@@ -15,6 +15,16 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    'http_worker' => [
+        'secret' => env('QUEUE_HTTP_SECRET'),
+        'queue' => env('QUEUE_HTTP_QUEUE', 'default'),
+        'tries' => (int) env('QUEUE_HTTP_TRIES', 3),
+        'timeout' => (int) env('QUEUE_HTTP_TIMEOUT', 40),
+        'max_time' => (int) env('QUEUE_HTTP_MAX_TIME', 50),
+        'max_jobs' => (int) env('QUEUE_HTTP_MAX_JOBS', 100),
+        'lock_seconds' => (int) env('QUEUE_HTTP_LOCK_SECONDS', 75),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections
