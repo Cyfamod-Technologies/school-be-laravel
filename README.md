@@ -10,3 +10,7 @@ php artisan migrate --path=database/migrations/2026_08_12_000001_add_attendance_
 
 when Require PIN for student results
 is turned off the whole Generate Result PINs section should go off (it should not be visible on the page )
+
+curl -sS -X POST \
+  -H "X-Queue-Secret: YOUR_QUEUE_HTTP_SECRET" \
+  https://api.sprint-freight.com/api/v1/system/process-queue
