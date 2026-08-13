@@ -43,7 +43,7 @@ class SendResultPinNotification implements ShouldQueue
                 'term_id' => (string) $pin->term_id,
                 'route' => '/result-pins',
             ],
-            "result_pin:{$pin->id}:sent",
+            "result_pin:{$pin->id}:sent:".substr(hash('sha256', (string) $pin->pin_code), 0, 16),
         );
     }
 }
