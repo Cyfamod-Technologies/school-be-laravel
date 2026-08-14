@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Middleware\SwaggerBasicAuth;
-use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Tests\SwaggerTestCase;
+
+uses(SwaggerTestCase::class);
 
 function swaggerRequest(?string $username = null, ?string $password = null): Request
 {
@@ -16,11 +18,7 @@ function swaggerRequest(?string $username = null, ?string $password = null): Req
 }
 
 it('protects Swagger documentation with configured basic auth credentials', function () {
-    $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
-    $app->instance('request', swaggerRequest());
-    $app->make(Kernel::class)->bootstrap();
-
-    $middleware = $app->make(SwaggerBasicAuth::class);
+    $middleware = $this->app->make(SwaggerBasicAuth::class);
     $next = fn () => response('Swagger UI');
 
     config()->set('l5-swagger.basic_auth.username', null);
