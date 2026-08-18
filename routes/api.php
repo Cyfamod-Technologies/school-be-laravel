@@ -48,16 +48,7 @@ use App\Http\Controllers\Api\V1\TermController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\UserRoleController;
 use App\Http\Controllers\ResultViewController;
-use App\Http\Controllers\Api\V1\PasswordResetController;
-use App\Http\Controllers\Api\V1\QuizController;
-use App\Http\Controllers\Api\V1\QuizQuestionController;
-use App\Http\Controllers\Api\V1\QuizAttemptController;
-use App\Http\Controllers\Api\V1\QuizAnswerController;
-use App\Http\Controllers\Api\V1\QuizResultController;
-use App\Http\Controllers\Api\V1\PermissionSeedController;
-use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\BroadsheetController;
-use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 use App\Http\Controllers\Api\V1\AccountLookupController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
@@ -103,7 +94,6 @@ Route::prefix('api/v1')->group(function () {
                 });
             });
         });
-    });
 
     Route::prefix('students/{student}')->middleware('auth:student')->group(function () {
         Route::post('parent', [StudentAuthController::class, 'upsertParent']);
