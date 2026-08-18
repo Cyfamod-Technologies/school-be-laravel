@@ -1,5 +1,11 @@
 name: CI/CD Pipeline
 
+# NOTE: when a real `staging` branch exists, add it to both trigger
+# lists below (push and pull_request) as a second entry alongside
+# `main`. Don't add it as a commented-out placeholder before the
+# branch exists -- that's exactly how `main` ended up silently
+# disconnected from this pipeline for who knows how long: a
+# reference to a branch nobody kept in sync with reality.
 on:
   push:
     branches:
