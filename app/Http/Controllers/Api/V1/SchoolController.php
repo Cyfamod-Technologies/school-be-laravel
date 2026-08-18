@@ -612,7 +612,7 @@ class SchoolController extends Controller
             'message' => 'School profile updated successfully',
             'school' => $school->fresh([
                 'currentSession:id,name,slug,start_date,end_date,status',
-                'currentTerm:id,name,session_id,start_date,end_date,status',
+                'currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
             ]),
         ]);
     }
@@ -732,7 +732,7 @@ class SchoolController extends Controller
 
         $user->loadMissing([
             'school.currentSession:id,name,slug,start_date,end_date,status',
-            'school.currentTerm:id,name,session_id,start_date,end_date,status',
+            'school.currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
             'parents' => function ($query) {
                 $query
                     ->select([
@@ -835,7 +835,7 @@ class SchoolController extends Controller
         return response()->json([
             'school' => $school->loadMissing([
                 'currentSession:id,name,slug,start_date,end_date,status',
-                'currentTerm:id,name,session_id,start_date,end_date,status',
+                'currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
             ]),
         ]);
     }

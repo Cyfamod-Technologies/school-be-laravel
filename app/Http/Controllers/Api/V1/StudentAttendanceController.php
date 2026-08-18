@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendAttendanceNotification;
 use App\Models\Attendance;
 use App\Models\Student;
+use App\Models\Term;
 use App\Services\Teachers\TeacherAccessService;
 use App\Support\SimplePdfBuilder;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,30 @@ class StudentAttendanceController extends Controller
     private const STATUSES = ['present', 'absent', 'late', 'excused'];
 
     public function __construct(private TeacherAccessService $teacherAccess) {}
+
+    public function mode(Request $request): JsonResponse
+    {
+        $this->ensurePermission($request, 'attendance.students');
+        $term = $this->resolveAttendanceModeTerm($request);
+
+        return response()->json(['data' => $this->serializeAttendanceMode($term)]);
+    }
+
+    public function updateMode(Request $request): JsonResponse
+    {
+        $this->ensureAttendanceModeAdministrator($request);
+        $term = $this->resolveAttendanceModeTerm($request, true);
+
+        $term->attendance_entry_mode = $request->validate([
+            'attendance_entry_mode' => ['required', Rule::in(['daily', 'manual'])],
+        ])['attendance_entry_mode'];
+        $term->save();
+
+        return response()->json([
+            'message' => 'Attendance entry mode updated successfully.',
+            'data' => $this->serializeAttendanceMode($term),
+        ]);
+    }
 
     /**
      * @OA\Get(
@@ -139,7 +165,7 @@ class StudentAttendanceController extends Controller
             foreach ($studentIds as $studentId) {
                 $student = $students->get($studentId);
 
-                if (! $student || ! $scope->allowsStudent($student)) {
+                if (! $student || ! $scope->allowsClassTeacherStudent($student)) {
                     abort(403, 'You are not allowed to record attendance for one or more students.');
                 }
             }
@@ -151,6 +177,42 @@ class StudentAttendanceController extends Controller
         $classId = $validated['school_class_id'] ?? null;
         $classArmId = $validated['class_arm_id'] ?? null;
         $classSectionId = $validated['class_section_id'] ?? null;
+
+        if ($scope->isTeacher()) {
+            $school = $user->school()->with(['currentSession', 'currentTerm'])->first();
+            $currentSession = $school?->currentSession;
+            $currentTerm = $school?->currentTerm;
+            $attendanceDate = Carbon::parse($date)->startOfDay();
+
+            if (! $currentSession || ! $currentTerm) {
+                return response()->json([
+                    'message' => 'The school must set a current session and term before attendance can be recorded.',
+                ], 422);
+            }
+
+            if ($attendanceDate->isFuture()) {
+                return response()->json(['message' => 'Attendance cannot be recorded for a future date.'], 422);
+            }
+
+            if (($currentTerm->start_date && $attendanceDate->lt($currentTerm->start_date->startOfDay()))
+                || ($currentTerm->end_date && $attendanceDate->gt($currentTerm->end_date->endOfDay()))) {
+                return response()->json([
+                    'message' => 'Attendance date must be within the current term start and end dates.',
+                    'term_start_date' => optional($currentTerm->start_date)->toDateString(),
+                    'term_end_date' => optional($currentTerm->end_date)->toDateString(),
+                ], 422);
+            }
+
+            if (($sessionId && (string) $sessionId !== (string) $currentSession->id)
+                || ($termId && (string) $termId !== (string) $currentTerm->id)) {
+                return response()->json([
+                    'message' => 'Attendance session and term must match the school current academic period.',
+                ], 422);
+            }
+
+            $sessionId = $currentSession->id;
+            $termId = $currentTerm->id;
+        }
 
         $missingContext = collect();
 
@@ -172,8 +234,16 @@ class StudentAttendanceController extends Controller
             ], 422);
         }
 
+        $resolvedTermIds = $entries
+            ->map(fn (array $entry) => $termId ?? $students->get($entry['student_id'])?->current_term_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $this->ensureTermsUseDailyAttendance($user->school_id, $resolvedTermIds);
+
         $created = 0;
         $updated = 0;
+        $notificationJobs = [];
 
         DB::transaction(function () use (
             $entries,
@@ -185,18 +255,21 @@ class StudentAttendanceController extends Controller
             $classId,
             $classArmId,
             $classSectionId,
+            $scope,
             &$created,
-            &$updated
+            &$updated,
+            &$notificationJobs
         ) {
             foreach ($entries as $entry) {
                 $student = $students->get($entry['student_id']);
 
+                $teacherMode = $scope->isTeacher();
                 $payload = [
-                    'session_id' => $sessionId ?? $student->current_session_id,
-                    'term_id' => $termId ?? $student->current_term_id,
-                    'school_class_id' => $classId ?? $student->school_class_id,
-                    'class_arm_id' => $classArmId ?? $student->class_arm_id,
-                    'class_section_id' => $classSectionId ?? $student->class_section_id,
+                    'session_id' => $teacherMode ? $student->current_session_id : ($sessionId ?? $student->current_session_id),
+                    'term_id' => $teacherMode ? $student->current_term_id : ($termId ?? $student->current_term_id),
+                    'school_class_id' => $teacherMode ? $student->school_class_id : ($classId ?? $student->school_class_id),
+                    'class_arm_id' => $teacherMode ? $student->class_arm_id : ($classArmId ?? $student->class_arm_id),
+                    'class_section_id' => $teacherMode ? $student->class_section_id : ($classSectionId ?? $student->class_section_id),
                     'status' => $entry['status'],
                     'recorded_by' => $user->id,
                     'metadata' => $entry['metadata'] ?? null,
@@ -210,6 +283,14 @@ class StudentAttendanceController extends Controller
                     $payload
                 );
 
+                $attendance->notification_revision = ((int) $attendance->notification_revision) + 1;
+                $attendance->save();
+
+                $notificationJobs[] = [
+                    'id' => (string) $attendance->id,
+                    'revision' => (int) $attendance->notification_revision,
+                ];
+
                 if ($attendance->wasRecentlyCreated) {
                     $created++;
                 } else {
@@ -217,6 +298,13 @@ class StudentAttendanceController extends Controller
                 }
             }
         });
+
+        foreach ($notificationJobs as $notificationJob) {
+            SendAttendanceNotification::dispatch(
+                $notificationJob['id'],
+                $notificationJob['revision'],
+            )->delay(now()->addMinutes((int) config('services.firebase.attendance_delay_minutes', 30)));
+        }
 
         return response()->json([
             'message' => 'Attendance saved successfully.',
@@ -241,6 +329,11 @@ class StudentAttendanceController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
 
+        $this->ensureTermsUseDailyAttendance(
+            $request->user()->school_id,
+            collect([$validated['term_id'] ?? $attendance->term_id])
+        );
+
         $attendance->fill($validated);
 
         if (array_key_exists('date', $validated)) {
@@ -263,7 +356,13 @@ class StudentAttendanceController extends Controller
 
         if ($attendance->isDirty()) {
             $attendance->recorded_by = $request->user()->id;
+            $attendance->notification_revision = ((int) $attendance->notification_revision) + 1;
             $attendance->save();
+
+            SendAttendanceNotification::dispatch(
+                (string) $attendance->id,
+                (int) $attendance->notification_revision,
+            )->delay(now()->addMinutes((int) config('services.firebase.attendance_delay_minutes', 30)));
         }
 
         $attendance->loadMissing([
@@ -286,6 +385,10 @@ class StudentAttendanceController extends Controller
     {
         $this->ensurePermission($request, 'attendance.students');
         $this->authorizeAttendance($attendance, $request);
+        $this->ensureTermsUseDailyAttendance(
+            $request->user()->school_id,
+            collect([$attendance->term_id])
+        );
         $attendance->delete();
 
         return response()->json([
@@ -495,7 +598,7 @@ class StudentAttendanceController extends Controller
             ->whereHas('student', fn ($q) => $q->where('school_id', $user->school_id));
 
         $scope = $this->teacherAccess->forUser($user);
-        $scope->restrictAttendanceQuery($query);
+        $scope->restrictClassTeacherAttendanceQuery($query);
 
         return $this->applyFilters($query, $request);
     }
@@ -627,8 +730,58 @@ class StudentAttendanceController extends Controller
 
         $scope = $this->teacherAccess->forUser($user);
 
-        if ($scope->isTeacher() && ! $scope->allowsStudent($attendance->student)) {
+        if ($scope->isTeacher() && ! $scope->allowsClassTeacherStudent($attendance->student)) {
             abort(403, 'You are not authorized to modify this attendance record.');
+        }
+    }
+
+    private function resolveAttendanceModeTerm(Request $request, bool $includeMode = false): Term
+    {
+        $rules = [
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+        ];
+        if ($includeMode) {
+            $rules['attendance_entry_mode'] = ['required', Rule::in(['daily', 'manual'])];
+        }
+        $validated = $request->validate($rules);
+
+        return Term::query()
+            ->whereKey($validated['term_id'])
+            ->where('session_id', $validated['session_id'])
+            ->where('school_id', $request->user()->school_id)
+            ->firstOrFail();
+    }
+
+    private function serializeAttendanceMode(Term $term): array
+    {
+        return [
+            'session_id' => $term->session_id,
+            'term_id' => $term->id,
+            'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
+        ];
+    }
+
+    private function ensureAttendanceModeAdministrator(Request $request): void
+    {
+        $user = $request->user();
+        $role = strtolower(trim((string) ($user?->role ?? '')));
+        $isAdministrator = in_array($role, ['admin', 'super_admin', 'superadmin', 'administrator'], true)
+            || ($user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin', 'super_admin']));
+
+        abort_unless($isAdministrator, 403, 'Only a school administrator can change attendance entry mode.');
+    }
+
+    private function ensureTermsUseDailyAttendance(string $schoolId, Collection $termIds): void
+    {
+        $manualTerm = Term::query()
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $termIds->filter()->unique())
+            ->where('attendance_entry_mode', 'manual')
+            ->first();
+
+        if ($manualTerm) {
+            abort(422, 'Daily attendance is locked because Manual Summary is selected for this term.');
         }
     }
 

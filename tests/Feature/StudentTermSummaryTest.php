@@ -276,6 +276,8 @@ it('lists batch term summaries for a class', function () {
 });
 
 it('updates batch attendance summaries for multiple students', function () {
+    $this->term->update(['attendance_entry_mode' => 'manual']);
+
     $secondStudent = Student::create([
         'id' => (string) Str::uuid(),
         'school_id' => $this->school->id,
@@ -332,4 +334,18 @@ it('updates batch attendance summaries for multiple students', function () {
         ->and($secondSummary)->not->toBeNull()
         ->and($secondSummary->days_present)->toBe(44)
         ->and($secondSummary->days_absent)->toBe(3);
+});
+
+it('rejects manual attendance updates while daily register mode is active', function () {
+    putJson('/api/v1/student-term-summaries/batch', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'entries' => [[
+            'student_id' => $this->student->id,
+            'days_present' => 40,
+            'days_absent' => 3,
+        ]],
+    ])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Manual attendance is locked because Daily Register is selected for this term.');
 });

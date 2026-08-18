@@ -15,6 +15,7 @@ class SubjectAssignment extends Model
     protected $fillable = [
         'id',
         'subject_id',
+        'session_id',
         'school_class_id',
         'class_arm_id',
         'class_section_id',
@@ -23,6 +24,11 @@ class SubjectAssignment extends Model
     public function subject()
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
     }
 
     public function school_class()
