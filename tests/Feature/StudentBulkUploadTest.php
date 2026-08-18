@@ -258,6 +258,9 @@ it('auto-generates admission numbers for xlsx rows without admission numbers', f
         $this->markTestSkipped('PHP zip extension is required to generate XLSX test files.');
     }
 
+    $blankLookingAdmissionNo = '   ';
+    $zeroWidthAdmissionNo = "\u{200B}";
+
     $rows = [
         [
             'Admission No',
@@ -552,7 +555,7 @@ it('returns a friendly duplicate admission number message during commit', functi
 
     expect($commitResponse->json('message'))
         ->toContain('CSV row')
-        ->toContain('Admission number 22622 is already used')
+        ->toContain('admission number 22622 is already used')
         ->toContain('Grade 6 / None')
         ->toContain('Grade 6 / Arm B');
 });
@@ -632,7 +635,7 @@ it('returns both csv rows when the file contains duplicate admission numbers', f
         ->assertJsonCount(2, 'preview_rows');
 
     expect($response->json('message'))
-        ->toContain('This CSV contains two students with admission number 22622')
+        ->toContain('This file contains two students with admission number 22622')
         ->toContain('ABDULKADIR MUHAMMAD')
         ->toContain('ABDULKADIR SHEHU');
 });

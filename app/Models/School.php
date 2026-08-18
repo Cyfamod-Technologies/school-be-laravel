@@ -78,6 +78,7 @@ class School extends Model
 		'result_collapse_session_ca' => 'boolean',
 		'skill_categories_separate_by_class' => 'boolean',
 		'skill_types_separate_by_class' => 'boolean',
+		'activated' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -283,5 +284,10 @@ class School extends Model
 	public function bankDetails()
 	{
 		return $this->hasMany(BankDetail::class);
+	}
+
+	public function website(): HasOne
+	{
+		return $this->hasOne(SchoolWebsite::class);
 	}
 }

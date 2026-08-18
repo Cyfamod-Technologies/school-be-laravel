@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\School;
+use Carbon\Carbon;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Staff;
@@ -56,9 +57,16 @@ beforeEach(function () {
         'slug' => 'b',
     ]);
 
+    $this->teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'teacher',
+        'status' => 'active',
+    ]);
+
     $this->teacher = Staff::create([
         'id' => (string) Str::uuid(),
         'school_id' => $this->school->id,
+        'user_id' => $this->teacherUser->id,
         'staff_no' => 'STF-1001',
         'full_name' => 'Nursery Teacher',
         'email' => 'teacher@example.com',
@@ -73,6 +81,9 @@ beforeEach(function () {
         'id' => (string) Str::uuid(),
         'school_id' => $this->school->id,
         'name' => '2026/2027',
+        'slug' => '2026-2027',
+        'start_date' => Carbon::parse('2026-09-01'),
+        'end_date' => Carbon::parse('2027-07-31'),
     ]);
 
     $this->term = Term::create([
@@ -80,6 +91,9 @@ beforeEach(function () {
         'school_id' => $this->school->id,
         'session_id' => $this->session->id,
         'name' => 'First Term',
+        'slug' => 'first-term',
+        'start_date' => Carbon::parse('2026-09-01'),
+        'end_date' => Carbon::parse('2026-12-15'),
     ]);
 
     $this->subjectA = Subject::create([

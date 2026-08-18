@@ -105,6 +105,8 @@ beforeEach(function () {
             'assessment_component_id' => null,
             'session_id' => $this->session->id,
             'term_id' => $this->terms[$index]->id,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->classArm->id,
             'total_score' => $score,
             'remarks' => 'Pass',
         ]);
@@ -135,6 +137,8 @@ it('renders the session result print layout without affecting term result printi
             'assessment_component_id' => $component->id,
             'session_id' => $this->session->id,
             'term_id' => $this->terms->first()->id,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->classArm->id,
             'total_score' => $componentData['score'],
         ]);
     });
@@ -144,9 +148,9 @@ it('renders the session result print layout without affecting term result printi
         ->assertSeeText('Session Result Sheet')
         ->assertSeeText('2025/2026 Session')
         ->assertSeeText('Mathematics')
-        ->assertSeeText('1st Term')
-        ->assertSeeText('2nd Term')
-        ->assertSeeText('3rd Term')
+        ->assertSeeText('1ST TERM')
+        ->assertSeeText('2ND TERM')
+        ->assertSeeText('3RD TERM')
         ->assertSee('<th>CA</th>', false)
         ->assertSee('<th>EXAMINATION</th>', false)
         ->assertDontSee('<th>CONTINUOUS ASSESSMENT 1</th>', false)
@@ -168,7 +172,7 @@ it('shows the first term resumption date from the next session on a third term r
         'slug' => '2026-2027-session',
         'start_date' => now()->addMonths(2),
         'end_date' => now()->addYear(),
-        'status' => 'pending',
+        'status' => 'upcoming',
     ]);
 
     $resumptionDate = now()->addMonths(2)->startOfDay();
@@ -182,7 +186,7 @@ it('shows the first term resumption date from the next session on a third term r
         'slug' => '1st-term-2026-2027',
         'start_date' => $resumptionDate,
         'end_date' => $resumptionDate->copy()->addMonths(3),
-        'status' => 'pending',
+        'status' => 'upcoming',
     ]);
 
     get("/api/v1/students/{$this->student->id}/results/print?session_id={$this->session->id}&term_id={$this->terms->last()->id}")
@@ -214,6 +218,8 @@ it('allows each term to opt out of configured position ranges', function () {
         'assessment_component_id' => null,
         'session_id' => $this->session->id,
         'term_id' => $this->terms->last()->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->classArm->id,
         'total_score' => 70,
         'remarks' => 'Pass',
     ]);

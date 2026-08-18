@@ -7,6 +7,7 @@ use App\Models\PromotionLog;
 use App\Models\Result;
 use App\Models\SchoolClass;
 use App\Models\Session;
+use App\Models\Student;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;

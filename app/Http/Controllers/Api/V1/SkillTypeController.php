@@ -9,6 +9,7 @@ use App\Models\SkillType;
 use App\Support\SkillScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * @OA\Tag(

@@ -1,5 +1,14 @@
 name: CI/CD Pipeline
 
+# TODO: when a real `staging` branch exists, add it to both trigger
+# lists below (push and pull_request). Don't add it as a
+# commented-out placeholder before the branch exists -- that's
+# exactly how `main` ended up silently disconnected from this
+# pipeline for who knows how long: a reference to a branch nobody
+# kept in sync with reality. When staging is real, its deploy step
+# also needs its own target (SSH secrets pointed at a staging server,
+# not the production one `main` deploys to) -- adding the branch to
+# the trigger alone is not enough.
 on:
   push:
     branches:
@@ -32,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
