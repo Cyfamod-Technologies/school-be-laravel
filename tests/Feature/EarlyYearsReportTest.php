@@ -83,7 +83,11 @@ beforeEach(function () {
         'student_id' => $this->student->id,
         'session_id' => $this->session->id,
         'term_id' => $this->term->id,
+        'total_marks_obtained' => 440,
+        'total_marks_possible' => 500,
         'average_score' => 88,
+        'position_in_class' => 1,
+        'class_average_score' => 75,
         'overall_comment' => 'Ada is doing well in class.',
         'principal_comment' => 'Excellent progress this term.',
     ]);
@@ -92,7 +96,7 @@ beforeEach(function () {
 it('shows the director or principal comment on the early years report', function () {
     get("/api/v1/students/{$this->student->id}/early-years-report/print?session_id={$this->session->id}&term_id={$this->term->id}")
         ->assertOk()
-        ->assertSeeText("Director's Comment:")
+        ->assertSeeText("Director's Comment:", false)
         ->assertSeeText('Excellent progress this term.')
         ->assertSeeText('Mrs Director');
 });

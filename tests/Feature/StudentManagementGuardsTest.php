@@ -311,9 +311,15 @@ it('allows an assigned class teacher to open student details without a separate 
 });
 
 it('resolves legacy students before repairing invalid foreign keys', function () {
+    // Simulates pre-existing corrupted data from before the FK constraint
+    // on class_section_id existed. FK checks have to be dropped for this
+    // one write -- the constraint itself is what correctly stops a value
+    // like '0' from ever being written under normal operation.
+    DB::statement('SET FOREIGN_KEY_CHECKS=0');
     DB::table('students')
         ->where('id', $this->student->id)
         ->update(['class_section_id' => '0']);
+    DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
     expect(Student::query()->whereKey($this->student->id)->exists())->toBeFalse();
 

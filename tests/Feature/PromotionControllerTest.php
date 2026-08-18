@@ -79,7 +79,7 @@ describe('PromotionController', function () {
             'slug' => 'first-term',
             'start_date' => now()->addMonths(5),
             'end_date' => now()->addMonths(8),
-            'status' => 'planned',
+            'status' => 'upcoming',
         ]);
 
         $this->class = SchoolClass::create([
@@ -230,9 +230,12 @@ describe('PromotionController', function () {
             ->assertOk()
             ->assertJsonPath('data.0.id', $resultId);
 
+        // The student was just promoted out of the source class, so their
+        // current roster placement -- not the old one -- is what should
+        // now show them. The source class still has its other students.
         getJson('/api/v1/students?'.http_build_query([
-            'session_id' => $this->sourceSession->id,
-            'school_class_id' => $this->class->id,
+            'session_id' => $this->targetSession->id,
+            'school_class_id' => $this->nextClass->id,
         ]))
             ->assertOk()
             ->assertJsonPath('data.0.id', $student->id);
