@@ -3,13 +3,29 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      # - main
-      - staging
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   ci:
     name: Run Tests (CI)
     runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MYSQL_ROOT_PASSWORD: 1ncrease
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -p1ncrease --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - name: Checkout Code
@@ -23,21 +39,24 @@ jobs:
           coverage: none
 
       - name: Install Dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest
+        run: composer install --prefer-dist --no-progress
 
-      - name: Copy .env
-        run: cp .env.prod .env
+      - name: Prepare environment
+        run: |
+          cp .env.testing .env
+          php artisan key:generate
 
-      - name: Generate Application Key
-        run: php artisan key:generate
+      - name: Run migrations
+        run: php artisan migrate --force
 
-      # - name: Run Tests
-      #   run: php artisan test
+      - name: Run Tests
+        run: php artisan test
 
   cd:
     name: Deploy to Server (CD)
     runs-on: ubuntu-latest
     needs: ci  # Only runs if CI passes
+    if: github.event_name == 'push'
 
     steps:
       - name: Deploy via SSH
@@ -50,5 +69,5 @@ jobs:
           script: |
             cd /home/ubuntu/school-be-php
             git checkout -- storage/api-docs/api-docs.json
-            git pull 
+            git pull
             docker restart school-be
