@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendResultPinNotification;
 use App\Models\ResultPin;
 use App\Models\School;
 use App\Models\SchoolClass;
@@ -143,7 +144,8 @@ class ResultPinController extends Controller
         );
 
         return response()->json([
-            'message' => 'Result PIN generated successfully.',
+            'message' => 'Result PIN generated successfully. Use the send action to release it to the student.',
+            'notification_queued' => false,
             'data' => $this->transformPin($pin),
         ], 201);
     }
@@ -374,6 +376,10 @@ class ResultPinController extends Controller
         });
 
         $sentPins = $available->map(fn (ResultPin $pin) => $pin->fresh());
+
+        foreach ($sentPins as $sentPin) {
+            SendResultPinNotification::dispatch((string) $sentPin->id);
+        }
 
         return response()->json([
             'message' => "Result PINs were successfully sent to {$sentPins->count()} students.",

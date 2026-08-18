@@ -163,6 +163,62 @@ class TeacherAssignmentScope
         });
     }
 
+    /**
+     * Restrict attendance to classes where this staff member is the assigned
+     * class teacher. Subject-teacher assignments deliberately do not grant
+     * daily register access.
+     */
+    public function restrictClassTeacherAttendanceQuery(Builder $builder): void
+    {
+        if (! $this->isTeacher) {
+            return;
+        }
+
+        $contexts = $this->classTeacherStudentContexts();
+
+        if ($contexts->isEmpty()) {
+            $builder->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $builder->where(function (Builder $outer) use ($contexts) {
+            foreach ($contexts as $context) {
+                $outer->orWhere(function (Builder $attendanceQuery) use ($context) {
+                    $attendanceQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $attendanceQuery->where('session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $attendanceQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $attendanceQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+
+                $outer->orWhereHas('student', function (Builder $studentQuery) use ($context) {
+                    $studentQuery->where('school_class_id', $context['school_class_id']);
+
+                    if ($context['session_id']) {
+                        $studentQuery->where('current_session_id', $context['session_id']);
+                    }
+
+                    if ($context['class_arm_id']) {
+                        $studentQuery->where('class_arm_id', $context['class_arm_id']);
+                    }
+
+                    if ($context['class_section_id']) {
+                        $studentQuery->where('class_section_id', $context['class_section_id']);
+                    }
+                });
+            }
+        });
+    }
+
     public function restrictResultQuery(Builder $builder): void
     {
         if (! $this->isTeacher) {
@@ -189,7 +245,6 @@ class TeacherAssignmentScope
                     if ($assignment->session_id) {
                         $clause->where('session_id', $assignment->session_id);
                     }
-
 
                     $studentIds = $this->assignmentStudentIds($assignment);
                     if ($studentIds->isNotEmpty()) {
@@ -275,7 +330,7 @@ class TeacherAssignmentScope
         }
 
         $matchingAssignments = $this->subjectAssignments
-            ->filter(function (SubjectTeacherAssignment $assignment) use ($subjectId, $sessionId, $termId, $student) {
+            ->filter(function (SubjectTeacherAssignment $assignment) use ($subjectId, $sessionId, $student) {
                 if ((string) $assignment->subject_id !== (string) $subjectId) {
                     return false;
                 }
@@ -289,6 +344,7 @@ class TeacherAssignmentScope
                 if ($sessionId && $assignment->session_id && $assignment->session_id !== $sessionId) {
                     return false;
                 }
+
                 return true;
             })
             ->values();
@@ -394,7 +450,11 @@ class TeacherAssignmentScope
                 // If this is a class teacher assignment, fetch all subjects for the class
                 if ($entry['is_class_teacher'] && $entry['class']) {
                     $classId = $entry['class']['id'];
-                    $classSubjects = \App\Models\SchoolClass::find($classId)?->subjects ?? collect();
+                    $classSubjects = \App\Models\Subject::query()
+                        ->whereHas('assignments', fn (Builder $query) => $query
+                            ->where('school_class_id', $classId)
+                            ->where('session_id', $entry['session']['id'] ?? null))
+                        ->get();
 
                     foreach ($classSubjects as $subject) {
                         // Only add if not already present (subject teacher assignments take precedence)

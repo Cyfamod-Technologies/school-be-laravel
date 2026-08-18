@@ -85,8 +85,11 @@ class SubjectController extends Controller
             $classAssignments = $scope->classAssignments();
             foreach ($classAssignments as $classAssignment) {
                 if ($classAssignment->school_class_id) {
-                    $classSubjects = \App\Models\SchoolClass::find($classAssignment->school_class_id)?->subjects ?? collect();
-                    $classSubjectIds = $classSubjects->pluck('id')->filter();
+                    $classSubjectIds = \App\Models\SubjectAssignment::query()
+                        ->where('school_class_id', $classAssignment->school_class_id)
+                        ->where('session_id', $classAssignment->session_id)
+                        ->pluck('subject_id')
+                        ->filter();
                     $allowedSubjectIds = $allowedSubjectIds->merge($classSubjectIds);
                 }
             }

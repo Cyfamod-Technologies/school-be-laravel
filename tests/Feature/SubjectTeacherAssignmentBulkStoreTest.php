@@ -1,17 +1,17 @@
 <?php
 
+use App\Models\ClassArm;
+use App\Models\ClassTeacher;
 use App\Models\School;
 use Carbon\Carbon;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Staff;
-use App\Models\SubjectAssignment;
 use App\Models\Subject;
+use App\Models\SubjectAssignment;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
-use App\Models\ClassArm;
-use App\Models\ClassTeacher;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -286,6 +286,7 @@ it('marks only subject teacher subjects as editable when a teacher is also a cla
         SubjectAssignment::create([
             'id' => (string) Str::uuid(),
             'subject_id' => $subject->id,
+            'session_id' => $this->session->id,
             'school_class_id' => $this->class->id,
             'class_arm_id' => $this->armA->id,
             'class_section_id' => null,

@@ -94,12 +94,14 @@ beforeEach(function () {
     SubjectAssignment::create([
         'id' => (string) Str::uuid(),
         'subject_id' => $this->math->id,
+        'session_id' => $this->session->id,
         'school_class_id' => $this->classA->id,
     ]);
 
     SubjectAssignment::create([
         'id' => (string) Str::uuid(),
         'subject_id' => $this->english->id,
+        'session_id' => $this->session->id,
         'school_class_id' => $this->classA->id,
     ]);
 

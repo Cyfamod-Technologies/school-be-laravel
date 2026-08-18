@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SendAttendanceNotification;
 use App\Models\Attendance;
 use App\Models\ClassArm;
 use App\Models\School;
@@ -12,11 +13,13 @@ use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
 beforeEach(function () {
     $this->school = School::factory()->create();
@@ -116,8 +119,9 @@ beforeEach(function () {
         'employment_start_date' => Carbon::parse('2022-01-01'),
     ]);
 });
-
 it('records student attendance and updates duplicates', function () {
+    Queue::fake();
+
     postJson(route('attendance.students.store'), [
         'date' => '2025-10-20',
         'session_id' => $this->session->id,
@@ -151,7 +155,42 @@ it('records student attendance and updates duplicates', function () {
         ->assertJsonPath('updated', 1);
 
     expect(Attendance::where('student_id', $this->student->id)->count())->toBe(1)
-        ->and(Attendance::where('student_id', $this->student->id)->value('status'))->toBe('late');
+        ->and(Attendance::where('student_id', $this->student->id)->value('status'))->toBe('late')
+        ->and(Attendance::where('student_id', $this->student->id)->value('notification_revision'))->toBe(2);
+
+    Queue::assertPushed(SendAttendanceNotification::class, 2);
+    Queue::assertPushed(fn (SendAttendanceNotification $job) => $job->revision === 2 && $job->delay !== null);
+});
+
+it('lets an administrator switch term attendance mode and locks daily writes', function () {
+    getJson(route('attendance.mode.show', [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]))
+        ->assertOk()
+        ->assertJsonPath('data.attendance_entry_mode', 'daily');
+
+    putJson(route('attendance.mode.update'), [
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'attendance_entry_mode' => 'manual',
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.attendance_entry_mode', 'manual');
+
+    postJson(route('attendance.students.store'), [
+        'date' => '2025-10-20',
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'entries' => [[
+            'student_id' => $this->student->id,
+            'status' => 'present',
+        ]],
+    ])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Daily attendance is locked because Manual Summary is selected for this term.');
+
+    expect(Attendance::query()->where('student_id', $this->student->id)->exists())->toBeFalse();
 });
 
 it('returns student attendance reports with status breakdowns', function () {

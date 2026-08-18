@@ -64,7 +64,7 @@ class ClassArm extends Model
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'subject_school_class_assignments', 'class_arm_id', 'subject_id')
-            ->withPivot(['id', 'school_class_id', 'class_section_id'])
+            ->withPivot(['id', 'session_id', 'school_class_id', 'class_section_id'])
             ->withTimestamps();
     }
 }

@@ -11,8 +11,8 @@ use App\Models\Student;
 use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
-use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 class BroadsheetController extends Controller
@@ -60,6 +60,7 @@ class BroadsheetController extends Controller
         // Subjects assigned to this class (optionally filtered by arm)
         $subjectQuery = SubjectAssignment::query()
             ->with('subject:id,name,code')
+            ->where('session_id', $validated['session_id'])
             ->where('school_class_id', $validated['school_class_id']);
 
         if (! empty($validated['class_arm_id'])) {
@@ -147,12 +148,12 @@ class BroadsheetController extends Controller
             })->count();
 
             return [
-                'sno'        => $index + 1,
-                'student'    => $student,
-                'scores'     => $subjectScores,
-                'average'    => $summary?->average_score !== null ? number_format((float) $summary->average_score, 1) : '',
-                'position'   => $summary?->position_in_class ?? '',
-                'passes'     => $passes,
+                'sno' => $index + 1,
+                'student' => $student,
+                'scores' => $subjectScores,
+                'average' => $summary?->average_score !== null ? number_format((float) $summary->average_score, 1) : '',
+                'position' => $summary?->position_in_class ?? '',
+                'passes' => $passes,
             ];
         });
 

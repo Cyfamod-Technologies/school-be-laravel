@@ -88,7 +88,7 @@ class SchoolClass extends Model
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'subject_school_class_assignments')
-            ->withPivot(['id', 'class_arm_id', 'class_section_id'])
+            ->withPivot(['id', 'session_id', 'class_arm_id', 'class_section_id'])
             ->withTimestamps();
     }
 }

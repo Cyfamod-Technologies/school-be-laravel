@@ -619,6 +619,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                     SubjectAssignment::create([
                         'id' => (string) Str::uuid(),
                         'subject_id' => $subject->id,
+                        'session_id' => $this->school?->current_session_id,
                         'school_class_id' => $class->id,
                         'class_arm_id' => null,
                         'class_section_id' => null,
@@ -633,6 +634,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                                 SubjectAssignment::create([
                                     'id' => (string) Str::uuid(),
                                     'subject_id' => $subject->id,
+                                    'session_id' => $this->school?->current_session_id,
                                     'school_class_id' => $class->id,
                                     'class_arm_id' => $arm->id,
                                     'class_section_id' => null,
@@ -644,6 +646,7 @@ class ComprehensiveSchoolSeeder extends Seeder
                             SubjectAssignment::create([
                                 'id' => (string) Str::uuid(),
                                 'subject_id' => $subject->id,
+                                'session_id' => $this->school?->current_session_id,
                                 'school_class_id' => $class->id,
                                 'class_arm_id' => $arm->id,
                                 'class_section_id' => null,

@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SendResultPinNotification;
 use App\Models\ClassArm;
 use App\Models\ResultPin;
 use App\Models\School;
@@ -9,6 +10,7 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -102,6 +104,8 @@ describe('Result PIN management', function () {
     });
 
     it('generates a result pin for a student', function () {
+        Queue::fake();
+
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
@@ -110,16 +114,22 @@ describe('Result PIN management', function () {
             ->assertJsonPath('data.student_id', $this->student->id)
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.distribution_status', 'not_sent')
+            ->assertJsonPath('notification_queued', false)
             ->assertJsonPath('data.max_usage', 5);
 
         $pin = ResultPin::query()->where('student_id', $this->student->id)->first();
 
         expect($pin)->not->toBeNull()
             ->and($pin->max_usage)->toBe(5)
-            ->and($pin->use_count)->toBe(0);
+            ->and($pin->use_count)->toBe(0)
+            ->and($pin->sent_at)->toBeNull();
+
+        Queue::assertNotPushed(SendResultPinNotification::class);
     });
 
     it('hides generated pins from the student until an administrator sends them', function () {
+        Queue::fake();
+
         postJson(route('students.result-pins.store', ['student' => $this->student->id]), [
             'session_id' => $this->session->id,
             'term_id' => $this->term->id,
@@ -134,6 +144,8 @@ describe('Result PIN management', function () {
     });
 
     it('sends generated pins to selected student dashboards', function () {
+        Queue::fake();
+
         foreach ($this->students->take(2) as $student) {
             postJson(route('students.result-pins.store', ['student' => $student->id]), [
                 'session_id' => $this->session->id,
@@ -154,6 +166,8 @@ describe('Result PIN management', function () {
 
         expect(ResultPin::query()->whereIn('student_id', $selectedStudentIds)->whereNotNull('sent_at')->count())
             ->toBe(2);
+
+        Queue::assertPushed(SendResultPinNotification::class, 2);
 
         Sanctum::actingAs($this->student, [], 'student');
 

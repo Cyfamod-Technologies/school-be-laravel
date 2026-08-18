@@ -38,6 +38,7 @@ class Attendance extends Model
     protected $casts = [
         'date' => 'date',
         'metadata' => 'array',
+        'notification_revision' => 'integer',
     ];
 
     protected $fillable = [
@@ -51,6 +52,7 @@ class Attendance extends Model
         'status',
         'recorded_by',
         'metadata',
+        'notification_revision',
     ];
 
     public function session()
