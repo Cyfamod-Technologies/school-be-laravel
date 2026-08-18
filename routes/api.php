@@ -67,6 +67,11 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
     Route::post('/password/forgot', [PasswordResetController::class, 'request']);
     Route::post('/password/reset', [PasswordResetController::class, 'reset']);
+    Route::get('/public/schools/resolve-domain', [PublicSchoolWebsiteController::class, 'resolveDomain'])->name('public.schools.resolve-domain');
+    Route::get('/public/schools/{schoolSlug}/website', [PublicSchoolWebsiteController::class, 'show'])->name('public.schools.website.show');
+    Route::get('/public/schools/{schoolSlug}/website/preview', [PublicSchoolWebsiteController::class, 'preview'])
+        ->middleware('signed')
+        ->name('public.schools.website.preview');
 
         Route::prefix('student')->group(function () {
             Route::post('login', [StudentAuthController::class, 'login']);
