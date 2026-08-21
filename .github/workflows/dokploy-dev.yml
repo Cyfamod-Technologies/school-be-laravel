@@ -1,0 +1,1298 @@
+name: Build and Deploy Application
+
+on:
+  push:
+    branches:
+      - dev
+
+  pull_request:
+    branches:
+      - dev
+
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.repository_id }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+  SERVER_ENV_FILE: ${{ vars.SERVER_ENV_FILE }}
+  DOCKERFILE_PATH: ${{ vars.DOCKERFILE_PATH }}
+  BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT }}
+
+  DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+
+  DOKPLOY_API_BASE_URL: http://127.0.0.1:3000/api
+
+  LOCAL_REGISTRY: 127.0.0.1:5000
+  LOCAL_REGISTRY_SERVICE: dokploy-local-registry
+  LOCAL_REGISTRY_VOLUME: dokploy-local-registry-data
+  LOCAL_REGISTRY_SOURCE_IMAGE: registry:2
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Application
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DOKPLOY_APPLICATION_ID:?Repository secret DOKPLOY_APPLICATION_ID is missing}"
+
+          RAW_IMAGE_NAME="${IMAGE_NAME:-${GITHUB_REPOSITORY##*/}}"
+
+          IMAGE_NAME=$(
+            printf '%s' "$RAW_IMAGE_NAME" |
+              tr '[:upper:]' '[:lower:]' |
+              sed \
+                -e 's/[^a-z0-9._/-]/-/g' \
+                -e 's/--*/-/g' \
+                -e 's/^-//' \
+                -e 's/-$//'
+          )
+
+          DOCKERFILE_PATH="${DOCKERFILE_PATH:-infra/Dockerfile}"
+          BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
+
+          if [ -z "$IMAGE_NAME" ]; then
+            echo "IMAGE_NAME resolved to an empty value."
+            exit 1
+          fi
+
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9._/-]+$ ]]; then
+            echo "IMAGE_NAME contains unsupported characters:"
+            echo "$IMAGE_NAME"
+            exit 1
+          fi
+
+          if [[ ! "$DOKPLOY_APPLICATION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "DOKPLOY_APPLICATION_ID contains unsupported characters."
+            exit 1
+          fi
+
+          if [[ -n "$SERVER_ENV_FILE" && "$SERVER_ENV_FILE" != /* ]]; then
+            echo "SERVER_ENV_FILE must be an absolute path."
+            echo "Current value: $SERVER_ENV_FILE"
+            exit 1
+          fi
+
+          if [[ "$DOCKERFILE_PATH" = /* ]] ||
+             [[ "$DOCKERFILE_PATH" == *".."* ]]; then
+            echo "DOCKERFILE_PATH must be a safe repository-relative path."
+            echo "Current value: $DOCKERFILE_PATH"
+            exit 1
+          fi
+
+          if [[ "$BUILD_CONTEXT" = /* ]] ||
+             [[ "$BUILD_CONTEXT" == *".."* ]]; then
+            echo "BUILD_CONTEXT must be a safe repository-relative path."
+            echo "Current value: $BUILD_CONTEXT"
+            exit 1
+          fi
+
+          if [ ! -f "$DOCKERFILE_PATH" ]; then
+            echo "Dockerfile was not found:"
+            echo "$DOCKERFILE_PATH"
+            exit 1
+          fi
+
+          if [ ! -d "$BUILD_CONTEXT" ]; then
+            echo "Docker build context was not found:"
+            echo "$BUILD_CONTEXT"
+            exit 1
+          fi
+
+          echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
+          echo "DOCKERFILE_PATH=$DOCKERFILE_PATH" >> "$GITHUB_ENV"
+          echo "BUILD_CONTEXT=$BUILD_CONTEXT" >> "$GITHUB_ENV"
+
+          echo "Deployment configuration is valid."
+          echo "Image name: $IMAGE_NAME"
+          echo "Dockerfile: $DOCKERFILE_PATH"
+          echo "Build context: $BUILD_CONTEXT"
+          echo "Environment file: $SERVER_ENV_FILE"
+          echo "Dokploy application ID: $DOKPLOY_APPLICATION_ID"
+
+      - name: Generate image metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BRANCH_SLUG=$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+          IMAGE_TAG="${BRANCH_SLUG}-${SHORT_SHA}"
+          FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+          LATEST_IMAGE="${IMAGE_NAME}:latest"
+          LOCAL_REGISTRY_IMAGE="${LOCAL_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          echo "FULL_IMAGE=${FULL_IMAGE}" >> "$GITHUB_ENV"
+          echo "LATEST_IMAGE=${LATEST_IMAGE}" >> "$GITHUB_ENV"
+          echo "LOCAL_REGISTRY_IMAGE=${LOCAL_REGISTRY_IMAGE}" >> "$GITHUB_ENV"
+
+          echo "Image tag: $IMAGE_TAG"
+          echo "Build image: $FULL_IMAGE"
+          echo "Registry image: $LOCAL_REGISTRY_IMAGE"
+
+      - name: Build Docker image
+        shell: bash
+        env:
+          DOCKER_BUILD_ARGS: ${{ secrets.DOCKER_BUILD_ARGS }}
+        run: |
+          set -euo pipefail
+
+          BUILD_ARGUMENTS=()
+
+          if [ -n "${DOCKER_BUILD_ARGS:-}" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              line="${line%$'\r'}"
+
+              if [[ "$line" =~ ^[[:space:]]*$ ]] ||
+                 [[ "$line" =~ ^[[:space:]]*# ]]; then
+                continue
+              fi
+
+              if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=.*$ ]]; then
+                echo "Invalid DOCKER_BUILD_ARGS entry."
+                echo "Use one KEY=value entry per line."
+                exit 1
+              fi
+
+              BUILD_ARGUMENTS+=(
+                --build-arg "$line"
+              )
+            done <<< "$DOCKER_BUILD_ARGS"
+
+            echo "Build arguments configured: ${#BUILD_ARGUMENTS[@]}"
+          else
+            echo "No optional Docker build arguments configured."
+          fi
+
+          docker build \
+            --platform linux/amd64 \
+            --file "$DOCKERFILE_PATH" \
+            "${BUILD_ARGUMENTS[@]}" \
+            --tag "$FULL_IMAGE" \
+            --tag "$LATEST_IMAGE" \
+            "$BUILD_CONTEXT"
+
+      - name: Verify built image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker image inspect "$FULL_IMAGE" >/dev/null
+          docker image inspect "$LATEST_IMAGE" >/dev/null
+
+          IMAGE_ARCHITECTURE=$(
+            docker image inspect "$FULL_IMAGE" \
+              --format '{{.Architecture}}'
+          )
+
+          IMAGE_OS=$(
+            docker image inspect "$FULL_IMAGE" \
+              --format '{{.Os}}'
+          )
+
+          echo "Image architecture: $IMAGE_ARCHITECTURE"
+          echo "Image operating system: $IMAGE_OS"
+
+          if [ "$IMAGE_ARCHITECTURE" != "amd64" ]; then
+            echo "Expected an amd64 image."
+            exit 1
+          fi
+
+          if [ "$IMAGE_OS" != "linux" ]; then
+            echo "Expected a Linux image."
+            exit 1
+          fi
+
+          echo "Successfully built:"
+          docker image ls "$IMAGE_NAME"
+
+      - name: Install SSH tools
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install --yes openssh-client
+
+      - name: Validate deployment secrets
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          : "${SSH_HOST:?SSH_HOST repository secret is missing}"
+          : "${SSH_USER:?SSH_USER repository secret is missing}"
+          : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY repository secret is missing}"
+          : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY repository secret is missing}"
+          : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID repository secret is missing}"
+
+          echo "Required deployment secrets are available."
+
+      - name: Configure SSH host
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          ssh-keyscan \
+            -T 15 \
+            -H "$SSH_HOST" \
+            >> "$HOME/.ssh/known_hosts"
+
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Load SSH private key
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" | ssh-add -
+
+      - name: Test SSH and Docker Swarm
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            "$SSH_USER@$SSH_HOST" \
+            "set -e;
+             echo 'SSH connection successful';
+             hostname;
+             whoami;
+             docker info --format 'Docker server version: {{.ServerVersion}}';
+             docker info --format 'Swarm state: {{.Swarm.LocalNodeState}}';
+             docker info --format 'Swarm manager: {{.Swarm.ControlAvailable}}'"
+
+      - name: Validate server environment file
+        if: github.event_name != 'pull_request' && vars.SERVER_ENV_FILE != ''
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            "$SSH_USER@$SSH_HOST" \
+            "ENV_FILE='$SERVER_ENV_FILE' bash -s" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "Environment file does not exist:"
+            echo "$ENV_FILE"
+            exit 1
+          fi
+
+          if [ ! -r "$ENV_FILE" ]; then
+            echo "Environment file is not readable:"
+            echo "$ENV_FILE"
+            exit 1
+          fi
+
+          if [ ! -s "$ENV_FILE" ]; then
+            echo "Environment file is empty:"
+            echo "$ENV_FILE"
+            exit 1
+          fi
+
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "python3 is required on the Dokploy server."
+            exit 1
+          fi
+
+          python3 - "$ENV_FILE" <<'PY'
+          import re
+          import sys
+
+          path = sys.argv[1]
+          key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+          first_lines = {}
+          last_lines = {}
+          duplicates = set()
+          entry_count = 0
+
+          with open(path, "r", encoding="utf-8-sig") as file:
+              for line_number, raw_line in enumerate(file, start=1):
+                  line = raw_line.rstrip("\r\n")
+
+                  if not line.strip():
+                      continue
+
+                  if line.lstrip().startswith("#"):
+                      continue
+
+                  if "=" not in line:
+                      print(
+                          f"Invalid environment entry on line "
+                          f"{line_number}: expected KEY=value"
+                      )
+                      sys.exit(1)
+
+                  key, _ = line.split("=", 1)
+
+                  if not key_pattern.fullmatch(key):
+                      print(
+                          f"Invalid environment variable name "
+                          f"on line {line_number}: {key}"
+                      )
+                      sys.exit(1)
+
+                  entry_count += 1
+
+                  if key in first_lines:
+                      duplicates.add(key)
+                  else:
+                      first_lines[key] = line_number
+
+                  last_lines[key] = line_number
+
+          if entry_count == 0:
+              print(f"No environment variables were found in {path}.")
+              sys.exit(1)
+
+          print("Environment file is valid.")
+          print(f"Total entries: {entry_count}")
+          print(f"Unique variables: {len(first_lines)}")
+
+          if duplicates:
+              print("Duplicate variables detected; final occurrence wins:")
+
+              for key in sorted(duplicates):
+                  print(
+                      f"  - {key}: first line {first_lines[key]}, "
+                      f"last line {last_lines[key]}"
+                  )
+          else:
+              print("No duplicate environment variables detected.")
+          PY
+          REMOTE_SCRIPT
+
+      - name: Transfer and load Docker image
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          echo "Transferring application image to the Dokploy server..."
+          echo "Image: $FULL_IMAGE"
+
+          docker save \
+            "$FULL_IMAGE" \
+            "$LATEST_IMAGE" |
+            gzip -1 |
+            ssh \
+              -o ConnectTimeout=15 \
+              -o ConnectionAttempts=1 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=10 \
+              "$SSH_USER@$SSH_HOST" \
+              "gunzip | docker load"
+
+          echo "Docker image transferred successfully."
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            "$SSH_USER@$SSH_HOST" \
+            "set -e;
+             docker image inspect '$FULL_IMAGE' >/dev/null;
+             docker image inspect '$LATEST_IMAGE' >/dev/null;
+             echo 'Transferred image verified on the server.'"
+
+      - name: Publish image to local registry
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=10 \
+            "$SSH_USER@$SSH_HOST" \
+            "FULL_IMAGE='$FULL_IMAGE' \
+             IMAGE_NAME='$IMAGE_NAME' \
+             IMAGE_TAG='$IMAGE_TAG' \
+             LOCAL_REGISTRY_IMAGE='$LOCAL_REGISTRY_IMAGE' \
+             LOCAL_REGISTRY='$LOCAL_REGISTRY' \
+             LOCAL_REGISTRY_SERVICE='$LOCAL_REGISTRY_SERVICE' \
+             LOCAL_REGISTRY_VOLUME='$LOCAL_REGISTRY_VOLUME' \
+             LOCAL_REGISTRY_SOURCE_IMAGE='$LOCAL_REGISTRY_SOURCE_IMAGE' \
+             bash -s" <<'REGISTRY_SCRIPT'
+          set -Eeuo pipefail
+
+          echo "============================================"
+          echo "Preparing local Docker registry"
+          echo "============================================"
+          echo "Registry: $LOCAL_REGISTRY"
+          echo "Registry service: $LOCAL_REGISTRY_SERVICE"
+          echo "Registry image: $LOCAL_REGISTRY_IMAGE"
+          echo
+
+          if ! command -v curl >/dev/null 2>&1; then
+            echo "curl is required on the Dokploy server."
+            exit 1
+          fi
+
+          SWARM_STATE=$(
+            docker info \
+              --format '{{.Swarm.LocalNodeState}}'
+          )
+
+          CONTROL_AVAILABLE=$(
+            docker info \
+              --format '{{.Swarm.ControlAvailable}}'
+          )
+
+          if [ "$SWARM_STATE" != "active" ]; then
+            echo "Docker Swarm is not active."
+            echo "Current state: $SWARM_STATE"
+            exit 1
+          fi
+
+          if [ "$CONTROL_AVAILABLE" != "true" ]; then
+            echo "The connected server is not a Docker Swarm manager."
+            echo "Registry service creation requires a manager node."
+            exit 1
+          fi
+
+          if ! docker image inspect "$FULL_IMAGE" >/dev/null 2>&1; then
+            echo "Transferred image was not found:"
+            echo "$FULL_IMAGE"
+            exit 1
+          fi
+
+          ACTIVE_NODE_COUNT=$(
+            docker node ls \
+              --format '{{.Availability}}' |
+              awk '
+                tolower($1) == "active" {
+                  count++
+                }
+                END {
+                  print count + 0
+                }
+              '
+          )
+
+          echo "Active Swarm nodes: $ACTIVE_NODE_COUNT"
+
+          if [ "$ACTIVE_NODE_COUNT" -eq 0 ]; then
+            echo "No active Swarm nodes were found."
+            exit 1
+          fi
+
+          if [ "$ACTIVE_NODE_COUNT" -gt 1 ]; then
+            echo "The registry address uses 127.0.0.1."
+            echo "This workflow supports a single-node Swarm."
+            echo "For multiple nodes, use a private IP or registry hostname"
+            echo "that is reachable from every Swarm node."
+            exit 1
+          fi
+
+          registry_is_ready() {
+            curl \
+              --silent \
+              --show-error \
+              --fail \
+              "http://${LOCAL_REGISTRY}/v2/" \
+              >/dev/null 2>&1
+          }
+
+          if registry_is_ready; then
+            echo "A local registry is already reachable."
+          else
+            if docker service inspect \
+              "$LOCAL_REGISTRY_SERVICE" \
+              >/dev/null 2>&1; then
+
+              echo "Existing registry service found."
+
+              REGISTRY_REPLICAS=$(
+                docker service inspect \
+                  "$LOCAL_REGISTRY_SERVICE" \
+                  --format \
+                  '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{else}}1{{end}}'
+              )
+
+              echo "Registry desired replicas: $REGISTRY_REPLICAS"
+
+              if [ "$REGISTRY_REPLICAS" -eq 0 ]; then
+                echo "Registry service is stopped. Starting it..."
+
+                docker service scale \
+                  "${LOCAL_REGISTRY_SERVICE}=1"
+              else
+                echo "Registry service is already enabled."
+              fi
+            else
+              echo "Creating the local registry service..."
+
+              docker service create \
+                --name "$LOCAL_REGISTRY_SERVICE" \
+                --replicas 1 \
+                --publish \
+                  "published=5000,target=5000" \
+                --mount \
+                  "type=volume,source=${LOCAL_REGISTRY_VOLUME},target=/var/lib/registry" \
+                --constraint \
+                  "node.role==manager" \
+                --restart-condition any \
+                --env \
+                  REGISTRY_STORAGE_DELETE_ENABLED=true \
+                "$LOCAL_REGISTRY_SOURCE_IMAGE"
+            fi
+          fi
+
+          echo
+          echo "Waiting for the local registry API..."
+
+          REGISTRY_READY=false
+
+          for attempt in $(seq 1 60); do
+            if registry_is_ready; then
+              REGISTRY_READY=true
+              echo "Local registry is ready."
+              break
+            fi
+
+            echo "Registry readiness check ${attempt}/60"
+            sleep 2
+          done
+
+          if [ "$REGISTRY_READY" != "true" ]; then
+            echo "The local registry did not become ready."
+
+            docker service ls \
+              --filter "name=${LOCAL_REGISTRY_SERVICE}" || true
+
+            docker service ps \
+              "$LOCAL_REGISTRY_SERVICE" \
+              --no-trunc || true
+
+            docker service logs \
+              "$LOCAL_REGISTRY_SERVICE" \
+              --tail 100 \
+              --timestamps || true
+
+            exit 1
+          fi
+
+          echo
+          echo "Tagging the image for the local registry..."
+
+          docker image tag \
+            "$FULL_IMAGE" \
+            "$LOCAL_REGISTRY_IMAGE"
+
+          echo
+          echo "Pushing the image to the local registry..."
+
+          docker image push \
+            "$LOCAL_REGISTRY_IMAGE"
+
+          echo
+          echo "Verifying that Docker can pull the registry image..."
+
+          # Remove only the registry-tagged copy so this verification
+          # cannot pass using the already-loaded local image.
+          docker image rm \
+            "$LOCAL_REGISTRY_IMAGE" \
+            >/dev/null 2>&1 || true
+
+          docker image pull \
+            "$LOCAL_REGISTRY_IMAGE"
+
+          docker image inspect \
+            "$LOCAL_REGISTRY_IMAGE" \
+            >/dev/null
+
+          PULLED_IMAGE_ID=$(
+            docker image inspect \
+              "$LOCAL_REGISTRY_IMAGE" \
+              --format '{{.Id}}'
+          )
+
+          PULLED_IMAGE_DIGEST=$(
+            docker image inspect \
+              "$LOCAL_REGISTRY_IMAGE" \
+              --format '{{join .RepoDigests ", "}}'
+          )
+
+          echo
+          echo "Image published and pulled successfully."
+          echo "Image: $LOCAL_REGISTRY_IMAGE"
+          echo "Image ID: $PULLED_IMAGE_ID"
+          echo "Digest: $PULLED_IMAGE_DIGEST"
+          REGISTRY_SCRIPT
+
+      - name: Configure and deploy through Dokploy
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=10 \
+            "$SSH_USER@$SSH_HOST" \
+            "ENV_FILE='$SERVER_ENV_FILE' \
+             LOCAL_REGISTRY='$LOCAL_REGISTRY' \
+             LOCAL_REGISTRY_IMAGE='$LOCAL_REGISTRY_IMAGE' \
+             DOKPLOY_API_BASE_URL='$DOKPLOY_API_BASE_URL' \
+             DOKPLOY_APPLICATION_ID='$DOKPLOY_APPLICATION_ID' \
+             DOKPLOY_API_KEY='$DOKPLOY_API_KEY' \
+             bash -s" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+
+          echo "============================================"
+          echo "Application Dokploy deployment"
+          echo "============================================"
+          echo "Registry image: $LOCAL_REGISTRY_IMAGE"
+          echo "Environment file: $ENV_FILE"
+          echo
+
+          if ! command -v curl >/dev/null 2>&1; then
+            echo "curl is not installed on the Dokploy server."
+            exit 1
+          fi
+
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "python3 is not installed on the Dokploy server."
+            exit 1
+          fi
+
+          if [ -n "$ENV_FILE" ]; then
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Environment file does not exist:"
+              echo "$ENV_FILE"
+              exit 1
+            fi
+
+            if [ ! -r "$ENV_FILE" ]; then
+              echo "Environment file is not readable:"
+              echo "$ENV_FILE"
+              exit 1
+            fi
+
+            if [ ! -s "$ENV_FILE" ]; then
+              echo "Environment file is empty:"
+              echo "$ENV_FILE"
+              exit 1
+            fi
+          else
+            echo "SERVER_ENV_FILE is not set — skipping environment file validation (static site)."
+          fi
+
+          if ! curl \
+            --silent \
+            --show-error \
+            --fail \
+            "http://${LOCAL_REGISTRY}/v2/" \
+            >/dev/null; then
+
+            echo "The local registry is not reachable:"
+            echo "$LOCAL_REGISTRY"
+            exit 1
+          fi
+
+          echo "Testing registry image pull before deployment..."
+
+          docker image pull \
+            "$LOCAL_REGISTRY_IMAGE"
+
+          TMP_DIRECTORY=$(mktemp -d)
+
+          cleanup() {
+            rm -rf "$TMP_DIRECTORY"
+          }
+
+          trap cleanup EXIT
+
+          PROVIDER_PAYLOAD="$TMP_DIRECTORY/provider.json"
+          ENVIRONMENT_PAYLOAD="$TMP_DIRECTORY/environment.json"
+          ACTION_PAYLOAD="$TMP_DIRECTORY/action.json"
+          APPLICATION_RESPONSE="$TMP_DIRECTORY/application-response.json"
+
+          export LOCAL_REGISTRY_IMAGE
+          export ENV_FILE
+          export DOKPLOY_APPLICATION_ID
+          export PROVIDER_PAYLOAD
+          export ENVIRONMENT_PAYLOAD
+          export ACTION_PAYLOAD
+
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+
+          application_id = os.environ["DOKPLOY_APPLICATION_ID"]
+          registry_image = os.environ["LOCAL_REGISTRY_IMAGE"]
+          environment_file = os.environ["ENV_FILE"]
+
+          key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+          entry_count = 0
+
+          if environment_file:
+              with open(
+                  environment_file,
+                  "r",
+                  encoding="utf-8-sig",
+              ) as file:
+                  environment_content = file.read()
+
+              for line_number, raw_line in enumerate(
+                  environment_content.splitlines(),
+                  start=1,
+              ):
+                  line = raw_line.rstrip("\r")
+
+                  if not line.strip():
+                      continue
+
+                  if line.lstrip().startswith("#"):
+                      continue
+
+                  if "=" not in line:
+                      print(
+                          f"Invalid environment entry on line "
+                          f"{line_number}: expected KEY=value"
+                      )
+                      sys.exit(1)
+
+                  key, _ = line.split("=", 1)
+
+                  if not key_pattern.fullmatch(key):
+                      print(
+                          f"Invalid environment variable name "
+                          f"on line {line_number}: {key}"
+                      )
+                      sys.exit(1)
+
+                  entry_count += 1
+
+              if entry_count == 0:
+                  print("Environment file contains no valid variables.")
+                  sys.exit(1)
+          else:
+              print("ENV_FILE is not set - sending an empty environment (static site).")
+              environment_content = ""
+
+          provider_payload = {
+              "applicationId": application_id,
+              "dockerImage": registry_image,
+              "registryUrl": "",
+              "username": "",
+              "password": "",
+          }
+
+          environment_payload = {
+              "applicationId": application_id,
+              "env": environment_content,
+              "buildArgs": "",
+              "buildSecrets": "",
+              "createEnvFile": False,
+          }
+
+          action_payload = {
+              "applicationId": application_id,
+          }
+
+          payloads = (
+              (
+                  os.environ["PROVIDER_PAYLOAD"],
+                  provider_payload,
+              ),
+              (
+                  os.environ["ENVIRONMENT_PAYLOAD"],
+                  environment_payload,
+              ),
+              (
+                  os.environ["ACTION_PAYLOAD"],
+                  action_payload,
+              ),
+          )
+
+          for output_path, payload in payloads:
+              with open(
+                  output_path,
+                  "w",
+                  encoding="utf-8",
+              ) as file:
+                  json.dump(payload, file)
+          PY
+
+          dokploy_check_application() {
+            local response_file="$1"
+            local http_code
+
+            http_code=$(
+              curl \
+                --silent \
+                --show-error \
+                --connect-timeout 10 \
+                --max-time 60 \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                --get \
+                "${DOKPLOY_API_BASE_URL}/application.one" \
+                --header "x-api-key: ${DOKPLOY_API_KEY}" \
+                --data-urlencode \
+                  "applicationId=${DOKPLOY_APPLICATION_ID}"
+            )
+
+            if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+              echo "Dokploy application lookup failed."
+              echo "HTTP status: $http_code"
+              echo "Confirm DOKPLOY_API_KEY and DOKPLOY_APPLICATION_ID."
+
+              if [ -s "$response_file" ]; then
+                echo "Dokploy response:"
+                cat "$response_file"
+                echo
+              fi
+
+              return 1
+            fi
+
+            echo "Dokploy application record found."
+          }
+
+          dokploy_post() {
+            local endpoint="$1"
+            local payload_file="$2"
+            local print_response="${3:-true}"
+            local response_file
+            local safe_endpoint
+            local http_code
+
+            safe_endpoint="${endpoint//./-}"
+            response_file="${TMP_DIRECTORY}/${safe_endpoint}-response.json"
+
+            echo "Calling Dokploy endpoint: $endpoint"
+
+            http_code=$(
+              curl \
+                --silent \
+                --show-error \
+                --connect-timeout 10 \
+                --max-time 180 \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                --request POST \
+                "${DOKPLOY_API_BASE_URL}/${endpoint}" \
+                --header "x-api-key: ${DOKPLOY_API_KEY}" \
+                --header "Content-Type: application/json" \
+                --data-binary "@${payload_file}"
+            )
+
+            if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+              echo "Dokploy API request failed."
+              echo "Endpoint: $endpoint"
+              echo "HTTP status: $http_code"
+
+              if [ -s "$response_file" ]; then
+                echo "Dokploy response:"
+                cat "$response_file"
+                echo
+              fi
+
+              return 1
+            fi
+
+            echo "Dokploy accepted: $endpoint"
+
+            if [ "$print_response" = "true" ] &&
+               [ -s "$response_file" ]; then
+
+              echo "Dokploy response:"
+              cat "$response_file"
+              echo
+            fi
+          }
+
+          echo "Checking Dokploy API access..."
+
+          dokploy_check_application \
+            "$APPLICATION_RESPONSE"
+
+          SERVICE_NAME=$(
+            python3 - "$APPLICATION_RESPONSE" <<'PY'
+          import json
+          import re
+          import sys
+
+          with open(
+              sys.argv[1],
+              "r",
+              encoding="utf-8",
+          ) as file:
+              application = json.load(file)
+
+          service_name = str(
+              application.get("appName")
+              or application.get("name")
+              or ""
+          ).strip()
+
+          if not re.fullmatch(
+              r"[A-Za-z0-9._-]{1,128}",
+              service_name,
+          ):
+              print(
+                  "Dokploy returned an invalid or empty appName.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          print(service_name)
+          PY
+          )
+
+          echo "Dokploy service name: $SERVICE_NAME"
+
+          echo
+          echo "Configuring Dokploy to use the local registry image..."
+
+          dokploy_post \
+            "application.saveDockerProvider" \
+            "$PROVIDER_PAYLOAD"
+
+          echo
+          echo "Saving runtime environment in Dokploy..."
+
+          dokploy_post \
+            "application.saveEnvironment" \
+            "$ENVIRONMENT_PAYLOAD" \
+            false
+
+          echo
+          echo "Checking the current Swarm service state..."
+
+          SERVICE_EXISTED=false
+          INITIAL_DESIRED_REPLICAS=0
+
+          if docker service inspect \
+            "$SERVICE_NAME" \
+            >/dev/null 2>&1; then
+
+            SERVICE_EXISTED=true
+
+            INITIAL_DESIRED_REPLICAS=$(
+              docker service inspect \
+                "$SERVICE_NAME" \
+                --format \
+                '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{else}}1{{end}}'
+            )
+
+            echo "Existing Dokploy Swarm service found."
+            echo "Current desired replicas: $INITIAL_DESIRED_REPLICAS"
+
+            echo
+            echo "Redeploying the existing application..."
+
+            dokploy_post \
+              "application.redeploy" \
+              "$ACTION_PAYLOAD"
+          else
+            echo "The Dokploy Swarm service does not exist yet."
+
+            echo
+            echo "Creating and deploying the application..."
+
+            dokploy_post \
+              "application.deploy" \
+              "$ACTION_PAYLOAD"
+          fi
+
+          echo
+          echo "Waiting for Dokploy to create or update the service..."
+
+          SERVICE_FOUND=false
+
+          for attempt in $(seq 1 120); do
+            if docker service inspect \
+              "$SERVICE_NAME" \
+              >/dev/null 2>&1; then
+
+              SERVICE_FOUND=true
+              echo "Swarm service found."
+              break
+            fi
+
+            echo "Waiting for service: attempt ${attempt}/120"
+            sleep 5
+          done
+
+          if [ "$SERVICE_FOUND" != "true" ]; then
+            echo "Dokploy did not create the expected service:"
+            echo "$SERVICE_NAME"
+
+            echo
+            echo "Available Docker services:"
+
+            docker service ls \
+              --format '{{.Name}} {{.Replicas}} {{.Image}}' || true
+
+            exit 1
+          fi
+
+          CURRENT_DESIRED_REPLICAS=$(
+            docker service inspect \
+              "$SERVICE_NAME" \
+              --format \
+              '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{else}}1{{end}}'
+          )
+
+          if [ "$CURRENT_DESIRED_REPLICAS" -eq 0 ]; then
+            echo
+            echo "The application has zero desired replicas."
+            echo "Starting it through Dokploy..."
+
+            dokploy_post \
+              "application.start" \
+              "$ACTION_PAYLOAD"
+          elif [ "$SERVICE_EXISTED" = "true" ] &&
+               [ "$INITIAL_DESIRED_REPLICAS" -eq 0 ]; then
+
+            echo
+            echo "The previously stopped application was restarted."
+          fi
+
+          echo
+          echo "Waiting for the updated application to become healthy..."
+
+          for attempt in $(seq 1 120); do
+            if ! docker service inspect \
+              "$SERVICE_NAME" \
+              >/dev/null 2>&1; then
+
+              echo "Service temporarily unavailable during deployment."
+              sleep 5
+              continue
+            fi
+
+            DESIRED_REPLICAS=$(
+              docker service inspect \
+                "$SERVICE_NAME" \
+                --format \
+                '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{else}}1{{end}}'
+            )
+
+            RUNNING_REPLICAS=$(
+              docker service ps \
+                "$SERVICE_NAME" \
+                --filter desired-state=running \
+                --format '{{.CurrentState}}' |
+                grep -c '^Running' || true
+            )
+
+            CURRENT_IMAGE=$(
+              docker service inspect \
+                "$SERVICE_NAME" \
+                --format \
+                '{{.Spec.TaskTemplate.ContainerSpec.Image}}'
+            )
+
+            CURRENT_IMAGE_WITHOUT_DIGEST="${CURRENT_IMAGE%%@*}"
+
+            UPDATE_STATE=$(
+              docker service inspect \
+                "$SERVICE_NAME" \
+                --format \
+                '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{else}}unknown{{end}}'
+            )
+
+            UPDATE_MESSAGE=$(
+              docker service inspect \
+                "$SERVICE_NAME" \
+                --format \
+                '{{if .UpdateStatus}}{{.UpdateStatus.Message}}{{else}}No update status{{end}}'
+            )
+
+            echo "Health check ${attempt}/120"
+            echo "Running replicas: ${RUNNING_REPLICAS}/${DESIRED_REPLICAS}"
+            echo "Expected image: $LOCAL_REGISTRY_IMAGE"
+            echo "Current image: $CURRENT_IMAGE"
+            echo "Update state: $UPDATE_STATE"
+            echo "Update message: $UPDATE_MESSAGE"
+
+            case "$UPDATE_STATE" in
+              paused|rollback_started|rollback_paused|rollback_completed)
+                echo
+                echo "The Dokploy deployment entered a failed state."
+
+                docker service ps \
+                  "$SERVICE_NAME" \
+                  --no-trunc || true
+
+                echo
+                echo "Recent application logs:"
+
+                docker service logs \
+                  "$SERVICE_NAME" \
+                  --tail 150 \
+                  --timestamps || true
+
+                exit 1
+                ;;
+            esac
+
+            if [ "$DESIRED_REPLICAS" -gt 0 ] &&
+               [ "$RUNNING_REPLICAS" -ge "$DESIRED_REPLICAS" ] &&
+               [ "$CURRENT_IMAGE_WITHOUT_DIGEST" = "$LOCAL_REGISTRY_IMAGE" ]; then
+
+              echo
+              echo "============================================"
+              echo "Application deployed successfully"
+              echo "============================================"
+              echo "Image: $LOCAL_REGISTRY_IMAGE"
+              echo "Running replicas: ${RUNNING_REPLICAS}/${DESIRED_REPLICAS}"
+
+              echo
+              docker service ls \
+                --filter "name=${SERVICE_NAME}"
+
+              echo
+              docker service ps \
+                "$SERVICE_NAME" \
+                --no-trunc
+
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo
+          echo "The application did not become healthy before the timeout."
+
+          echo
+          echo "Service details:"
+
+          docker service inspect \
+            "$SERVICE_NAME" \
+            --pretty || true
+
+          echo
+          echo "Service tasks:"
+
+          docker service ps \
+            "$SERVICE_NAME" \
+            --no-trunc || true
+
+          echo
+          echo "Recent application logs:"
+
+          docker service logs \
+            "$SERVICE_NAME" \
+            --tail 150 \
+            --timestamps || true
+
+          exit 1
+          REMOTE_SCRIPT
+
+      - name: Clean temporary Docker images
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set +e
+
+          ssh \
+            -o ConnectTimeout=15 \
+            -o ConnectionAttempts=1 \
+            "$SSH_USER@$SSH_HOST" \
+            "docker image rm \
+               '$FULL_IMAGE' \
+               '$LATEST_IMAGE' \
+               >/dev/null 2>&1 || true;
+             docker image prune \
+               --force \
+               >/dev/null 2>&1 || true"
+
+          exit 0
+
+      - name: Deployment summary
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          {
+            echo "## Application Deployment"
+            echo
+            echo "- Repository: \`${GITHUB_REPOSITORY}\`"
+            echo "- Build image: \`${FULL_IMAGE}\`"
+            echo "- Dockerfile: \`${DOCKERFILE_PATH}\`"
+            echo "- Build context: \`${BUILD_CONTEXT}\`"
+            echo "- Registry image: \`${LOCAL_REGISTRY_IMAGE}\`"
+            echo "- Local registry: \`${LOCAL_REGISTRY}\`"
+            echo "- Dokploy application ID: \`${DOKPLOY_APPLICATION_ID}\`"
+            echo "- Service name: \`Derived from Dokploy\`"
+            echo "- Environment file: \`${SERVER_ENV_FILE}\`"
+            echo "- Deployment controller: \`Dokploy API\`"
+            echo "- Optional build args: \`DOCKER_BUILD_ARGS secret\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Status: \`Successfully deployed\`"
+          } >> "$GITHUB_STEP_SUMMARY"
