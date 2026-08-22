@@ -1,14 +1,11 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
-# TODO: when a real `staging` branch exists, add it to both trigger
-# lists below (push and pull_request). Don't add it as a
-# commented-out placeholder before the branch exists -- that's
-# exactly how `main` ended up silently disconnected from this
-# pipeline for who knows how long: a reference to a branch nobody
-# kept in sync with reality. When staging is real, its deploy step
-# also needs its own target (SSH secrets pointed at a staging server,
-# not the production one `main` deploys to) -- adding the branch to
-# the trigger alone is not enough.
+# main is deployed manually (SSH + git pull, by design - there's a manual
+# database fix-up step required before each deploy that isn't safe to
+# script yet). staging has no deploy target and none is planned. Neither
+# branch needs anything here beyond running real tests - actual dev
+# deployment automation lives in dokploy-dev.yml, a separate file, so this
+# one stays a pure CI (test-only) pipeline.
 on:
   push:
     branches:
@@ -63,27 +60,3 @@ jobs:
 
       - name: Run Tests
         run: php artisan test
-
-  cd:
-    name: Deploy to Server (CD)
-    runs-on: ubuntu-latest
-    needs: ci  # Only runs if CI passes
-    # Only main deploys anywhere right now. There is no staging server or
-    # separate SSH target configured yet -- until there is, a push to
-    # staging (or dev) must never attempt this step, because it currently
-    # points straight at production.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_SERVER }}
-          username: ${{ secrets.SSH_USERNAME }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
-          script: |
-            cd /home/ubuntu/school-be-php
-            git checkout -- storage/api-docs/api-docs.json
-            git pull 
-            docker restart school-be
