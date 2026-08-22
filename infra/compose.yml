@@ -1,9 +1,7 @@
 services:
   app:
     build:
-      # Relative to this file's own location, not the repo root - infra/
-      # moved this file down one level, so the build context needs ".."
-      # to still resolve to the repo root.
+      # Relative to this file, not the repo root - must go one level up.
       context: ..
       dockerfile: infra/Dockerfile
     # container_name: school-app
