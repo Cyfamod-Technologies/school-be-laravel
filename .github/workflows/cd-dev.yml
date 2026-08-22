@@ -1,8 +1,6 @@
 name: Build and Deploy Application
 
-# Deploys dev. Named for what it does, not the current deploy platform
-# (Dokploy), so a future platform change doesn't require a rename.
-# Separate from ci.yml, which only runs tests.
+# Deploys dev. Separate from ci.yml, which only runs tests.
 on:
   push:
     branches:
