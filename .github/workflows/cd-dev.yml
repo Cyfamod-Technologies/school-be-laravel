@@ -1,16 +1,8 @@
 name: Build and Deploy Application
 
-# Named cd-dev.yml, not dokploy-dev.yml: this deploys dev to whatever
-# platform is currently wired up (Dokploy today, via the Docker-image +
-# API steps below) - naming the file after the platform would go stale
-# the moment that changes (e.g. a future move to Coolify or anything
-# else). The file only needs to say *what* it does (deploy dev) and *when*
-# (dev pushes), not *how* or *where* - that's the workflow body's job, and
-# it can be swapped out without a confusing filename to rename alongside it.
-#
-# Separate from ci.yml (which only runs tests, on any branch) because this
-# repo already had a working deploy.yml/ci.yml before this file existed -
-# this is new automation added alongside it, not a replacement for it.
+# Deploys dev. Named for what it does, not the current deploy platform
+# (Dokploy), so a future platform change doesn't require a rename.
+# Separate from ci.yml, which only runs tests.
 on:
   push:
     branches:
