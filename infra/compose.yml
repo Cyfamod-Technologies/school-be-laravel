@@ -4,7 +4,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: infra/Dockerfile
     # container_name: school-app
     restart: unless-stopped
     working_dir: /var/www/html
