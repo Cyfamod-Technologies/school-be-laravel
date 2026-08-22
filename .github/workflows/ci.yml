@@ -1,11 +1,15 @@
 name: CI Pipeline
 
-# main is deployed manually (SSH + git pull, by design - there's a manual
-# database fix-up step required before each deploy that isn't safe to
-# script yet). staging has no deploy target and none is planned. Neither
-# branch needs anything here beyond running real tests - actual dev
-# deployment automation lives in dokploy-dev.yml, a separate file, so this
-# one stays a pure CI (test-only) pipeline.
+# Renamed from deploy.yml to ci.yml: this file used to also carry a `cd`
+# job (SSH + `docker restart`) that deployed main to Hostinger, but that
+# job never actually ran (main's trigger was broken until #110, and the
+# target account can't run Docker at all - it's shared hosting). Dropped
+# entirely rather than fixed, because main is deployed manually by design
+# (SSH + git pull; there's a manual database fix-up step required before
+# each deploy that isn't safe to script yet). staging has no deploy target
+# and none is planned. So this file now only ever needs to run tests, on
+# any branch - real dev deployment automation lives in the separate
+# cd-dev.yml file instead.
 on:
   push:
     branches:
