@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AcademicAnalyticsController;
 use App\Http\Controllers\Api\V1\AcademicSessionController;
 use App\Http\Controllers\Api\V1\AccountLookupController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\AgentController;
 use App\Http\Controllers\Api\V1\AssessmentComponentController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
@@ -70,6 +71,14 @@ Route::prefix('api/v1')->group(function () {
 
     Route::post('/find-account', AccountLookupController::class)
         ->middleware('throttle:20,1');
+
+    // Read is public and unthrottled on purpose -- see AppVersionController::show.
+    // The write is server-to-server, called by the mobile release pipeline.
+    Route::get('/get-app-version', [AppVersionController::class, 'show'])
+        ->name('app-version.show');
+    Route::post('/app-version', [AppVersionController::class, 'publish'])
+        ->middleware('throttle:30,1')
+        ->name('app-version.publish');
     Route::post('/register-school', [SchoolController::class, 'register']);
     Route::post('/login', [SchoolController::class, 'login']);
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])->name('api.v1.email.verify');
