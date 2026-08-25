@@ -6,6 +6,12 @@ return [
         'key' => env('ACCOUNT_LOOKUP_KEY'),
     ],
 
+    'app_version' => [
+        // Shared secret the mobile release pipeline sends as X-App-Version-Key
+        // when publishing the build number of a release the store has accepted.
+        'publish_key' => env('APP_VERSION_PUBLISH_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
