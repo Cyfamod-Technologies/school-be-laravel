@@ -14,3 +14,5 @@ is turned off the whole Generate Result PINs section should go off (it should no
 curl -sS -X POST \
   -H "X-Queue-Secret: YOUR_QUEUE_HTTP_SECRET" \
   https://api.sprint-freight.com/api/v1/system/process-queue
+
+<!-- Security scan triggered at 2026-08-31 18:22:55 -->
