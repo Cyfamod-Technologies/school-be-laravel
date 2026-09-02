@@ -11,7 +11,7 @@ on:
         required: false
         type: string
       SERVER_ENV_FILE:
-        required: false
+        required: true
         type: string
       DOCKERFILE_PATH:
         required: false
@@ -166,7 +166,10 @@ jobs:
       - name: Build Docker image
         shell: bash
         env:
-          DOCKER_BUILD_ARGS: ${{ secrets.DOCKER_BUILD_ARGS }}
+          # Withheld on pull_request runs: those build a PR's own (possibly
+          # untrusted) Dockerfile/build context, which shouldn't get to see
+          # secret build args just to run a build-sanity check.
+          DOCKER_BUILD_ARGS: ${{ github.event_name != 'pull_request' && secrets.DOCKER_BUILD_ARGS || '' }}
         run: |
           set -euo pipefail
 
@@ -323,7 +326,7 @@ jobs:
              docker info --format 'Swarm manager: {{.Swarm.ControlAvailable}}'"
 
       - name: Validate server environment file
-        if: github.event_name != 'pull_request' && inputs.SERVER_ENV_FILE != ''
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -739,26 +742,24 @@ jobs:
             exit 1
           fi
 
-          if [ -n "$ENV_FILE" ]; then
-            if [ ! -f "$ENV_FILE" ]; then
-              echo "Environment file does not exist:"
-              echo "$ENV_FILE"
-              exit 1
-            fi
+          : "${ENV_FILE:?SERVER_ENV_FILE input is required and was empty}"
 
-            if [ ! -r "$ENV_FILE" ]; then
-              echo "Environment file is not readable:"
-              echo "$ENV_FILE"
-              exit 1
-            fi
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "Environment file does not exist:"
+            echo "$ENV_FILE"
+            exit 1
+          fi
 
-            if [ ! -s "$ENV_FILE" ]; then
-              echo "Environment file is empty:"
-              echo "$ENV_FILE"
-              exit 1
-            fi
-          else
-            echo "SERVER_ENV_FILE is not set — skipping environment file validation (static site)."
+          if [ ! -r "$ENV_FILE" ]; then
+            echo "Environment file is not readable:"
+            echo "$ENV_FILE"
+            exit 1
+          fi
+
+          if [ ! -s "$ENV_FILE" ]; then
+            echo "Environment file is empty:"
+            echo "$ENV_FILE"
+            exit 1
           fi
 
           if ! curl \
@@ -791,6 +792,11 @@ jobs:
           ACTION_PAYLOAD="$TMP_DIRECTORY/action.json"
           APPLICATION_RESPONSE="$TMP_DIRECTORY/application-response.json"
 
+          # Written to a file instead of passed as a literal curl argument,
+          # so the API key never appears in `ps` output while curl runs.
+          API_KEY_HEADER_FILE="$TMP_DIRECTORY/api-key-header.txt"
+          ( umask 077 && printf 'x-api-key: %s\n' "$DOKPLOY_API_KEY" > "$API_KEY_HEADER_FILE" )
+
           export LOCAL_REGISTRY_IMAGE
           export ENV_FILE
           export DOKPLOY_APPLICATION_ID
@@ -811,50 +817,50 @@ jobs:
           key_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
           entry_count = 0
 
-          if environment_file:
-              with open(
-                  environment_file,
-                  "r",
-                  encoding="utf-8-sig",
-              ) as file:
-                  environment_content = file.read()
+          if not environment_file:
+              print("SERVER_ENV_FILE input is required and was empty.")
+              sys.exit(1)
 
-              for line_number, raw_line in enumerate(
-                  environment_content.splitlines(),
-                  start=1,
-              ):
-                  line = raw_line.rstrip("\r")
+          with open(
+              environment_file,
+              "r",
+              encoding="utf-8-sig",
+          ) as file:
+              environment_content = file.read()
 
-                  if not line.strip():
-                      continue
+          for line_number, raw_line in enumerate(
+              environment_content.splitlines(),
+              start=1,
+          ):
+              line = raw_line.rstrip("\r")
 
-                  if line.lstrip().startswith("#"):
-                      continue
+              if not line.strip():
+                  continue
 
-                  if "=" not in line:
-                      print(
-                          f"Invalid environment entry on line "
-                          f"{line_number}: expected KEY=value"
-                      )
-                      sys.exit(1)
+              if line.lstrip().startswith("#"):
+                  continue
 
-                  key, _ = line.split("=", 1)
-
-                  if not key_pattern.fullmatch(key):
-                      print(
-                          f"Invalid environment variable name "
-                          f"on line {line_number}: {key}"
-                      )
-                      sys.exit(1)
-
-                  entry_count += 1
-
-              if entry_count == 0:
-                  print("Environment file contains no valid variables.")
+              if "=" not in line:
+                  print(
+                      f"Invalid environment entry on line "
+                      f"{line_number}: expected KEY=value"
+                  )
                   sys.exit(1)
-          else:
-              print("ENV_FILE is not set - sending an empty environment (static site).")
-              environment_content = ""
+
+              key, _ = line.split("=", 1)
+
+              if not key_pattern.fullmatch(key):
+                  print(
+                      f"Invalid environment variable name "
+                      f"on line {line_number}: {key}"
+                  )
+                  sys.exit(1)
+
+              entry_count += 1
+
+          if entry_count == 0:
+              print("Environment file contains no valid variables.")
+              sys.exit(1)
 
           provider_payload = {
               "applicationId": application_id,
@@ -914,7 +920,7 @@ jobs:
                 --write-out '%{http_code}' \
                 --get \
                 "${DOKPLOY_API_BASE_URL}/application.one" \
-                --header "x-api-key: ${DOKPLOY_API_KEY}" \
+                --header "@${API_KEY_HEADER_FILE}" \
                 --data-urlencode \
                   "applicationId=${DOKPLOY_APPLICATION_ID}"
             )
@@ -959,7 +965,7 @@ jobs:
                 --write-out '%{http_code}' \
                 --request POST \
                 "${DOKPLOY_API_BASE_URL}/${endpoint}" \
-                --header "x-api-key: ${DOKPLOY_API_KEY}" \
+                --header "@${API_KEY_HEADER_FILE}" \
                 --header "Content-Type: application/json" \
                 --data-binary "@${payload_file}"
             )
