@@ -1,0 +1,38 @@
+name: Build and Deploy Application (Staging)
+
+# Deploys staging. Separate from ci.yml, which only runs tests, and from
+# cd-dev.yml, which deploys dev to its own Dokploy application. The actual
+# deploy mechanism lives in deploy-dokploy.yml (shared with cd-dev.yml);
+# this file only says which app/DB/credentials staging deploys to. Fully
+# separate credentials from dev's — see deploy-dokploy.yml's secrets: block
+# and the STAGING_-prefixed secrets referenced below.
+on:
+  push:
+    branches:
+      - staging
+
+  pull_request:
+    branches:
+      - staging
+
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.repository_id }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    uses: ./.github/workflows/deploy-dokploy.yml
+    with:
+      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      SERVER_ENV_FILE: ${{ vars.STAGING_SERVER_ENV_FILE }}
+      DOCKERFILE_PATH: ${{ vars.DOCKERFILE_PATH }}
+      BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT }}
+    secrets:
+      DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_STAGING_APPLICATION_ID }}
+      SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+      SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+      DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
+      DOCKER_BUILD_ARGS: ${{ secrets.DOCKER_BUILD_ARGS }}
