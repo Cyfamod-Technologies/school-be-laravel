@@ -236,10 +236,10 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -255,7 +255,7 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
         run: |
           set -euo pipefail
 
@@ -273,7 +273,7 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
 
@@ -287,8 +287,8 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           set -euo pipefail
 
@@ -310,8 +310,8 @@ jobs:
         if: github.event_name != 'pull_request' && vars.STAGING_SERVER_ENV_FILE != ''
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           set -euo pipefail
 
@@ -419,8 +419,8 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           set -euo pipefail
 
@@ -454,8 +454,8 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           set -euo pipefail
 
@@ -685,9 +685,9 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -1258,8 +1258,8 @@ jobs:
         if: success() && github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
         run: |
           set +e
 
