@@ -79,6 +79,8 @@ Route::prefix('api/v1')->group(function () {
         ->middleware('throttle:30,1')
         ->name('app-version.publish');
     Route::post('/register-school', [SchoolController::class, 'register']);
+    Route::get('/schools', [SchoolController::class, 'index'])
+        ->name('schools.index');
     Route::post('/login', [SchoolController::class, 'login']);
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])
         ->name('api.v1.email.verify');
