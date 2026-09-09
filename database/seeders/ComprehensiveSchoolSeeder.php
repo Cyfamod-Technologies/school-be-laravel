@@ -700,9 +700,16 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->first();
 
         for ($i = 1; $i <= 10; $i++) {
-            $gender = $i % 2 === 0 ? 'Male' : 'Female';
-            $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
-            $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
+            if ($i === 1) {
+                // Ensure the first teacher matches the frontend demo login credentials
+                $gender = 'Female';
+                $firstName = 'Folake';
+                $lastName = 'Balarabe';
+            } else {
+                $gender = $i % 2 === 0 ? 'Male' : 'Female';
+                $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
+                $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
+            }
             $fullName = "{$firstName} {$lastName}";
             $email = strtolower(Str::slug($firstName.'-'.$lastName)).'@demointernational.edu.ng';
 
