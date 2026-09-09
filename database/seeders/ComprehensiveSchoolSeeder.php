@@ -699,14 +699,21 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->where('school_id', $this->school->id)
             ->first();
 
-        for ($i = 1; $i <= 10; $i++) {
-            if ($i === 1) {
+        $targetTeacherCount = 10;
+        $createdCount = count($this->teachers);
+        $attempts = 0;
+        $maxAttempts = 100;
+
+        while ($createdCount < $targetTeacherCount && $attempts < $maxAttempts) {
+            $attempts++;
+
+            if ($createdCount === 0) {
                 // Ensure the first teacher matches the frontend demo login credentials
                 $gender = 'Female';
                 $firstName = 'Folake';
                 $lastName = 'Balarabe';
             } else {
-                $gender = $i % 2 === 0 ? 'Male' : 'Female';
+                $gender = rand(0, 1) === 0 ? 'Male' : 'Female';
                 $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
                 $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
             }
@@ -748,6 +755,7 @@ class ComprehensiveSchoolSeeder extends Seeder
             ]);
 
             $this->teachers[] = ['user' => $user, 'staff' => $staff];
+            $createdCount++;
         }
 
         $registrar->setPermissionsTeamId(null);

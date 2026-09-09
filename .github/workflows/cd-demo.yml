@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Validate deployment configuration
         shell: bash
@@ -251,16 +253,23 @@ jobs:
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
 
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
 
-          ssh-keyscan \
-            -T 15 \
-            -H "$SSH_HOST" \
-            >> "$HOME/.ssh/known_hosts"
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            echo "Applying pre-verified SSH_KNOWN_HOSTS secret..."
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            echo "Warning: SSH_KNOWN_HOSTS secret is not set; falling back to dynamic ssh-keyscan."
+            ssh-keyscan \
+              -T 15 \
+              -H "$SSH_HOST" \
+              >> "$HOME/.ssh/known_hosts"
+          fi
 
           chmod 600 "$HOME/.ssh/known_hosts"
 
@@ -683,6 +692,20 @@ jobs:
           echo "Digest: $PULLED_IMAGE_DIGEST"
           REGISTRY_SCRIPT
 
+      - name: Verify registry is not exposed to public internet
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          set -euo pipefail
+          echo "Verifying local registry port 5000 is not exposed publicly..."
+          if curl -s -m 4 --connect-timeout 3 "http://${SSH_HOST}:5000/v2/" >/dev/null 2>&1; then
+            echo "::warning::Port 5000 on ${SSH_HOST} is reachable from the public internet. Ensure DOCKER-USER firewall rules restrict port 5000 to loopback."
+          else
+            echo "Confirmed: Port 5000 is not reachable from the public internet."
+          fi
+
       - name: Configure and deploy through Dokploy
         if: github.event_name != 'pull_request'
         shell: bash
@@ -692,6 +715,19 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
+
+          REMOTE_KEY_FILE=$(
+            ssh \
+              -o ConnectTimeout=15 \
+              "$SSH_USER@$SSH_HOST" \
+              'f=$(mktemp /tmp/dokploy-api-key-XXXXXX) && chmod 600 "$f" && echo "$f"'
+          )
+
+          # Stream API key over stdin to the protected file without exposing it in process arguments
+          ssh \
+            -o ConnectTimeout=15 \
+            "$SSH_USER@$SSH_HOST" \
+            "cat > '$REMOTE_KEY_FILE'" <<< "$DOKPLOY_API_KEY"
 
           ssh \
             -o ConnectTimeout=15 \
@@ -704,9 +740,14 @@ jobs:
              LOCAL_REGISTRY_IMAGE='$LOCAL_REGISTRY_IMAGE' \
              DOKPLOY_API_BASE_URL='$DOKPLOY_API_BASE_URL' \
              DOKPLOY_APPLICATION_ID='$DOKPLOY_APPLICATION_ID' \
-             DOKPLOY_API_KEY='$DOKPLOY_API_KEY' \
+             REMOTE_KEY_FILE='$REMOTE_KEY_FILE' \
              bash -s" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
+
+          # Ensure the temporary API key file is always deleted on exit
+          trap 'rm -f "${REMOTE_KEY_FILE:-}"' EXIT
+          DOKPLOY_API_KEY=$(cat "$REMOTE_KEY_FILE")
+          rm -f "$REMOTE_KEY_FILE"
 
           echo "============================================"
           echo "Application Dokploy deployment"
