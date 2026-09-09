@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: web-${{ github.repository_id }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: ${{ vars.DEMO_IMAGE_NAME || 'school-be-laravel' }}
@@ -30,6 +30,7 @@ env:
 jobs:
   build-and-deploy:
     name: Build and Deploy Application
+    if: github.ref == 'refs/heads/demo'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -236,6 +237,7 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail

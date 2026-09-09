@@ -789,6 +789,10 @@ class ComprehensiveSchoolSeeder extends Seeder
 
         $registrar->setPermissionsTeamId(null);
 
+        if (count($this->teachers) < $targetTeacherCount) {
+            throw new \RuntimeException("Failed to seed {$targetTeacherCount} teachers after {$maxAttempts} attempts. Created: ".count($this->teachers));
+        }
+
         $this->command->info('✓ Created '.count($this->teachers).' teachers');
     }
 
