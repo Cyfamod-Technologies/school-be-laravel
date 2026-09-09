@@ -13,12 +13,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-  SERVER_ENV_FILE: ${{ vars.SERVER_ENV_FILE }}
-  DOCKERFILE_PATH: ${{ vars.DOCKERFILE_PATH }}
-  BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT }}
+  IMAGE_NAME: ${{ vars.DEV_IMAGE_NAME || vars.IMAGE_NAME || 'school-be-laravel' }}
+  SERVER_ENV_FILE: ${{ vars.DEV_SERVER_ENV_FILE || vars.SERVER_ENV_FILE }}
+  DOCKERFILE_PATH: ${{ vars.DOCKERFILE_PATH || 'infra/Dockerfile' }}
+  BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT || '.' }}
 
-  DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+  DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_DEV_APPLICATION_ID || secrets.DOKPLOY_APPLICATION_ID }}
 
   DOKPLOY_API_BASE_URL: http://127.0.0.1:3000/api
 
@@ -43,12 +43,23 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate deployment configuration
+      - name: Validate deployment configuration and secrets
         shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
 
-          : "${DOKPLOY_APPLICATION_ID:?Repository secret DOKPLOY_APPLICATION_ID is missing}"
+          : "${SSH_HOST:?Repository secret SSH_HOST is missing}"
+          : "${SSH_USER:?Repository secret SSH_USER is missing}"
+          : "${SSH_PRIVATE_KEY:?Repository secret SSH_PRIVATE_KEY is missing}"
+          : "${SSH_KNOWN_HOSTS:?Repository secret SSH_KNOWN_HOSTS is missing}"
+          : "${DOKPLOY_API_KEY:?Repository secret DOKPLOY_API_KEY is missing}"
+          : "${DOKPLOY_APPLICATION_ID:?Repository secret DOKPLOY_DEV_APPLICATION_ID (or DOKPLOY_APPLICATION_ID) is missing}"
 
           RAW_IMAGE_NAME="${IMAGE_NAME:-${GITHUB_REPOSITORY##*/}}"
 
@@ -117,109 +128,16 @@ jobs:
           echo "DOCKERFILE_PATH=$DOCKERFILE_PATH" >> "$GITHUB_ENV"
           echo "BUILD_CONTEXT=$BUILD_CONTEXT" >> "$GITHUB_ENV"
 
-          echo "Deployment configuration is valid."
+          echo "Deployment configuration and secrets are present and valid."
           echo "Image name: $IMAGE_NAME"
           echo "Dockerfile: $DOCKERFILE_PATH"
           echo "Build context: $BUILD_CONTEXT"
-          echo "Environment file: $SERVER_ENV_FILE"
-          echo "Dokploy application ID: $DOKPLOY_APPLICATION_ID"
-
-      - name: Generate image metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          SHORT_SHA="${GITHUB_SHA::7}"
-          BRANCH_SLUG=$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-          IMAGE_TAG="${BRANCH_SLUG}-${SHORT_SHA}"
-          FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-          LATEST_IMAGE="${IMAGE_NAME}:latest"
-          LOCAL_REGISTRY_IMAGE="${LOCAL_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
-          echo "FULL_IMAGE=${FULL_IMAGE}" >> "$GITHUB_ENV"
-          echo "LATEST_IMAGE=${LATEST_IMAGE}" >> "$GITHUB_ENV"
-          echo "LOCAL_REGISTRY_IMAGE=${LOCAL_REGISTRY_IMAGE}" >> "$GITHUB_ENV"
-
-          echo "Image tag: $IMAGE_TAG"
-          echo "Build image: $FULL_IMAGE"
-          echo "Registry image: $LOCAL_REGISTRY_IMAGE"
-
-      - name: Build Docker image
-        shell: bash
-        env:
-          DOCKER_BUILD_ARGS: ${{ secrets.DOCKER_BUILD_ARGS }}
-        run: |
-          set -euo pipefail
-
-          BUILD_ARGUMENTS=()
-
-          if [ -n "${DOCKER_BUILD_ARGS:-}" ]; then
-            while IFS= read -r line || [ -n "$line" ]; do
-              line="${line%$'\r'}"
-
-              if [[ "$line" =~ ^[[:space:]]*$ ]] ||
-                 [[ "$line" =~ ^[[:space:]]*# ]]; then
-                continue
-              fi
-
-              if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=.*$ ]]; then
-                echo "Invalid DOCKER_BUILD_ARGS entry."
-                echo "Use one KEY=value entry per line."
-                exit 1
-              fi
-
-              BUILD_ARGUMENTS+=(
-                --build-arg "$line"
-              )
-            done <<< "$DOCKER_BUILD_ARGS"
-
-            echo "Build arguments configured: ${#BUILD_ARGUMENTS[@]}"
+          if [ -n "$SERVER_ENV_FILE" ]; then
+            echo "Environment file: $SERVER_ENV_FILE"
           else
-            echo "No optional Docker build arguments configured."
+            echo "Environment file: [None configured - Dokploy UI environment will be preserved]"
           fi
-
-          docker build \
-            --platform linux/amd64 \
-            --file "$DOCKERFILE_PATH" \
-            "${BUILD_ARGUMENTS[@]}" \
-            --tag "$FULL_IMAGE" \
-            --tag "$LATEST_IMAGE" \
-            "$BUILD_CONTEXT"
-
-      - name: Verify built image
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          docker image inspect "$FULL_IMAGE" >/dev/null
-          docker image inspect "$LATEST_IMAGE" >/dev/null
-
-          IMAGE_ARCHITECTURE=$(
-            docker image inspect "$FULL_IMAGE" \
-              --format '{{.Architecture}}'
-          )
-
-          IMAGE_OS=$(
-            docker image inspect "$FULL_IMAGE" \
-              --format '{{.Os}}'
-          )
-
-          echo "Image architecture: $IMAGE_ARCHITECTURE"
-          echo "Image operating system: $IMAGE_OS"
-
-          if [ "$IMAGE_ARCHITECTURE" != "amd64" ]; then
-            echo "Expected an amd64 image."
-            exit 1
-          fi
-
-          if [ "$IMAGE_OS" != "linux" ]; then
-            echo "Expected a Linux image."
-            exit 1
-          fi
-
-          echo "Successfully built:"
-          docker image ls "$IMAGE_NAME"
+          echo "Dokploy application ID: $DOKPLOY_APPLICATION_ID"
 
       - name: Install SSH tools
         if: github.event_name != 'pull_request'
@@ -229,27 +147,6 @@ jobs:
 
           sudo apt-get update
           sudo apt-get install --yes openssh-client
-
-      - name: Validate deployment secrets
-        if: github.event_name != 'pull_request'
-        shell: bash
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-        run: |
-          set -euo pipefail
-
-          : "${SSH_HOST:?SSH_HOST repository secret is missing}"
-          : "${SSH_USER:?SSH_USER repository secret is missing}"
-          : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY repository secret is missing}"
-          : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS repository secret is missing}"
-          : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY repository secret is missing}"
-          : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID repository secret is missing}"
-
-          echo "Required deployment secrets are available."
 
       - name: Configure SSH host
         if: github.event_name != 'pull_request'
@@ -280,14 +177,35 @@ jobs:
 
           printf '%s\n' "$SSH_PRIVATE_KEY" | ssh-add -
 
-      - name: Test SSH and Docker Swarm
+      - name: Test SSH, Docker Swarm, and Dokploy API access
         if: github.event_name != 'pull_request'
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
+
+          REMOTE_KEY_FILE=""
+          cleanup_remote_key() {
+            if [ -n "$REMOTE_KEY_FILE" ]; then
+              ssh -o ConnectTimeout=10 "$SSH_USER@$SSH_HOST" "rm -f '$REMOTE_KEY_FILE'" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_remote_key EXIT
+
+          REMOTE_KEY_FILE=$(
+            ssh \
+              -o ConnectTimeout=15 \
+              "$SSH_USER@$SSH_HOST" \
+              'f=$(mktemp /tmp/dokploy-api-key-XXXXXX) && chmod 600 "$f" && echo "$f"'
+          )
+
+          ssh \
+            -o ConnectTimeout=15 \
+            "$SSH_USER@$SSH_HOST" \
+            "cat > '$REMOTE_KEY_FILE'" <<< "$DOKPLOY_API_KEY"
 
           ssh \
             -o ConnectTimeout=15 \
@@ -295,16 +213,39 @@ jobs:
             -o ServerAliveInterval=10 \
             -o ServerAliveCountMax=3 \
             "$SSH_USER@$SSH_HOST" \
-            "set -e;
-             echo 'SSH connection successful';
-             hostname;
-             whoami;
-             docker info --format 'Docker server version: {{.ServerVersion}}';
-             docker info --format 'Swarm state: {{.Swarm.LocalNodeState}}';
-             docker info --format 'Swarm manager: {{.Swarm.ControlAvailable}}'"
+            "DOKPLOY_API_BASE_URL='$DOKPLOY_API_BASE_URL' \
+             DOKPLOY_APPLICATION_ID='$DOKPLOY_APPLICATION_ID' \
+             REMOTE_KEY_FILE='$REMOTE_KEY_FILE' \
+             bash -s" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          trap 'rm -f "${REMOTE_KEY_FILE:-}"' EXIT
+          DOKPLOY_API_KEY=$(cat "$REMOTE_KEY_FILE")
+          rm -f "$REMOTE_KEY_FILE"
+
+          echo "SSH connection successful."
+          hostname
+          whoami
+          docker info --format 'Docker server version: {{.ServerVersion}}'
+          docker info --format 'Swarm state: {{.Swarm.LocalNodeState}}'
+          docker info --format 'Swarm manager: {{.Swarm.ControlAvailable}}'
+
+          echo "Verifying Dokploy API access and Application ID..."
+          HTTP_CODE=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --write-out '%{http_code}' --output /dev/null --get \
+            "${DOKPLOY_API_BASE_URL}/application.one" \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data-urlencode "applicationId=${DOKPLOY_APPLICATION_ID}")
+
+          if [[ ! "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Dokploy application verification failed with HTTP status: $HTTP_CODE"
+            echo "Please verify DOKPLOY_API_KEY and DOKPLOY_APPLICATION_ID."
+            exit 1
+          fi
+          echo "Dokploy Application ID verified successfully."
+          REMOTE_SCRIPT
 
       - name: Validate server environment file
-        if: github.event_name != 'pull_request' && vars.SERVER_ENV_FILE != ''
+        if: github.event_name != 'pull_request' && env.SERVER_ENV_FILE != ''
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -411,6 +352,103 @@ jobs:
               print("No duplicate environment variables detected.")
           PY
           REMOTE_SCRIPT
+
+      - name: Generate image metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BRANCH_SLUG=$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+          IMAGE_TAG="${BRANCH_SLUG}-${SHORT_SHA}"
+          FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+          LATEST_IMAGE="${IMAGE_NAME}:latest"
+          LOCAL_REGISTRY_IMAGE="${LOCAL_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          echo "FULL_IMAGE=${FULL_IMAGE}" >> "$GITHUB_ENV"
+          echo "LATEST_IMAGE=${LATEST_IMAGE}" >> "$GITHUB_ENV"
+          echo "LOCAL_REGISTRY_IMAGE=${LOCAL_REGISTRY_IMAGE}" >> "$GITHUB_ENV"
+
+          echo "Image tag: $IMAGE_TAG"
+          echo "Build image: $FULL_IMAGE"
+          echo "Registry image: $LOCAL_REGISTRY_IMAGE"
+
+      - name: Build Docker image
+        shell: bash
+        env:
+          DOCKER_BUILD_ARGS: ${{ secrets.DOCKER_BUILD_ARGS }}
+        run: |
+          set -euo pipefail
+
+          BUILD_ARGUMENTS=()
+
+          if [ -n "${DOCKER_BUILD_ARGS:-}" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              line="${line%$'\r'}"
+
+              if [[ "$line" =~ ^[[:space:]]*$ ]] ||
+                 [[ "$line" =~ ^[[:space:]]*# ]]; then
+                continue
+              fi
+
+              if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=.*$ ]]; then
+                echo "Invalid DOCKER_BUILD_ARGS entry."
+                echo "Use one KEY=value entry per line."
+                exit 1
+              fi
+
+              BUILD_ARGUMENTS+=(
+                --build-arg "$line"
+              )
+            done <<< "$DOCKER_BUILD_ARGS"
+
+            echo "Build arguments configured: ${#BUILD_ARGUMENTS[@]}"
+          else
+            echo "No optional Docker build arguments configured."
+          fi
+
+          docker build \
+            --platform linux/amd64 \
+            --file "$DOCKERFILE_PATH" \
+            "${BUILD_ARGUMENTS[@]}" \
+            --tag "$FULL_IMAGE" \
+            --tag "$LATEST_IMAGE" \
+            "$BUILD_CONTEXT"
+
+      - name: Verify built image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker image inspect "$FULL_IMAGE" >/dev/null
+          docker image inspect "$LATEST_IMAGE" >/dev/null
+
+          IMAGE_ARCHITECTURE=$(
+            docker image inspect "$FULL_IMAGE" \
+              --format '{{.Architecture}}'
+          )
+
+          IMAGE_OS=$(
+            docker image inspect "$FULL_IMAGE" \
+              --format '{{.Os}}'
+          )
+
+          echo "Image architecture: $IMAGE_ARCHITECTURE"
+          echo "Image operating system: $IMAGE_OS"
+
+          if [ "$IMAGE_ARCHITECTURE" != "amd64" ]; then
+            echo "Expected an amd64 image."
+            exit 1
+          fi
+
+          if [ "$IMAGE_OS" != "linux" ]; then
+            echo "Expected a Linux image."
+            exit 1
+          fi
+
+          echo "Successfully built:"
+          docker image ls "$IMAGE_NAME"
 
       - name: Transfer and load Docker image
         if: github.event_name != 'pull_request'
@@ -875,9 +913,17 @@ jobs:
               if entry_count == 0:
                   print("Environment file contains no valid variables.")
                   sys.exit(1)
+          if environment_file:
+              environment_payload = {
+                  "applicationId": application_id,
+                  "env": environment_content,
+                  "buildArgs": "",
+                  "buildSecrets": "",
+                  "createEnvFile": False,
+              }
           else:
-              print("ENV_FILE is not set - sending an empty environment (static site).")
-              environment_content = ""
+              print("ENV_FILE is not set - Dokploy environment will be preserved.")
+              environment_payload = {}
 
           provider_payload = {
               "applicationId": application_id,
@@ -885,14 +931,6 @@ jobs:
               "registryUrl": "",
               "username": "",
               "password": "",
-          }
-
-          environment_payload = {
-              "applicationId": application_id,
-              "env": environment_content,
-              "buildArgs": "",
-              "buildSecrets": "",
-              "createEnvFile": False,
           }
 
           action_payload = {
@@ -1059,13 +1097,18 @@ jobs:
             "application.saveDockerProvider" \
             "$PROVIDER_PAYLOAD"
 
-          echo
-          echo "Saving runtime environment in Dokploy..."
+          if [ -n "$ENV_FILE" ]; then
+            echo
+            echo "Saving runtime environment in Dokploy from $ENV_FILE..."
 
-          dokploy_post \
-            "application.saveEnvironment" \
-            "$ENVIRONMENT_PAYLOAD" \
-            false
+            dokploy_post \
+              "application.saveEnvironment" \
+              "$ENVIRONMENT_PAYLOAD" \
+              false
+          else
+            echo
+            echo "SERVER_ENV_FILE is not set — preserving existing Dokploy environment variables."
+          fi
 
           echo
           echo "Checking the current Swarm service state..."
