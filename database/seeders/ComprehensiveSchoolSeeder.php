@@ -723,6 +723,35 @@ class ComprehensiveSchoolSeeder extends Seeder
             // Check if user already exists
             $user = User::where('email', $email)->first();
             if ($user) {
+                if ($createdCount === 0 && $user->email === 'folake-balarabe@demointernational.edu.ng') {
+                    // Existing Folake teacher: load staff record or create if missing
+                    $staff = Staff::where('user_id', $user->id)
+                        ->where('school_id', $this->school->id)
+                        ->first();
+
+                    if (! $staff) {
+                        $staff = Staff::create([
+                            'id' => (string) Str::uuid(),
+                            'school_id' => $this->school->id,
+                            'user_id' => $user->id,
+                            'full_name' => $fullName,
+                            'email' => $email,
+                            'phone' => '+234-'.rand(700, 999).'-'.rand(100, 999).'-'.rand(1000, 9999),
+                            'role' => 'Teacher',
+                            'gender' => $gender,
+                            'employment_start_date' => Carbon::now()->subYears(rand(1, 5)),
+                            'qualifications' => 'B.Ed., M.Ed.',
+                        ]);
+                    }
+
+                    if ($teacherRole && ! $user->hasRole($teacherRole)) {
+                        $user->assignRole($teacherRole);
+                    }
+
+                    $this->teachers[] = ['user' => $user, 'staff' => $staff];
+                    $createdCount++;
+                }
+
                 continue;
             }
 

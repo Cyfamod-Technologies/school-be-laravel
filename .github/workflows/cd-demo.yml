@@ -243,6 +243,7 @@ jobs:
           : "${SSH_HOST:?SSH_HOST repository secret is missing}"
           : "${SSH_USER:?SSH_USER repository secret is missing}"
           : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY repository secret is missing}"
+          : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS repository secret is missing}"
           : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY repository secret is missing}"
           : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID repository secret is missing}"
 
@@ -252,7 +253,6 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
@@ -260,17 +260,8 @@ jobs:
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
 
-          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
-            echo "Applying pre-verified SSH_KNOWN_HOSTS secret..."
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          else
-            echo "Warning: SSH_KNOWN_HOSTS secret is not set; falling back to dynamic ssh-keyscan."
-            ssh-keyscan \
-              -T 15 \
-              -H "$SSH_HOST" \
-              >> "$HOME/.ssh/known_hosts"
-          fi
-
+          : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS repository secret is missing}"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
       - name: Load SSH private key
@@ -701,7 +692,9 @@ jobs:
           set -euo pipefail
           echo "Verifying local registry port 5000 is not exposed publicly..."
           if curl -s -m 4 --connect-timeout 3 "http://${SSH_HOST}:5000/v2/" >/dev/null 2>&1; then
-            echo "::warning::Port 5000 on ${SSH_HOST} is reachable from the public internet. Ensure DOCKER-USER firewall rules restrict port 5000 to loopback."
+            echo "::error::Port 5000 on ${SSH_HOST} is reachable from the public internet! The container registry must remain private."
+            echo "Ensure DOCKER-USER firewall rules restrict port 5000 to the loopback interface."
+            exit 1
           else
             echo "Confirmed: Port 5000 is not reachable from the public internet."
           fi
@@ -715,6 +708,14 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
+
+          REMOTE_KEY_FILE=""
+          cleanup_remote_key() {
+            if [ -n "$REMOTE_KEY_FILE" ]; then
+              ssh -o ConnectTimeout=10 "$SSH_USER@$SSH_HOST" "rm -f '$REMOTE_KEY_FILE'" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_remote_key EXIT
 
           REMOTE_KEY_FILE=$(
             ssh \
