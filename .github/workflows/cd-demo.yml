@@ -1,10 +1,10 @@
-name: Build and Deploy Application
+name: Build and Deploy Application (Demo)
 
-# Deploys dev. Separate from ci.yml, which only runs tests.
+# Deploys demo. Separate from ci.yml, which only runs tests, and cd-dev.yml.
 on:
   push:
     branches:
-      - dev
+      - demo
 
   workflow_dispatch:
 
@@ -13,12 +13,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_NAME: ${{ vars.DEV_IMAGE_NAME || vars.IMAGE_NAME || 'school-be-laravel' }}
-  SERVER_ENV_FILE: ${{ vars.DEV_SERVER_ENV_FILE || vars.SERVER_ENV_FILE }}
+  IMAGE_NAME: ${{ vars.DEMO_IMAGE_NAME || 'school-be-laravel' }}
+  SERVER_ENV_FILE: ${{ vars.DEMO_SERVER_ENV_FILE }}
   DOCKERFILE_PATH: ${{ vars.DOCKERFILE_PATH || 'infra/Dockerfile' }}
   BUILD_CONTEXT: ${{ vars.BUILD_CONTEXT || '.' }}
 
-  DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_DEV_APPLICATION_ID || secrets.DOKPLOY_APPLICATION_ID }}
+  DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_DEMO_APPLICATION_ID }}
 
   DOKPLOY_API_BASE_URL: http://127.0.0.1:3000/api
 
@@ -30,7 +30,7 @@ env:
 jobs:
   build-and-deploy:
     name: Build and Deploy Application
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/demo'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -59,7 +59,7 @@ jobs:
           : "${SSH_PRIVATE_KEY:?Repository secret SSH_PRIVATE_KEY is missing}"
           : "${SSH_KNOWN_HOSTS:?Repository secret SSH_KNOWN_HOSTS is missing}"
           : "${DOKPLOY_API_KEY:?Repository secret DOKPLOY_API_KEY is missing}"
-          : "${DOKPLOY_APPLICATION_ID:?Repository secret DOKPLOY_DEV_APPLICATION_ID (or DOKPLOY_APPLICATION_ID) is missing}"
+          : "${DOKPLOY_APPLICATION_ID:?Repository secret DOKPLOY_DEMO_APPLICATION_ID is missing}"
 
           RAW_IMAGE_NAME="${IMAGE_NAME:-${GITHUB_REPOSITORY##*/}}"
 
@@ -675,11 +675,18 @@ jobs:
             "$FULL_IMAGE" \
             "$LOCAL_REGISTRY_IMAGE"
 
+          docker image tag \
+            "$FULL_IMAGE" \
+            "${LOCAL_REGISTRY}/${IMAGE_NAME}:api-demo-latest"
+
           echo
           echo "Pushing the image to the local registry..."
 
           docker image push \
             "$LOCAL_REGISTRY_IMAGE"
+
+          docker image push \
+            "${LOCAL_REGISTRY}/${IMAGE_NAME}:api-demo-latest"
 
           echo
           echo "Verifying that Docker can pull the registry image..."

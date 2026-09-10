@@ -699,16 +699,59 @@ class ComprehensiveSchoolSeeder extends Seeder
             ->where('school_id', $this->school->id)
             ->first();
 
-        for ($i = 1; $i <= 10; $i++) {
-            $gender = $i % 2 === 0 ? 'Male' : 'Female';
-            $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
-            $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
+        $targetTeacherCount = 10;
+        $createdCount = count($this->teachers);
+        $attempts = 0;
+        $maxAttempts = 100;
+
+        while ($createdCount < $targetTeacherCount && $attempts < $maxAttempts) {
+            $attempts++;
+
+            if ($createdCount === 0) {
+                // Ensure the first teacher matches the frontend demo login credentials
+                $gender = 'Female';
+                $firstName = 'Folake';
+                $lastName = 'Balarabe';
+            } else {
+                $gender = rand(0, 1) === 0 ? 'Male' : 'Female';
+                $firstName = $this->nigerianFirstNames[array_rand($this->nigerianFirstNames)];
+                $lastName = $this->nigerianLastNames[array_rand($this->nigerianLastNames)];
+            }
             $fullName = "{$firstName} {$lastName}";
             $email = strtolower(Str::slug($firstName.'-'.$lastName)).'@demointernational.edu.ng';
 
             // Check if user already exists
             $user = User::where('email', $email)->first();
             if ($user) {
+                if ($createdCount === 0 && $user->email === 'folake-balarabe@demointernational.edu.ng') {
+                    // Existing Folake teacher: load staff record or create if missing
+                    $staff = Staff::where('user_id', $user->id)
+                        ->where('school_id', $this->school->id)
+                        ->first();
+
+                    if (! $staff) {
+                        $staff = Staff::create([
+                            'id' => (string) Str::uuid(),
+                            'school_id' => $this->school->id,
+                            'user_id' => $user->id,
+                            'full_name' => $fullName,
+                            'email' => $email,
+                            'phone' => '+234-'.rand(700, 999).'-'.rand(100, 999).'-'.rand(1000, 9999),
+                            'role' => 'Teacher',
+                            'gender' => $gender,
+                            'employment_start_date' => Carbon::now()->subYears(rand(1, 5)),
+                            'qualifications' => 'B.Ed., M.Ed.',
+                        ]);
+                    }
+
+                    if ($teacherRole && ! $user->hasRole($teacherRole)) {
+                        $user->assignRole($teacherRole);
+                    }
+
+                    $this->teachers[] = ['user' => $user, 'staff' => $staff];
+                    $createdCount++;
+                }
+
                 continue;
             }
 
@@ -741,9 +784,14 @@ class ComprehensiveSchoolSeeder extends Seeder
             ]);
 
             $this->teachers[] = ['user' => $user, 'staff' => $staff];
+            $createdCount++;
         }
 
         $registrar->setPermissionsTeamId(null);
+
+        if (count($this->teachers) < $targetTeacherCount) {
+            throw new \RuntimeException("Failed to seed {$targetTeacherCount} teachers after {$maxAttempts} attempts. Created: ".count($this->teachers));
+        }
 
         $this->command->info('✓ Created '.count($this->teachers).' teachers');
     }
