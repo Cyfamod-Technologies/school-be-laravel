@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "http://127.0.0.1:8000"
+            "url": "http://127.0.0.1:8000/api"
         }
     ],
     "paths": {
@@ -1301,7 +1301,6 @@
                                 "required": [
                                     "staff_id",
                                     "school_class_id",
-                                    "class_arm_id",
                                     "session_id",
                                     "term_id"
                                 ],
@@ -3104,6 +3103,9 @@
                                     },
                                     "owner_name": {
                                         "type": "string"
+                                    },
+                                    "student_portal_link": {
+                                        "type": "string"
                                     }
                                 },
                                 "type": "object"
@@ -3411,6 +3413,61 @@
                 "responses": {
                     "201": {
                         "description": "Skill type created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/settings/skill-types/bulk": {
+            "post": {
+                "tags": [
+                    "school-v1.4",
+                    "school-v1.9"
+                ],
+                "summary": "Create multiple skill types",
+                "operationId": "836eecb25a748568ab95b6797caed302",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "skill_category_id",
+                                    "names"
+                                ],
+                                "properties": {
+                                    "skill_category_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "names": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "Teamwork"
+                                        }
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Optional shared description for all skills"
+                                    },
+                                    "weight": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 10.5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Skill types created"
                     },
                     "422": {
                         "description": "Validation error"
@@ -3856,6 +3913,16 @@
                                     "employment_start_date": {
                                         "type": "string",
                                         "format": "date"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "newPassword123"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "newPassword123"
                                     }
                                 },
                                 "type": "object"
@@ -4257,6 +4324,32 @@
                 ],
                 "summary": "Download student bulk upload template",
                 "operationId": "aa6adab928d71ac8a882f06499464263",
+                "parameters": [
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "class_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "class_arm_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "CSV template"
@@ -4280,6 +4373,15 @@
                                     "file": {
                                         "type": "string",
                                         "format": "binary"
+                                    },
+                                    "session_id": {
+                                        "type": "string"
+                                    },
+                                    "class_id": {
+                                        "type": "string"
+                                    },
+                                    "class_arm_id": {
+                                        "type": "string"
                                     }
                                 },
                                 "type": "object"
@@ -4681,6 +4783,40 @@
                 }
             }
         },
+        "/api/v1/students/{id}/dependent-records": {
+            "delete": {
+                "tags": [
+                    "school-v1.4",
+                    "school-v1.9",
+                    "school-v2.0"
+                ],
+                "summary": "Delete all dependent records for a student",
+                "description": "Deletes all dependent records before deleting the student",
+                "operationId": "deleteStudentDependentRecords",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Student id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully deleted dependent records"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
         "/api/v1/students/{student}/skill-ratings": {
             "get": {
                 "tags": [
@@ -4777,7 +4913,7 @@
                                     "rating_value": {
                                         "type": "integer",
                                         "maximum": 5,
-                                        "minimum": 1,
+                                        "minimum": 0,
                                         "example": 4
                                     }
                                 },
@@ -4883,7 +5019,7 @@
                                     "rating_value": {
                                         "type": "integer",
                                         "maximum": 5,
-                                        "minimum": 1,
+                                        "minimum": 0,
                                         "example": 5
                                     }
                                 },
@@ -5148,14 +5284,19 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "subject_id",
-                                    "school_class_id",
-                                    "class_arm_id"
+                                    "school_class_id"
                                 ],
                                 "properties": {
                                     "subject_id": {
                                         "type": "string",
                                         "format": "uuid"
+                                    },
+                                    "subject_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                        }
                                     },
                                     "school_class_id": {
                                         "type": "string",
@@ -5569,7 +5710,6 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "subject_id",
                                     "staff_id",
                                     "session_id",
                                     "term_id"
@@ -5579,9 +5719,33 @@
                                         "type": "string",
                                         "format": "uuid"
                                     },
+                                    "subject_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                        }
+                                    },
                                     "staff_id": {
                                         "type": "string",
                                         "format": "uuid"
+                                    },
+                                    "contexts": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "school_class_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "class_arm_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
                                     },
                                     "school_class_id": {
                                         "type": "string",
@@ -5750,6 +5914,56 @@
                 "summary": "Print a student's result",
                 "description": "Renders the printable result sheet for the selected student, session, and term.",
                 "operationId": "9434527f51622d2ff01786a445f8e4f7",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID to print (defaults to student's current session)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID to print (defaults to student's current term)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Printable HTML view"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/early-years-report/print": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Print a student's early years report",
+                "description": "Renders the printable early years report for the selected student, session, and term.",
+                "operationId": "2adaca1a3b63214d0e355e39f87d0dbc",
                 "parameters": [
                     {
                         "name": "student",
