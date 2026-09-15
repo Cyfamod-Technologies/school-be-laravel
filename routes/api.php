@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\FeeAssignmentController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\GradeScaleController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Api\V1\StaffSelfController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\Api\V1\StudentBulkUploadController;
+use App\Http\Controllers\Api\V1\StudentBillController;
 use App\Http\Controllers\Api\V1\StudentDeviceController;
 use App\Http\Controllers\Api\V1\StudentNotificationController;
 use App\Http\Controllers\Api\V1\StudentPortalAttendanceController;
@@ -382,6 +384,31 @@ Route::prefix('api/v1')->group(function () {
                 ->name('fee-structures.copy');
             Route::get('structures/total', [FeeStructureController::class, 'getTotal'])
                 ->name('fee-structures.total');
+
+            // Fee Assignments (school / class / class-arm / student scopes).
+            // Declared before the apiResource so /assignments/preview is not
+            // swallowed by the {feeAssignment} wildcard.
+            Route::post('assignments/preview', [FeeAssignmentController::class, 'preview'])
+                ->name('fee-assignments.preview');
+            Route::put('assignments/{feeAssignment}/students', [FeeAssignmentController::class, 'syncAssignmentStudents'])
+                ->whereUuid('feeAssignment')
+                ->name('fee-assignments.students.sync');
+            Route::apiResource('assignments', FeeAssignmentController::class)
+                ->parameters(['assignments' => 'feeAssignment'])
+                ->except(['create', 'edit'])
+                ->names('fee-assignments');
+
+            // Student Bills
+            Route::post('bills/generate', [StudentBillController::class, 'generate'])
+                ->name('fee-bills.generate');
+            Route::get('bills', [StudentBillController::class, 'index'])
+                ->name('fee-bills.index');
+            Route::get('bills/{studentBill}', [StudentBillController::class, 'show'])
+                ->whereUuid('studentBill')
+                ->name('fee-bills.show');
+            Route::get('students/{student}/bill', [StudentBillController::class, 'forStudent'])
+                ->whereUuid('student')
+                ->name('fee-bills.for-student');
 
             // Bank Details
             Route::apiResource('bank-details', BankDetailController::class)

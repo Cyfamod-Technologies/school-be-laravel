@@ -31,6 +31,8 @@ class FeeStructureController extends Controller
      */
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.view');
+
         $perPage = max((int) $request->input('per_page', 10), 1);
 
         $feeStructures = $request->user()->school->feeStructures()
@@ -70,6 +72,8 @@ class FeeStructureController extends Controller
      */
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.create');
+
         $school = $request->user()->school;
 
         if (! $school) {
@@ -129,6 +133,8 @@ class FeeStructureController extends Controller
      */
     public function show(Request $request, FeeStructure $feeStructure)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.view');
+
         if ($feeStructure->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -152,6 +158,8 @@ class FeeStructureController extends Controller
      */
     public function update(Request $request, FeeStructure $feeStructure)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.update');
+
         if ($feeStructure->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -182,6 +190,8 @@ class FeeStructureController extends Controller
      */
     public function destroy(Request $request, FeeStructure $feeStructure)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.delete');
+
         if ($feeStructure->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -196,6 +206,8 @@ class FeeStructureController extends Controller
      */
     public function getTotal(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.view');
+
         $validated = $request->validate([
             'class_id' => 'required|uuid|exists:classes,id',
             'session_id' => 'required|uuid|exists:sessions,id',
@@ -244,6 +256,8 @@ class FeeStructureController extends Controller
      */
     public function copy(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.copy');
+
         $school = $request->user()->school;
 
         if (! $school) {
@@ -342,6 +356,8 @@ class FeeStructureController extends Controller
      */
     public function getBySessionTerm(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-structures.view');
+
         $validated = $request->validate([
             'session_id' => 'required|uuid|exists:sessions,id',
             'term_id' => 'required|uuid|exists:terms,id',

@@ -9,6 +9,7 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\StudentBillItem;
 use App\Models\Term;
 use App\Models\User;
 use App\Services\StudentSessionPlacementResolver;
@@ -125,15 +126,35 @@ class FeeAssignmentService
         });
     }
 
-    public function delete(FeeStructure $assignment, ?User $actor = null): void
+    /**
+     * Remove an assignment and take its fee off every bill it raised.
+     *
+     * The bill items have to be dealt with here, before the row goes. The
+     * foreign key is nullOnDelete, so the moment the assignment disappears
+     * every line it created is left with a null fee_structure_id -- invisible
+     * to the generation sync, and still counting towards what the student
+     * owes. Lines that money was allocated to are retired rather than deleted,
+     * so the allocation keeps its meaning.
+     *
+     * @return int the number of bill lines taken off
+     */
+    public function delete(FeeStructure $assignment, ?User $actor = null): int
     {
-        DB::transaction(function () use ($assignment, $actor) {
+        return DB::transaction(function () use ($assignment, $actor) {
             $before = $this->snapshot($assignment);
             $schoolId = $assignment->school_id;
             $assignmentId = $assignment->id;
 
-            // Bill items point here with nullOnDelete, so lines that already
-            // carry payments survive as orphaned-but-intact history.
+            $removed = 0;
+
+            StudentBillItem::query()
+                ->where('fee_structure_id', $assignmentId)
+                ->with('allocations')
+                ->each(function (StudentBillItem $item) use (&$removed) {
+                    $item->retireOrDelete('The fee assignment behind this line was removed.');
+                    $removed++;
+                });
+
             $assignment->delete();
 
             $this->audit->log(
@@ -142,9 +163,11 @@ class FeeAssignmentService
                 'fee_structure',
                 $assignmentId,
                 $before,
-                null,
+                ['bill_items_removed' => $removed],
                 $actor,
             );
+
+            return $removed;
         });
     }
 

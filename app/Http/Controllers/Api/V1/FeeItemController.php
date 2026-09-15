@@ -30,6 +30,8 @@ class FeeItemController extends Controller
      */
     public function index(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-items.view');
+
         $perPage = max((int) $request->input('per_page', 10), 1);
 
         $feeItems = $request->user()->school->feeItems()
@@ -65,6 +67,8 @@ class FeeItemController extends Controller
      */
     public function store(Request $request)
     {
+        $this->ensurePermission($request, 'finance.fee-items.create');
+
         $school = $request->user()->school;
 
         if (! $school) {
@@ -109,6 +113,8 @@ class FeeItemController extends Controller
      */
     public function show(Request $request, FeeItem $feeItem)
     {
+        $this->ensurePermission($request, 'finance.fee-items.view');
+
         if ($feeItem->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -132,6 +138,8 @@ class FeeItemController extends Controller
      */
     public function update(Request $request, FeeItem $feeItem)
     {
+        $this->ensurePermission($request, 'finance.fee-items.update');
+
         if ($feeItem->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -170,6 +178,8 @@ class FeeItemController extends Controller
      */
     public function destroy(Request $request, FeeItem $feeItem)
     {
+        $this->ensurePermission($request, 'finance.fee-items.delete');
+
         if ($feeItem->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }

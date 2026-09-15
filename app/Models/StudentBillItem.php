@@ -82,4 +82,28 @@ class StudentBillItem extends Model
     {
         return $query->where('is_removed', false);
     }
+
+    /**
+     * Take this line off the bill.
+     *
+     * A line that money has been allocated to is retired with a reason rather
+     * than deleted: deleting it would orphan the allocation and silently
+     * change what the student paid for. Returns true if it was retired,
+     * false if it was safe to delete outright.
+     */
+    public function retireOrDelete(string $reason): bool
+    {
+        if ($this->allocations()->exists()) {
+            $this->update([
+                'is_removed' => true,
+                'removed_reason' => $reason,
+            ]);
+
+            return true;
+        }
+
+        $this->delete();
+
+        return false;
+    }
 }

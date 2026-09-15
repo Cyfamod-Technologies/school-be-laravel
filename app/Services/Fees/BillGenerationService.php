@@ -267,16 +267,7 @@ class BillGenerationService
                 continue;
             }
 
-            // Money has been pinned to this line. Deleting it would orphan the
-            // allocation and silently change what the student paid for.
-            if ($item->allocations()->exists()) {
-                $item->update([
-                    'is_removed' => true,
-                    'removed_reason' => 'Fee no longer applies to this student.',
-                ]);
-            } else {
-                $item->delete();
-            }
+            $item->retireOrDelete('Fee no longer applies to this student.');
 
             $removed++;
         }
