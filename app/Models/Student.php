@@ -479,9 +479,22 @@ class Student extends Model implements AuthenticatableContract
         return $this->hasMany(Attendance::class);
     }
 
+    /**
+     * @deprecated Legacy aggregate. Use bills() and payments() instead.
+     */
     public function fee_payments()
     {
         return $this->hasMany(FeePayment::class);
+    }
+
+    public function bills()
+    {
+        return $this->hasMany(StudentBill::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 
     public function performance_reports()

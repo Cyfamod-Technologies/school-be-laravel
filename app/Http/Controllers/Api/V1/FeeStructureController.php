@@ -34,9 +34,13 @@ class FeeStructureController extends Controller
         $perPage = max((int) $request->input('per_page', 10), 1);
 
         $feeStructures = $request->user()->school->feeStructures()
+            // These endpoints predate the scope-aware assignment model and
+            // keep their original class-only contract. School-wide, class-arm
+            // and student fees are managed through /fees/assignments.
+            ->where('scope', FeeStructure::SCOPE_CLASS)
             ->with(['class', 'session', 'term', 'feeItem'])
             ->when($request->filled('class_id'), function ($query) use ($request) {
-                $query->where('class_id', $request->class_id);
+                $query->where('school_class_id', $request->class_id);
             })
             ->when($request->filled('session_id'), function ($query) use ($request) {
                 $query->where('session_id', $request->session_id);
@@ -84,7 +88,8 @@ class FeeStructureController extends Controller
         ]);
 
         // Check for duplicate
-        $exists = FeeStructure::where('class_id', $validated['class_id'])
+        $exists = FeeStructure::where('scope', FeeStructure::SCOPE_CLASS)
+            ->where('school_class_id', $validated['class_id'])
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
             ->where('fee_item_id', $validated['fee_item_id'])
@@ -96,7 +101,12 @@ class FeeStructureController extends Controller
             ]);
         }
 
+        $validated['school_class_id'] = $validated['class_id'];
+        unset($validated['class_id']);
+
         $validated['school_id'] = $school->id;
+        $validated['scope'] = FeeStructure::SCOPE_CLASS;
+        $validated['created_by'] = $request->user()->id;
 
         $feeStructure = FeeStructure::create($validated);
 
@@ -193,13 +203,15 @@ class FeeStructureController extends Controller
         ]);
 
         $total = FeeStructure::where('school_id', $request->user()->school_id)
-            ->where('class_id', $validated['class_id'])
+            ->where('scope', FeeStructure::SCOPE_CLASS)
+            ->where('school_class_id', $validated['class_id'])
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
             ->sum('amount');
 
         $breakdown = FeeStructure::where('school_id', $request->user()->school_id)
-            ->where('class_id', $validated['class_id'])
+            ->where('scope', FeeStructure::SCOPE_CLASS)
+            ->where('school_class_id', $validated['class_id'])
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
             ->with('feeItem')
@@ -251,7 +263,8 @@ class FeeStructureController extends Controller
 
         // Get source fee structures
         $sourceFeeStructures = FeeStructure::where('school_id', $school->id)
-            ->where('class_id', $validated['from_class_id'])
+            ->where('scope', FeeStructure::SCOPE_CLASS)
+            ->where('school_class_id', $validated['from_class_id'])
             ->where('session_id', $validated['from_session_id'])
             ->where('term_id', $validated['from_term_id'])
             ->get();
@@ -269,7 +282,8 @@ class FeeStructureController extends Controller
         try {
             foreach ($sourceFeeStructures as $source) {
                 // Check if destination already exists
-                $exists = FeeStructure::where('class_id', $validated['to_class_id'])
+                $exists = FeeStructure::where('scope', FeeStructure::SCOPE_CLASS)
+                    ->where('school_class_id', $validated['to_class_id'])
                     ->where('session_id', $validated['to_session_id'])
                     ->where('term_id', $validated['to_term_id'])
                     ->where('fee_item_id', $source->fee_item_id)
@@ -283,7 +297,9 @@ class FeeStructureController extends Controller
 
                 $newStructure = FeeStructure::create([
                     'school_id' => $school->id,
-                    'class_id' => $validated['to_class_id'],
+                    'scope' => FeeStructure::SCOPE_CLASS,
+                    'school_class_id' => $validated['to_class_id'],
+                    'created_by' => $request->user()->id,
                     'session_id' => $validated['to_session_id'],
                     'term_id' => $validated['to_term_id'],
                     'fee_item_id' => $source->fee_item_id,
@@ -332,11 +348,12 @@ class FeeStructureController extends Controller
         ]);
 
         $feeStructures = FeeStructure::where('school_id', $request->user()->school_id)
+            ->where('scope', FeeStructure::SCOPE_CLASS)
             ->where('session_id', $validated['session_id'])
             ->where('term_id', $validated['term_id'])
             ->with(['class', 'feeItem'])
             ->get()
-            ->groupBy('class_id')
+            ->groupBy('school_class_id')
             ->map(function ($structures, $classId) {
                 $class = $structures->first()->class;
                 $total = $structures->sum('amount');

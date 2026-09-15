@@ -286,6 +286,16 @@ class School extends Model
 		return $this->hasMany(BankDetail::class);
 	}
 
+	public function studentBills()
+	{
+		return $this->hasMany(StudentBill::class);
+	}
+
+	public function payments()
+	{
+		return $this->hasMany(Payment::class);
+	}
+
 	public function website(): HasOne
 	{
 		return $this->hasOne(SchoolWebsite::class);
