@@ -76,6 +76,30 @@ return [
                 'report' => false,
             ],
 
+        // Payment evidence: bank receipts and deposit slips naming a student
+        // and an amount. Never the 'public' disk -- these are financial
+        // documents, served only through an ownership-checked route.
+        'evidence' => $s3Enabled
+            ? [
+                'driver' => 's3',
+                'key' => env('AWS_ACCESS_KEY_ID'),
+                'secret' => env('AWS_SECRET_ACCESS_KEY'),
+                'region' => env('AWS_DEFAULT_REGION'),
+                'bucket' => env('AWS_BUCKET'),
+                'endpoint' => env('AWS_ENDPOINT'),
+                'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+                'visibility' => 'private',
+                'throw' => false,
+                'report' => false,
+            ]
+            : [
+                'driver' => 'local',
+                'root' => storage_path('app/private/evidence'),
+                'visibility' => 'private',
+                'throw' => false,
+                'report' => false,
+            ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

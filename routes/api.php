@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\GradeScaleController;
 use App\Http\Controllers\Api\V1\Internal\SchoolActivationController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PermissionHierarchyController;
 use App\Http\Controllers\Api\V1\PermissionSeedController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\StudentBillController;
 use App\Http\Controllers\Api\V1\StudentDeviceController;
+use App\Http\Controllers\Api\V1\StudentFeeController;
 use App\Http\Controllers\Api\V1\StudentNotificationController;
 use App\Http\Controllers\Api\V1\StudentPortalAttendanceController;
 use App\Http\Controllers\Api\V1\StudentSkillRatingController;
@@ -111,6 +113,31 @@ Route::prefix('api/v1')->group(function () {
                     ->name('student.devices.store');
                 Route::delete('devices', [StudentDeviceController::class, 'destroy'])
                     ->name('student.devices.destroy');
+                Route::prefix('fees')->group(function () {
+                    Route::get('bill', [StudentFeeController::class, 'currentBill'])
+                        ->name('student.fees.bill');
+                    Route::get('bills', [StudentFeeController::class, 'billHistory'])
+                        ->name('student.fees.bills');
+                    Route::get('bills/{studentBill}', [StudentFeeController::class, 'showBill'])
+                        ->whereUuid('studentBill')
+                        ->name('student.fees.bills.show');
+                    Route::get('payments', [StudentFeeController::class, 'payments'])
+                        ->name('student.fees.payments');
+                    Route::get('payments/{payment}', [StudentFeeController::class, 'showPayment'])
+                        ->whereUuid('payment')
+                        ->name('student.fees.payments.show');
+                    Route::get('payment-accounts', [StudentFeeController::class, 'paymentAccounts'])
+                        ->name('student.fees.payment-accounts');
+                    // The most abusable endpoint in the module: unauthenticated
+                    // in spirit (a parent on a phone), multipart, and it writes.
+                    Route::post('payments', [StudentFeeController::class, 'submitPayment'])
+                        ->middleware('throttle:10,1')
+                        ->name('student.fees.payments.submit');
+                    Route::get('payments/{payment}/receipt.pdf', [StudentFeeController::class, 'receipt'])
+                        ->whereUuid('payment')
+                        ->name('student.fees.payments.receipt');
+                });
+
                 Route::get('notifications', [StudentNotificationController::class, 'index'])
                     ->name('student.notifications.index');
                 Route::put('notifications/read-all', [StudentNotificationController::class, 'markAllRead'])
@@ -418,6 +445,34 @@ Route::prefix('api/v1')->group(function () {
             Route::get('students/{student}/bill', [StudentBillController::class, 'forStudent'])
                 ->whereUuid('student')
                 ->name('fee-bills.for-student');
+
+            // Payments: the verification queue and everything downstream.
+            Route::get('payments', [PaymentController::class, 'index'])
+                ->name('fee-payments.index');
+            Route::post('payments', [PaymentController::class, 'store'])
+                ->name('fee-payments.store');
+            Route::get('payments/{payment}', [PaymentController::class, 'show'])
+                ->whereUuid('payment')
+                ->name('fee-payments.show');
+            Route::post('payments/{payment}/approve', [PaymentController::class, 'approve'])
+                ->whereUuid('payment')
+                ->name('fee-payments.approve');
+            Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])
+                ->whereUuid('payment')
+                ->name('fee-payments.reject');
+            Route::post('payments/{payment}/reverse', [PaymentController::class, 'reverse'])
+                ->whereUuid('payment')
+                ->name('fee-payments.reverse');
+            Route::put('payments/{payment}/allocations', [PaymentController::class, 'allocate'])
+                ->whereUuid('payment')
+                ->name('fee-payments.allocate');
+            Route::get('payments/{payment}/evidence/{evidence}', [PaymentController::class, 'evidence'])
+                ->whereUuid('payment')
+                ->whereUuid('evidence')
+                ->name('fee-payments.evidence');
+            Route::get('payments/{payment}/receipt.pdf', [PaymentController::class, 'receipt'])
+                ->whereUuid('payment')
+                ->name('fee-payments.receipt');
 
             // Bank Details
             Route::apiResource('bank-details', BankDetailController::class)

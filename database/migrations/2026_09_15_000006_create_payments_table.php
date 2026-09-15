@@ -29,8 +29,12 @@ return new class extends Migration
             $table->uuid('term_id');
             $table->uuid('student_bill_id')->nullable();
 
+            // Ours, minted on submission, shown to the payer.
             $table->string('reference', 32);
             $table->string('receipt_number', 32)->nullable();
+            // Theirs: the transaction/teller number off the bank receipt. Not
+            // unique -- a payer can mistype it, and two banks can collide.
+            $table->string('payer_reference', 100)->nullable();
 
             $table->decimal('amount', 14, 2);
             $table->string('method', 24);

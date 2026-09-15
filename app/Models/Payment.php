@@ -72,6 +72,7 @@ class Payment extends Model
         'student_bill_id',
         'reference',
         'receipt_number',
+        'payer_reference',
         'amount',
         'method',
         'paid_at',
