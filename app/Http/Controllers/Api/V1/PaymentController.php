@@ -64,7 +64,6 @@ class PaymentController extends Controller
                 'evidence',
                 'session:id,name',
                 'term:id,name',
-                'bankDetail:id,bank_name,account_name',
                 'verifier:id,name',
                 'rejecter:id,name',
             ])
@@ -151,7 +150,6 @@ class PaymentController extends Controller
             'session_id' => 'required|uuid',
             'term_id' => 'required|uuid',
             'payer_reference' => 'nullable|string|max:100',
-            'bank_detail_id' => 'nullable|uuid',
             'note' => 'nullable|string|max:1000',
         ]);
 
@@ -364,7 +362,6 @@ class PaymentController extends Controller
             'evidence',
             'session:id,name',
             'term:id,name',
-            'bankDetail:id,bank_name,account_name',
             'verifier:id,name',
             'rejecter:id,name',
             'allocations.billItem:id,name',

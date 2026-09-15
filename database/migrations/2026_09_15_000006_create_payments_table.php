@@ -39,7 +39,6 @@ return new class extends Migration
             $table->decimal('amount', 14, 2);
             $table->string('method', 24);
             $table->date('paid_at');
-            $table->uuid('bank_detail_id')->nullable();
             $table->text('note')->nullable();
 
             $table->string('source', 24);
@@ -65,7 +64,6 @@ return new class extends Migration
             $table->foreign('session_id')->references('id')->on('sessions')->cascadeOnDelete();
             $table->foreign('term_id')->references('id')->on('terms')->cascadeOnDelete();
             $table->foreign('student_bill_id')->references('id')->on('student_bills')->nullOnDelete();
-            $table->foreign('bank_detail_id')->references('id')->on('bank_details')->nullOnDelete();
             $table->foreign('verified_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('rejected_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('reversed_by')->references('id')->on('users')->nullOnDelete();

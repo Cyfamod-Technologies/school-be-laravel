@@ -589,84 +589,6 @@
                 }
             }
         },
-        "/api/v1/fees/bank-details": {
-            "get": {
-                "tags": [
-                    "school-v2.4",
-                    "school-v2.0"
-                ],
-                "summary": "List bank details",
-                "operationId": "a9abf5906f215154f084194cbde5c6de",
-                "responses": {
-                    "200": {
-                        "description": "Bank details returned"
-                    }
-                }
-            },
-            "post": {
-                "tags": [
-                    "school-v2.4",
-                    "school-v2.0"
-                ],
-                "summary": "Create bank detail",
-                "operationId": "5c5264252b10f9a06411014672e1b8f8",
-                "responses": {
-                    "201": {
-                        "description": "Created"
-                    }
-                }
-            }
-        },
-        "/api/v1/fees/bank-details/{bankDetail}": {
-            "put": {
-                "tags": [
-                    "school-v2.4",
-                    "school-v2.0"
-                ],
-                "summary": "Update bank detail",
-                "operationId": "8fbdcd539bf45d47c9d172241412eb52",
-                "parameters": [
-                    {
-                        "name": "bankDetail",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated"
-                    }
-                }
-            },
-            "delete": {
-                "tags": [
-                    "school-v2.4",
-                    "school-v2.0"
-                ],
-                "summary": "Delete bank detail",
-                "operationId": "18079a9b7e7593f4db3269d1af777c34",
-                "parameters": [
-                    {
-                        "name": "bankDetail",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Deleted"
-                    }
-                }
-            }
-        },
         "/api/v1/fees/bank-details/{bankDetail}/set-default": {
             "post": {
                 "tags": [
@@ -1497,6 +1419,41 @@
                 }
             }
         },
+        "/api/v1/fees/bill-items/{studentBillItem}/adjustments": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Apply a discount, surcharge or waiver to one bill line",
+                "operationId": "c814f146ed79be6ee8c5195c5251481a",
+                "responses": {
+                    "201": {
+                        "description": "Applied"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/adjustments/{feeAdjustment}": {
+            "delete": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Reverse an adjustment",
+                "description": "The record is kept, marked reversed, for audit purposes.",
+                "operationId": "3e687b0d331bd4d0a1193014f03be85e",
+                "responses": {
+                    "200": {
+                        "description": "Reversed"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
         "/api/v1/fees/assignments": {
             "get": {
                 "tags": [
@@ -1858,6 +1815,78 @@
                 "responses": {
                     "200": {
                         "description": "Fee structures returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/overview": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Finance dashboard metrics",
+                "description": "Total Expected Fees, Total Verified Payments, Pending Verification, Outstanding.",
+                "operationId": "892f6202bc84fdb6a425ec66f786b6ec",
+                "responses": {
+                    "200": {
+                        "description": "Metrics returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/reports/collections": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Verified collections by class",
+                "operationId": "44a92f9c86e6305e9325d46da90d1111",
+                "responses": {
+                    "200": {
+                        "description": "Report returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/reports/outstanding": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Students with an outstanding balance",
+                "operationId": "6a360f3253bf11bcd9ef699b8ebe9f2d",
+                "responses": {
+                    "200": {
+                        "description": "Report returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/reports/outstanding.csv": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Outstanding-students report as CSV",
+                "operationId": "387691fdc1b6e6282f8e5faa5dd56b41",
+                "responses": {
+                    "200": {
+                        "description": "CSV streamed"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/audit-logs": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Finance audit trail",
+                "description": "Who did what to which financial record, and what it looked like before and after.",
+                "operationId": "0b239007c767ea0eaa4574fe87675972",
+                "responses": {
+                    "200": {
+                        "description": "Audit log returned"
                     }
                 }
             }
@@ -2383,6 +2412,23 @@
                     },
                     "404": {
                         "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/receipt.pdf": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Download the PDF receipt for a verified payment",
+                "operationId": "26a8210d9dd13d0bbf428f6477f86fe0",
+                "responses": {
+                    "200": {
+                        "description": "PDF streamed"
+                    },
+                    "422": {
+                        "description": "Payment is not verified"
                     }
                 }
             }
@@ -5253,16 +5299,40 @@
                 }
             }
         },
-        "/api/v1/student/fees/payment-accounts": {
+        "/api/v1/student/fees/payments/{payment}": {
             "get": {
                 "tags": [
                     "student-portal"
                 ],
-                "summary": "Where to pay: the school's active payment accounts",
-                "operationId": "cab20e6d3691557fcb7a0fb842f84292",
+                "summary": "Full detail for one of the student's own payments",
+                "description": "Spec §2/§5's 'Payment Details': the same figures Payment History lists, plus evidence and which fees it was applied to.",
+                "operationId": "82d8c6f3173f6d1bb0ff0eeea499c1bc",
                 "responses": {
                     "200": {
-                        "description": "Accounts returned"
+                        "description": "Payment returned"
+                    },
+                    "404": {
+                        "description": "Not the student's payment"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/payments/{payment}/receipt.pdf": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "Download the receipt for one of the student's own verified payments",
+                "operationId": "8767e4f44b500ef8dfa3516f3664cf89",
+                "responses": {
+                    "200": {
+                        "description": "PDF streamed"
+                    },
+                    "404": {
+                        "description": "Not the student's payment"
+                    },
+                    "422": {
+                        "description": "Payment is not verified"
                     }
                 }
             }

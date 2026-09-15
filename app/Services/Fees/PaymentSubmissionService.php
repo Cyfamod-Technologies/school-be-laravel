@@ -2,7 +2,6 @@
 
 namespace App\Services\Fees;
 
-use App\Models\BankDetail;
 use App\Models\Payment;
 use App\Models\PaymentEvidence;
 use App\Models\School;
@@ -78,7 +77,6 @@ class PaymentSubmissionService
                     'amount' => $data['amount'],
                     'method' => $data['method'],
                     'paid_at' => $data['paid_at'],
-                    'bank_detail_id' => $this->resolveBankDetailId($school, $data),
                     'note' => $data['note'] ?? null,
                     'source' => Payment::SOURCE_STUDENT_SUBMISSION,
                     'status' => Payment::STATUS_PENDING,
@@ -150,7 +148,6 @@ class PaymentSubmissionService
                 'amount' => $data['amount'],
                 'method' => $data['method'],
                 'paid_at' => $data['paid_at'],
-                'bank_detail_id' => $this->resolveBankDetailId($school, $data),
                 'note' => $data['note'] ?? null,
                 'source' => Payment::SOURCE_ADMIN_MANUAL,
                 // Still pending by default. An admin who saw the money can
@@ -231,29 +228,6 @@ class PaymentSubmissionService
             ->where('session_id', $data['session_id'])
             ->where('term_id', $data['term_id'])
             ->value('id');
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function resolveBankDetailId(School $school, array $data): ?string
-    {
-        if (empty($data['bank_detail_id'])) {
-            return null;
-        }
-
-        $id = BankDetail::query()
-            ->whereKey($data['bank_detail_id'])
-            ->where('school_id', $school->id)
-            ->value('id');
-
-        if (! $id) {
-            throw ValidationException::withMessages([
-                'bank_detail_id' => ['Select one of this school\'s payment accounts.'],
-            ]);
-        }
-
-        return $id;
     }
 
     private function assertPeriodBelongsToSchool(School $school, string $sessionId, string $termId): void

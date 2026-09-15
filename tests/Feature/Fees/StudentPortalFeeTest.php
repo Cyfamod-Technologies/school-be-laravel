@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\BankDetail;
 use App\Models\FeeStructure;
 use App\Models\Payment;
 use App\Models\StudentBill;
@@ -68,32 +67,6 @@ it('refuses another student bill', function () {
     $marysBill = StudentBill::where('student_id', $this->fx['mary']->id)->firstOrFail();
 
     getJson("/api/v1/student/fees/bills/{$marysBill->id}")->assertNotFound();
-});
-
-it('shows where to pay, with a reference the school can trace', function () {
-    BankDetail::create([
-        'school_id' => $this->fx['school']->id,
-        'bank_name' => 'First Bank',
-        'account_name' => 'Example School Ltd',
-        'account_number' => '1234567890',
-        'is_default' => true,
-        'is_active' => true,
-    ]);
-
-    BankDetail::create([
-        'school_id' => $this->fx['school']->id,
-        'bank_name' => 'Closed Bank',
-        'account_name' => 'Old Account',
-        'account_number' => '999',
-        'is_active' => false,
-    ]);
-
-    $response = getJson('/api/v1/student/fees/payment-accounts')->assertOk();
-
-    expect($response->json('data'))->toHaveCount(1)
-        ->and($response->json('data.0.bank_name'))->toBe('First Bank')
-        ->and($response->json('payment_reference'))
-        ->toBe('John Doe / '.$this->fx['john']->admission_no);
 });
 
 it('accepts submitted evidence without touching the balance', function () {

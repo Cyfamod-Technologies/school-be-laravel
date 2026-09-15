@@ -42,11 +42,6 @@ class PaymentResource extends JsonResource
             'reversal_reason' => $this->reversal_reason,
             'verified_at' => optional($this->verified_at)->toIso8601String(),
 
-            'bank_detail' => $this->whenLoaded('bankDetail', fn () => $this->bankDetail ? [
-                'id' => $this->bankDetail->id,
-                'bank_name' => $this->bankDetail->bank_name,
-                'account_name' => $this->bankDetail->account_name,
-            ] : null),
             'session' => $this->whenLoaded('session', fn () => [
                 'id' => $this->session->id,
                 'name' => $this->session->name,

@@ -76,7 +76,6 @@ class Payment extends Model
         'amount',
         'method',
         'paid_at',
-        'bank_detail_id',
         'note',
         'source',
         'status',
@@ -123,11 +122,6 @@ class Payment extends Model
     public function bill(): BelongsTo
     {
         return $this->belongsTo(StudentBill::class, 'student_bill_id');
-    }
-
-    public function bankDetail(): BelongsTo
-    {
-        return $this->belongsTo(BankDetail::class);
     }
 
     public function evidence(): HasMany

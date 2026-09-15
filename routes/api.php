@@ -127,8 +127,6 @@ Route::prefix('api/v1')->group(function () {
                     Route::get('payments/{payment}', [StudentFeeController::class, 'showPayment'])
                         ->whereUuid('payment')
                         ->name('student.fees.payments.show');
-                    Route::get('payment-accounts', [StudentFeeController::class, 'paymentAccounts'])
-                        ->name('student.fees.payment-accounts');
                     // The most abusable endpoint in the module: unauthenticated
                     // in spirit (a parent on a phone), multipart, and it writes.
                     Route::post('payments', [StudentFeeController::class, 'submitPayment'])

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentResource;
 use App\Http\Resources\StudentBillResource;
-use App\Models\BankDetail;
 use App\Models\Payment;
 use App\Models\Student;
 use App\Models\StudentBill;
@@ -17,8 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * The student and parent view of fees: what is owed, what has been paid, what
- * is still waiting on the school, and where to pay.
+ * The student and parent view of fees: what is owed, what has been paid, and
+ * what is still waiting on the school.
  *
  * Every figure comes from BillCalculator, the same one the admin screens read,
  * so the two can never disagree.
@@ -140,7 +139,6 @@ class StudentFeeController extends Controller
                 'evidence',
                 'session:id,name',
                 'term:id,name',
-                'bankDetail:id,bank_name,account_name',
                 'allocations.billItem:id,name',
             ])
             ->when($request->filled('session_id'), fn ($q) => $q->where('session_id', $request->input('session_id')))
@@ -177,38 +175,10 @@ class StudentFeeController extends Controller
             'evidence',
             'session:id,name',
             'term:id,name',
-            'bankDetail:id,bank_name,account_name',
             'allocations.billItem:id,name',
         ]);
 
         return response()->json(['data' => new PaymentResource($payment)]);
-    }
-
-    /**
-     * @OA\Get(
-     *     path="/api/v1/student/fees/payment-accounts",
-     *     tags={"student-portal"},
-     *     summary="Where to pay: the school's active payment accounts",
-     *
-     *     @OA\Response(response=200, description="Accounts returned")
-     * )
-     */
-    public function paymentAccounts(Request $request): JsonResponse
-    {
-        $student = $this->resolveStudent($request);
-
-        $accounts = BankDetail::query()
-            ->where('school_id', $student->school_id)
-            ->where('is_active', true)
-            ->orderByDesc('is_default')
-            ->get(['id', 'bank_name', 'account_name', 'account_number', 'branch', 'is_default']);
-
-        return response()->json([
-            'data' => $accounts,
-            // What the school asks payers to put in the transfer narration, so
-            // an unmatched payment can still be traced back to a student.
-            'payment_reference' => trim($student->first_name.' '.$student->last_name).' / '.$student->admission_no,
-        ]);
     }
 
     /**
@@ -235,7 +205,6 @@ class StudentFeeController extends Controller
             'session_id' => 'required|uuid',
             'term_id' => 'required|uuid',
             'payer_reference' => 'nullable|string|max:100',
-            'bank_detail_id' => 'nullable|uuid',
             'note' => 'nullable|string|max:1000',
             'evidence' => 'required|array|min:1|max:3',
             'evidence.*' => 'file|max:5120',

@@ -23,14 +23,12 @@ class BankDetailController extends Controller
      *
      *     @OA\Response(response=200, description="Bank details returned")
      * )
-     *
-     *
+     */
+    /**
      * Display a listing of bank details.
      */
     public function index(Request $request)
     {
-        $this->ensurePermission($request, 'finance.bank.view');
-
         $perPage = max((int) $request->input('per_page', 10), 1);
 
         $bankDetails = $request->user()->school->bankDetails()
@@ -56,14 +54,12 @@ class BankDetailController extends Controller
      *
      *     @OA\Response(response=201, description="Created")
      * )
-     *
-     *
+     */
+    /**
      * Store a newly created bank detail.
      */
     public function store(Request $request)
     {
-        $this->ensurePermission($request, 'finance.bank.update');
-
         $school = $request->user()->school;
 
         if (! $school) {
@@ -114,8 +110,6 @@ class BankDetailController extends Controller
      */
     public function show(Request $request, BankDetail $bankDetail)
     {
-        $this->ensurePermission($request, 'finance.bank.view');
-
         if ($bankDetail->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -135,14 +129,12 @@ class BankDetailController extends Controller
      *
      *     @OA\Response(response=200, description="Updated")
      * )
-     *
-     *
+     */
+    /**
      * Update the specified bank detail.
      */
     public function update(Request $request, BankDetail $bankDetail)
     {
-        $this->ensurePermission($request, 'finance.bank.update');
-
         if ($bankDetail->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -193,14 +185,12 @@ class BankDetailController extends Controller
      *
      *     @OA\Response(response=204, description="Deleted")
      * )
-     *
-     *
+     */
+    /**
      * Remove the specified bank detail.
      */
     public function destroy(Request $request, BankDetail $bankDetail)
     {
-        $this->ensurePermission($request, 'finance.bank.update');
-
         if ($bankDetail->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -226,8 +216,6 @@ class BankDetailController extends Controller
      */
     public function setDefault(Request $request, BankDetail $bankDetail)
     {
-        $this->ensurePermission($request, 'finance.bank.update');
-
         if ($bankDetail->school_id !== $request->user()->school_id) {
             return response()->json(['message' => 'Not Found'], 404);
         }
@@ -262,8 +250,6 @@ class BankDetailController extends Controller
      */
     public function getDefault(Request $request)
     {
-        $this->ensurePermission($request, 'finance.bank.view');
-
         $bankDetail = BankDetail::where('school_id', $request->user()->school_id)
             ->where('is_default', true)
             ->where('is_active', true)
