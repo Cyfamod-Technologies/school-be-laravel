@@ -5,11 +5,6 @@
         "description": "API for managing school data",
         "version": "1.0.0"
     },
-    "servers": [
-        {
-            "url": "http://127.0.0.1:8000"
-        }
-    ],
     "paths": {
         "/api/v1/sessions": {
             "get": {
@@ -590,6 +585,84 @@
                     },
                     "404": {
                         "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/bank-details": {
+            "get": {
+                "tags": [
+                    "school-v2.4",
+                    "school-v2.0"
+                ],
+                "summary": "List bank details",
+                "operationId": "a9abf5906f215154f084194cbde5c6de",
+                "responses": {
+                    "200": {
+                        "description": "Bank details returned"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v2.4",
+                    "school-v2.0"
+                ],
+                "summary": "Create bank detail",
+                "operationId": "5c5264252b10f9a06411014672e1b8f8",
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/bank-details/{bankDetail}": {
+            "put": {
+                "tags": [
+                    "school-v2.4",
+                    "school-v2.0"
+                ],
+                "summary": "Update bank detail",
+                "operationId": "8fbdcd539bf45d47c9d172241412eb52",
+                "parameters": [
+                    {
+                        "name": "bankDetail",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v2.4",
+                    "school-v2.0"
+                ],
+                "summary": "Delete bank detail",
+                "operationId": "18079a9b7e7593f4db3269d1af777c34",
+                "parameters": [
+                    {
+                        "name": "bankDetail",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Deleted"
                     }
                 }
             }
@@ -1211,7 +1284,7 @@
                     "school-v1.8"
                 ],
                 "summary": "List class teacher assignments",
-                "description": "Paginated list filtered by staff, class, arm, section, session, or term.",
+                "description": "Paginated list filtered by staff, class, arm, section, or session.",
                 "operationId": "edec74c91931ccf39404e8645b32fec1",
                 "parameters": [
                     {
@@ -1260,15 +1333,6 @@
                         }
                     },
                     {
-                        "name": "term_id",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    },
-                    {
                         "name": "search",
                         "in": "query",
                         "description": "Search teacher or class name",
@@ -1301,9 +1365,7 @@
                                 "required": [
                                     "staff_id",
                                     "school_class_id",
-                                    "class_arm_id",
-                                    "session_id",
-                                    "term_id"
+                                    "session_id"
                                 ],
                                 "properties": {
                                     "staff_id": {
@@ -1324,10 +1386,6 @@
                                         "nullable": true
                                     },
                                     "session_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "term_id": {
                                         "type": "string",
                                         "format": "uuid"
                                     }
@@ -1392,10 +1450,6 @@
                                     "session_id": {
                                         "type": "string",
                                         "format": "uuid"
-                                    },
-                                    "term_id": {
-                                        "type": "string",
-                                        "format": "uuid"
                                     }
                                 },
                                 "type": "object"
@@ -1439,6 +1493,113 @@
                     },
                     "404": {
                         "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/assignments": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "List fee assignments across every scope",
+                "operationId": "c64a1d39f77fdb5caca2d89a16ee819c",
+                "responses": {
+                    "200": {
+                        "description": "Assignments returned"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Assign a fee to a school, class, class arm or set of students",
+                "operationId": "0937eaf268c65c05f45128e6fe3cc2f8",
+                "responses": {
+                    "201": {
+                        "description": "Assigned"
+                    },
+                    "422": {
+                        "description": "Validation error or duplicate"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/assignments/{feeAssignment}": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Get one fee assignment",
+                "operationId": "4a76fa9852fd7cdd8f1317c47d9ca659",
+                "responses": {
+                    "200": {
+                        "description": "Assignment returned"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Update a fee assignment",
+                "operationId": "82ee4f23ed9b00df532a6552bceb763a",
+                "responses": {
+                    "200": {
+                        "description": "Updated"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Remove a fee assignment",
+                "operationId": "0221d3e609e65dc2559cdbd8a02b9cdc",
+                "responses": {
+                    "200": {
+                        "description": "Removed"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/assignments/preview": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Count the students an assignment would reach, and what it totals",
+                "operationId": "0a3c74cda5633ed3a88990e181543976",
+                "responses": {
+                    "200": {
+                        "description": "Preview returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/assignments/{feeAssignment}/students": {
+            "put": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Replace the students a student-scoped assignment bills",
+                "operationId": "08cdbd28f85aee2ef7b7e7a1555d826a",
+                "responses": {
+                    "200": {
+                        "description": "Updated"
+                    },
+                    "422": {
+                        "description": "Not a student-scoped assignment"
                     }
                 }
             }
@@ -2092,6 +2253,140 @@
                 }
             }
         },
+        "/api/v1/fees/payments": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "List payments",
+                "description": "Filter by status to get the verification queue (pending_verification) or the collections list (verified).",
+                "operationId": "61165cead8f5cc9b05aa650e70e09bc0",
+                "responses": {
+                    "200": {
+                        "description": "Payments returned"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Record a payment on a student's behalf",
+                "description": "Creates a pending payment. Verifying it is a separate, separately-permissioned step.",
+                "operationId": "937c80d177c626532388f4b0f301815e",
+                "responses": {
+                    "201": {
+                        "description": "Recorded"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "One payment, with evidence and allocations",
+                "operationId": "47cf428b5c06db013b3f12da9cd26c23",
+                "responses": {
+                    "200": {
+                        "description": "Payment returned"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/approve": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Verify a payment",
+                "description": "Issues a receipt number, allocates the payment across unpaid fees, and updates the student's balance.",
+                "operationId": "a4406869d71dba63d4c4bde357454b06",
+                "responses": {
+                    "200": {
+                        "description": "Verified"
+                    },
+                    "422": {
+                        "description": "Already resolved"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/reject": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Reject a payment",
+                "description": "The record is kept for audit; the reason is shown to the student.",
+                "operationId": "b035abf80b50add2382d23d1387c1757",
+                "responses": {
+                    "200": {
+                        "description": "Rejected"
+                    },
+                    "422": {
+                        "description": "Already resolved, or no reason given"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/reverse": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Reverse a verified payment",
+                "operationId": "5b4f64f854c9ff052b6dfae172cc9ddb",
+                "responses": {
+                    "200": {
+                        "description": "Reversed"
+                    },
+                    "422": {
+                        "description": "Not a verified payment"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/allocations": {
+            "put": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Set which fees a verified payment covered",
+                "description": "Replaces the whole allocation set. Does not change the student's balance, which follows the verified payment itself.",
+                "operationId": "0a49de1394315e8a140edcef657219f2",
+                "responses": {
+                    "200": {
+                        "description": "Allocated"
+                    },
+                    "422": {
+                        "description": "Over-allocated or not verified"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/payments/{payment}/evidence/{evidence}": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Download a piece of payment evidence",
+                "description": "Streamed from a private disk after an ownership check; these files are never publicly addressable.",
+                "operationId": "a60e49d0f4a0804f5d86646b17ce572f",
+                "responses": {
+                    "200": {
+                        "description": "File streamed"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
         "/api/v1/promotions/bulk": {
             "post": {
                 "tags": [
@@ -2112,11 +2407,6 @@
                                 ],
                                 "properties": {
                                     "current_session_id": {
-                                        "type": "string",
-                                        "format": "uuid",
-                                        "nullable": true
-                                    },
-                                    "current_term_id": {
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
@@ -2830,6 +3120,10 @@
                                     "subdomain": {
                                         "type": "string",
                                         "example": "my-school"
+                                    },
+                                    "referral_code": {
+                                        "type": "string",
+                                        "example": "AGT-ABC12345"
                                     }
                                 },
                                 "type": "object"
@@ -3103,6 +3397,9 @@
                                         "format": "date"
                                     },
                                     "owner_name": {
+                                        "type": "string"
+                                    },
+                                    "student_portal_link": {
                                         "type": "string"
                                     }
                                 },
@@ -3411,6 +3708,61 @@
                 "responses": {
                     "201": {
                         "description": "Skill type created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/settings/skill-types/bulk": {
+            "post": {
+                "tags": [
+                    "school-v1.4",
+                    "school-v1.9"
+                ],
+                "summary": "Create multiple skill types",
+                "operationId": "836eecb25a748568ab95b6797caed302",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "skill_category_id",
+                                    "names"
+                                ],
+                                "properties": {
+                                    "skill_category_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "example": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    },
+                                    "names": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "Teamwork"
+                                        }
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Optional shared description for all skills"
+                                    },
+                                    "weight": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 10.5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Skill types created"
                     },
                     "422": {
                         "description": "Validation error"
@@ -3856,6 +4208,16 @@
                                     "employment_start_date": {
                                         "type": "string",
                                         "format": "date"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "newPassword123"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "newPassword123"
                                     }
                                 },
                                 "type": "object"
@@ -4250,6 +4612,71 @@
                 }
             }
         },
+        "/api/v1/fees/bills": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "List student bills with balances",
+                "description": "Filter by session, term, class, arm, payment status or student name.",
+                "operationId": "6940e5865ab43277251d9a14c46d94be",
+                "responses": {
+                    "200": {
+                        "description": "Bills returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/bills/{studentBill}": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Get one bill with its line items",
+                "operationId": "960cef4f75248b2ee528ce5e31f6feab",
+                "responses": {
+                    "200": {
+                        "description": "Bill returned"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/students/{student}/bill": {
+            "get": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Get a student's bill for a session and term",
+                "description": "Falls back to the school's current session and term.",
+                "operationId": "3689333e676de8c8e9030f62f518f5f2",
+                "responses": {
+                    "200": {
+                        "description": "Bill returned"
+                    },
+                    "404": {
+                        "description": "No bill for that period"
+                    }
+                }
+            }
+        },
+        "/api/v1/fees/bills/generate": {
+            "post": {
+                "tags": [
+                    "school-v2.5"
+                ],
+                "summary": "Generate or refresh bills for a session and term",
+                "description": "Idempotent: safe to run repeatedly.",
+                "operationId": "babedf4d79e4c775c429224dffb69f0a",
+                "responses": {
+                    "200": {
+                        "description": "Generation summary"
+                    }
+                }
+            }
+        },
         "/api/v1/students/bulk/template": {
             "get": {
                 "tags": [
@@ -4257,6 +4684,32 @@
                 ],
                 "summary": "Download student bulk upload template",
                 "operationId": "aa6adab928d71ac8a882f06499464263",
+                "parameters": [
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "class_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "class_arm_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "CSV template"
@@ -4280,6 +4733,15 @@
                                     "file": {
                                         "type": "string",
                                         "format": "binary"
+                                    },
+                                    "session_id": {
+                                        "type": "string"
+                                    },
+                                    "class_id": {
+                                        "type": "string"
+                                    },
+                                    "class_arm_id": {
+                                        "type": "string"
                                     }
                                 },
                                 "type": "object"
@@ -4681,6 +5143,130 @@
                 }
             }
         },
+        "/api/v1/students/{id}/dependent-records": {
+            "delete": {
+                "tags": [
+                    "school-v1.4",
+                    "school-v1.9",
+                    "school-v2.0"
+                ],
+                "summary": "Delete all dependent records for a student",
+                "description": "Deletes all dependent records before deleting the student",
+                "operationId": "deleteStudentDependentRecords",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Student id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully deleted dependent records"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/bill": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "The student's current bill",
+                "description": "Defaults to the school's current session and term.",
+                "operationId": "0689fa54aee298056ffd7ce346b65571",
+                "responses": {
+                    "200": {
+                        "description": "Bill returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/bills": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "Every bill the student has had, newest first",
+                "operationId": "7d87b2e3175ad54c69e8ec6206f48b7f",
+                "responses": {
+                    "200": {
+                        "description": "Bills returned"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/bills/{studentBill}": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "One bill with its individual fees",
+                "operationId": "8394187a2a46140ac33a90d0b3f13c8f",
+                "responses": {
+                    "200": {
+                        "description": "Bill returned"
+                    },
+                    "404": {
+                        "description": "Not the student's bill"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/payments": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "Every payment on the student's account, with its status",
+                "operationId": "7ab4c03140ce8a008531dc49f9c4e665",
+                "responses": {
+                    "200": {
+                        "description": "Payments returned"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "Submit evidence of a payment already made",
+                "description": "Creates a payment awaiting verification. It does not reduce the outstanding balance until an administrator verifies it.",
+                "operationId": "bdd9addcaa92707d93efcc70dbdf6654",
+                "responses": {
+                    "201": {
+                        "description": "Submitted"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/v1/student/fees/payment-accounts": {
+            "get": {
+                "tags": [
+                    "student-portal"
+                ],
+                "summary": "Where to pay: the school's active payment accounts",
+                "operationId": "cab20e6d3691557fcb7a0fb842f84292",
+                "responses": {
+                    "200": {
+                        "description": "Accounts returned"
+                    }
+                }
+            }
+        },
         "/api/v1/students/{student}/skill-ratings": {
             "get": {
                 "tags": [
@@ -4777,7 +5363,7 @@
                                     "rating_value": {
                                         "type": "integer",
                                         "maximum": 5,
-                                        "minimum": 1,
+                                        "minimum": 0,
                                         "example": 4
                                     }
                                 },
@@ -4883,7 +5469,7 @@
                                     "rating_value": {
                                         "type": "integer",
                                         "maximum": 5,
-                                        "minimum": 1,
+                                        "minimum": 0,
                                         "example": 5
                                     }
                                 },
@@ -5148,14 +5734,19 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "subject_id",
-                                    "school_class_id",
-                                    "class_arm_id"
+                                    "school_class_id"
                                 ],
                                 "properties": {
                                     "subject_id": {
                                         "type": "string",
                                         "format": "uuid"
+                                    },
+                                    "subject_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                        }
                                     },
                                     "school_class_id": {
                                         "type": "string",
@@ -5472,7 +6063,7 @@
                     "school-v1.7"
                 ],
                 "summary": "List teacher-subject assignments",
-                "description": "Paginated list filtered by subject, staff, class, arm, section, session, or term.",
+                "description": "Paginated list filtered by subject, staff, class, arm, section, or session.",
                 "operationId": "af576689a425128361bd0f3b196c256f",
                 "parameters": [
                     {
@@ -5530,15 +6121,6 @@
                         }
                     },
                     {
-                        "name": "term_id",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    },
-                    {
                         "name": "search",
                         "in": "query",
                         "description": "Search subject or teacher",
@@ -5569,19 +6151,41 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "subject_id",
                                     "staff_id",
-                                    "session_id",
-                                    "term_id"
+                                    "session_id"
                                 ],
                                 "properties": {
                                     "subject_id": {
                                         "type": "string",
                                         "format": "uuid"
                                     },
+                                    "subject_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                        }
+                                    },
                                     "staff_id": {
                                         "type": "string",
                                         "format": "uuid"
+                                    },
+                                    "contexts": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "school_class_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "class_arm_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
                                     },
                                     "school_class_id": {
                                         "type": "string",
@@ -5599,10 +6203,6 @@
                                         "nullable": true
                                     },
                                     "session_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "term_id": {
                                         "type": "string",
                                         "format": "uuid"
                                     }
@@ -5671,10 +6271,6 @@
                                         "nullable": true
                                     },
                                     "session_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "term_id": {
                                         "type": "string",
                                         "format": "uuid"
                                     }
@@ -5750,6 +6346,56 @@
                 "summary": "Print a student's result",
                 "description": "Renders the printable result sheet for the selected student, session, and term.",
                 "operationId": "9434527f51622d2ff01786a445f8e4f7",
+                "parameters": [
+                    {
+                        "name": "student",
+                        "in": "path",
+                        "description": "Student ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "session_id",
+                        "in": "query",
+                        "description": "Session ID to print (defaults to student's current session)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "term_id",
+                        "in": "query",
+                        "description": "Term ID to print (defaults to student's current term)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Printable HTML view"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/v1/students/{student}/early-years-report/print": {
+            "get": {
+                "tags": [
+                    "school-v1.4"
+                ],
+                "summary": "Print a student's early years report",
+                "description": "Renders the printable early years report for the selected student, session, and term.",
+                "operationId": "2adaca1a3b63214d0e355e39f87d0dbc",
                 "parameters": [
                     {
                         "name": "student",
@@ -5893,6 +6539,10 @@
             "description": "Class & Arm Setup"
         },
         {
+            "name": "school-v2.5",
+            "description": "Fees - assignments and bills"
+        },
+        {
             "name": "school-v1.3",
             "description": "API for Parent Management "
         },
@@ -5907,6 +6557,10 @@
         {
             "name": "school-v1.4",
             "description": "v1.4 – Student Management, Skills & Results"
+        },
+        {
+            "name": "student-portal",
+            "description": "Student / parent portal"
         },
         {
             "name": "school-v1.6",

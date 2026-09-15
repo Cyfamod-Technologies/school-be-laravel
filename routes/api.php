@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\FeeAdjustmentController;
+use App\Http\Controllers\Api\V1\FinanceReportController;
 use App\Http\Controllers\Api\V1\FeeAssignmentController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
@@ -445,6 +446,18 @@ Route::prefix('api/v1')->group(function () {
             Route::get('students/{student}/bill', [StudentBillController::class, 'forStudent'])
                 ->whereUuid('student')
                 ->name('fee-bills.for-student');
+
+            // Finance dashboard, reports and audit trail.
+            Route::get('overview', [FinanceReportController::class, 'overview'])
+                ->name('fee-overview.show');
+            Route::get('reports/collections', [FinanceReportController::class, 'collections'])
+                ->name('fee-reports.collections');
+            Route::get('reports/outstanding', [FinanceReportController::class, 'outstanding'])
+                ->name('fee-reports.outstanding');
+            Route::get('reports/outstanding.csv', [FinanceReportController::class, 'outstandingCsv'])
+                ->name('fee-reports.outstanding.csv');
+            Route::get('audit-logs', [FinanceReportController::class, 'auditLogs'])
+                ->name('fee-audit-logs.index');
 
             // Payments: the verification queue and everything downstream.
             Route::get('payments', [PaymentController::class, 'index'])
