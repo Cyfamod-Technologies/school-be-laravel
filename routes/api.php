@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\FeeAdjustmentController;
 use App\Http\Controllers\Api\V1\FeeAssignmentController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
@@ -397,6 +398,14 @@ Route::prefix('api/v1')->group(function () {
                 ->parameters(['assignments' => 'feeAssignment'])
                 ->except(['create', 'edit'])
                 ->names('fee-assignments');
+
+            // Bill Item Adjustments (discounts / surcharges / waivers)
+            Route::post('bill-items/{studentBillItem}/adjustments', [FeeAdjustmentController::class, 'store'])
+                ->whereUuid('studentBillItem')
+                ->name('fee-bill-items.adjustments.store');
+            Route::delete('adjustments/{feeAdjustment}', [FeeAdjustmentController::class, 'destroy'])
+                ->whereUuid('feeAdjustment')
+                ->name('fee-adjustments.destroy');
 
             // Student Bills
             Route::post('bills/generate', [StudentBillController::class, 'generate'])
