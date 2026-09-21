@@ -14,6 +14,7 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Term;
+use App\Services\StudentSessionPlacementResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,7 +22,7 @@ use Illuminate\Validation\ValidationException;
 
 class CbtAssessmentLinkController extends Controller
 {
-    public function __construct()
+    public function __construct(private StudentSessionPlacementResolver $placementResolver)
     {
         $this->middleware('auth:sanctum');
     }
@@ -436,7 +437,7 @@ class CbtAssessmentLinkController extends Controller
         $approvedImports = CbtScoreImport::query()
             ->where('cbt_assessment_link_id', $link->id)
             ->where('status', 'approved')
-            ->with(['student:id,school_id,school_class_id,current_session_id,current_term_id'])
+            ->with(['student:id,school_id,school_class_id,class_arm_id,class_section_id,current_session_id,current_term_id'])
             ->get();
 
         $schoolId = $component->school_id;
@@ -519,9 +520,13 @@ class CbtAssessmentLinkController extends Controller
                 ->where('term_id', $termId)
                 ->where('session_id', $sessionId)
                 ->first();
+            $placement = $this->placementResolver->resolve($student, $sessionId);
 
             if ($result) {
                 $result->total_score = (float) $convertedScore;
+                $result->school_class_id = $placement['school_class_id'];
+                $result->class_arm_id = $placement['class_arm_id'];
+                $result->class_section_id = $placement['class_section_id'];
                 $result->save();
             } else {
                 Result::create([
@@ -531,6 +536,9 @@ class CbtAssessmentLinkController extends Controller
                     'assessment_component_id' => $link->assessment_component_id,
                     'term_id' => $termId,
                     'session_id' => $sessionId,
+                    'school_class_id' => $placement['school_class_id'],
+                    'class_arm_id' => $placement['class_arm_id'],
+                    'class_section_id' => $placement['class_section_id'],
                     'total_score' => (float) $convertedScore,
                 ]);
             }

@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ClassArm;
 use App\Models\PromotionLog;
+use App\Models\Result;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\Session;
-use App\Models\Term;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PromotionService
@@ -45,14 +45,17 @@ class PromotionService
 
         $targetClassArmId = Arr::get($payload, 'target_class_arm_id');
 
-        // If a target class arm is explicitly provided, ensure it exists
-        // for the target class. Otherwise, keep the student's existing arm.
+        // A class arm ID belongs to one specific class. Never carry an arm
+        // from the source class into a different target class.
         if ($targetClassArmId) {
-            $student->class_arm()
+            $targetClassArmId = ClassArm::query()
                 ->where('school_class_id', $targetClass->id)
-                ->findOrFail($targetClassArmId);
+                ->findOrFail($targetClassArmId)
+                ->id;
         } else {
-            $targetClassArmId = $student->class_arm_id;
+            $targetClassArmId = (string) $student->school_class_id === (string) $targetClass->id
+                ? $student->class_arm_id
+                : null;
         }
 
         $previousState = [
@@ -60,6 +63,7 @@ class PromotionService
             'term_id' => $student->current_term_id,
             'class_id' => $student->school_class_id,
             'class_arm_id' => $student->class_arm_id,
+            'class_section_id' => $student->class_section_id,
         ];
 
         $targetTermId = $this->resolveFirstTermId($targetSession);
@@ -69,6 +73,16 @@ class PromotionService
                 'target_session_id' => 'The target session must have at least one term configured before promotion.',
             ]);
         }
+
+        Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $previousState['session_id'])
+            ->whereNull('school_class_id')
+            ->update([
+                'school_class_id' => $previousState['class_id'],
+                'class_arm_id' => $previousState['class_arm_id'],
+                'class_section_id' => $previousState['class_section_id'],
+            ]);
 
         $student->current_session_id = $targetSession->id;
         $student->current_term_id = $targetTermId;
@@ -85,7 +99,7 @@ class PromotionService
             'to_class_id' => $targetClass->id,
             'from_class_arm_id' => $previousState['class_arm_id'],
             'to_class_arm_id' => $targetClassArmId ?: null,
-            'from_section_id' => null,
+            'from_section_id' => $previousState['class_section_id'],
             'to_section_id' => null,
             'performed_by' => $userId,
             'meta' => [

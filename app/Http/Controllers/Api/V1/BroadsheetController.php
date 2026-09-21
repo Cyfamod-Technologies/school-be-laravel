@@ -11,8 +11,8 @@ use App\Models\Student;
 use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
-use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 class BroadsheetController extends Controller
@@ -52,12 +52,15 @@ class BroadsheetController extends Controller
         $class = SchoolClass::query()->find($validated['school_class_id']);
         $classArm = null;
         if (! empty($validated['class_arm_id'])) {
-            $classArm = ClassArm::query()->whereKey($validated['class_arm_id'])->first();
+            $classArm = ClassArm::query()
+                ->where('school_class_id', $validated['school_class_id'])
+                ->findOrFail($validated['class_arm_id']);
         }
 
         // Subjects assigned to this class (optionally filtered by arm)
         $subjectQuery = SubjectAssignment::query()
             ->with('subject:id,name,code')
+            ->where('session_id', $validated['session_id'])
             ->where('school_class_id', $validated['school_class_id']);
 
         if (! empty($validated['class_arm_id'])) {
@@ -74,14 +77,21 @@ class BroadsheetController extends Controller
             ->unique('id')
             ->values();
 
-        // Students in the class/arm
-        $students = Student::query()
-            ->where('school_id', $schoolId)
+        $studentIds = Result::query()
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
             ->where('school_class_id', $validated['school_class_id'])
             ->when(
                 ! empty($validated['class_arm_id']),
-                fn ($q) => $q->where('class_arm_id', $validated['class_arm_id'])
+                fn ($query) => $query->where('class_arm_id', $validated['class_arm_id'])
             )
+            ->distinct()
+            ->pluck('student_id');
+
+        // Students who belonged to the selected class/arm for this result period.
+        $students = Student::query()
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $studentIds)
             ->whereNotIn('status', ['inactive', 'Inactive'])
             ->orderBy('last_name')
             ->orderBy('first_name')
@@ -138,12 +148,12 @@ class BroadsheetController extends Controller
             })->count();
 
             return [
-                'sno'        => $index + 1,
-                'student'    => $student,
-                'scores'     => $subjectScores,
-                'average'    => $summary?->average_score !== null ? number_format((float) $summary->average_score, 1) : '',
-                'position'   => $summary?->position_in_class ?? '',
-                'passes'     => $passes,
+                'sno' => $index + 1,
+                'student' => $student,
+                'scores' => $subjectScores,
+                'average' => $summary?->average_score !== null ? number_format((float) $summary->average_score, 1) : '',
+                'position' => $summary?->position_in_class ?? '',
+                'passes' => $passes,
             ];
         });
 

@@ -1,15 +1,16 @@
 <?php
 
+use App\Models\ClassArm;
+use App\Models\ClassTeacher;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\Staff;
 use App\Models\Subject;
+use App\Models\SubjectAssignment;
 use App\Models\SubjectTeacherAssignment;
 use App\Models\Term;
 use App\Models\User;
-use App\Models\ClassArm;
-use App\Models\ClassTeacher;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
@@ -127,6 +128,61 @@ it('creates multiple teacher subject assignments in one request', function () {
     )->toBe(2);
 });
 
+it('bulk saves different subject and class rows without deleting omitted assignments', function () {
+    $existing = SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectA->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    $omitted = SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectC->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->classTwo->id,
+        'class_arm_id' => null,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    postJson('/api/v1/settings/subject-teacher-assignments/bulk-save', [
+        'staff_id' => $this->teacher->id,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+        'assignments' => [
+            [
+                'id' => $existing->id,
+                'subject_id' => $this->subjectB->id,
+                'school_class_id' => $this->class->id,
+                'class_arm_id' => $this->armB->id,
+            ],
+            [
+                'subject_id' => $this->subjectA->id,
+                'school_class_id' => $this->classTwo->id,
+                'class_arm_id' => null,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+
+    expect($existing->fresh()->subject_id)->toBe($this->subjectB->id)
+        ->and($existing->fresh()->class_arm_id)->toBe($this->armB->id)
+        ->and(SubjectTeacherAssignment::find($omitted->id))->not->toBeNull()
+        ->and(SubjectTeacherAssignment::query()
+            ->where('subject_id', $this->subjectA->id)
+            ->where('school_class_id', $this->classTwo->id)
+            ->exists())->toBeTrue();
+});
+
 it('shows assignments on dashboard for staff users with teacher staff role', function () {
     $teacherUser = User::factory()->create([
         'school_id' => $this->school->id,
@@ -196,6 +252,65 @@ it('shows class teacher assignments on dashboard for staff users with teacher st
         ->assertJsonPath('stats.classes', 1)
         ->assertJsonPath('assignments.0.class.id', $this->class->id)
         ->assertJsonPath('assignments.0.class_arm.id', $this->armA->id);
+});
+
+it('marks only subject teacher subjects as editable when a teacher is also a class teacher', function () {
+    $teacherUser = User::factory()->create([
+        'school_id' => $this->school->id,
+        'role' => 'staff',
+        'status' => 'active',
+        'email' => 'mixed.teacher@example.test',
+    ]);
+
+    $this->teacher->update([
+        'user_id' => $teacherUser->id,
+        'role' => 'Class Teacher',
+        'email' => 'mixed.teacher@example.test',
+    ]);
+
+    foreach ([$this->subjectA, $this->subjectB] as $subject) {
+        SubjectAssignment::create([
+            'id' => (string) Str::uuid(),
+            'subject_id' => $subject->id,
+            'session_id' => $this->session->id,
+            'school_class_id' => $this->class->id,
+            'class_arm_id' => $this->armA->id,
+            'class_section_id' => null,
+        ]);
+    }
+
+    ClassTeacher::create([
+        'id' => (string) Str::uuid(),
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    SubjectTeacherAssignment::create([
+        'id' => (string) Str::uuid(),
+        'subject_id' => $this->subjectA->id,
+        'staff_id' => $this->teacher->id,
+        'school_class_id' => $this->class->id,
+        'class_arm_id' => $this->armA->id,
+        'class_section_id' => null,
+        'student_ids' => null,
+        'session_id' => $this->session->id,
+        'term_id' => $this->term->id,
+    ]);
+
+    Sanctum::actingAs($teacherUser, [], 'sanctum');
+
+    $response = getJson('/api/v1/staff/dashboard')
+        ->assertOk()
+        ->assertJsonPath('assignments.0.is_class_teacher', true);
+
+    $subjects = collect($response->json('assignments.0.subjects'))->keyBy('id');
+
+    expect($subjects[$this->subjectA->id]['is_subject_teacher'])->toBeTrue()
+        ->and($subjects[$this->subjectB->id]['is_subject_teacher'])->toBeFalse();
 });
 
 it('skips duplicate teacher subject assignments during bulk create', function () {

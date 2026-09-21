@@ -23,6 +23,8 @@ use Illuminate\Support\Str;
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property string $status
+ * @property bool $use_position_ranges
+ * @property string $attendance_entry_mode
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -50,7 +52,8 @@ class Term extends Model
 	protected $casts = [
 		'start_date' => 'datetime',
 		'end_date' => 'datetime',
-		'term_number' => 'integer'
+		'term_number' => 'integer',
+		'use_position_ranges' => 'boolean',
 	];
 
 	protected $fillable = [
@@ -62,7 +65,9 @@ class Term extends Model
 		'slug',
 		'start_date',
 		'end_date',
-		'status'
+		'status',
+		'use_position_ranges',
+		'attendance_entry_mode',
 	];
 
 	protected static function booted(): void

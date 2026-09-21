@@ -100,29 +100,34 @@
         col.col-admno  { width: 46px; }
         col.col-name   { width: 120px; }
         col.col-sex    { width: 22px; }
-        col.col-subj   { width: 22px; }
+        col.col-subj   { width: 26px; }
         col.col-passes { width: 34px; }
         col.col-remark { width: 44px; }
 
         th.rotated {
             height: 92px;
             white-space: nowrap;
-            vertical-align: bottom;
+            position: relative;
             padding: 0;
+            overflow: hidden;
         }
 
         th.rotated > span {
-            display: inline-block;
-            transform: rotate(-90deg);
-            transform-origin: bottom center;
-            width: 86px;
-            text-align: left;
-            padding-left: 4px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            display: block;
+            width: 84px;
+            max-height: 24px;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            transform-origin: center;
+            text-align: center;
             font-size: 7px;
+            line-height: 1.1;
             font-weight: bold;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: normal;
         }
 
         th.header-main {
@@ -134,10 +139,16 @@
             display: table-header-group;
         }
 
+        td.admission-cell,
+        td.name-cell {
+            font-size: 8px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
         td.name-cell {
             text-align: left;
             padding-left: 3px;
-            font-size: 7px;
         }
 
         td.score-cell {
@@ -152,6 +163,78 @@
             color: #555;
         }
 
+        @media screen {
+            body.embedded {
+                overflow: auto;
+                background: #f8fafc;
+            }
+
+            body.embedded .page {
+                width: max-content;
+                min-width: 100%;
+                padding: 24px;
+                background: #fff;
+            }
+
+            body.embedded .school-header h1 {
+                font-size: 20px;
+            }
+
+            body.embedded .school-header h2,
+            body.embedded .school-header .class-label {
+                font-size: 15px;
+            }
+
+            body.embedded .broadsheet-meta,
+            body.embedded .footer {
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            body.embedded table {
+                width: max-content;
+                min-width: 100%;
+            }
+
+            body.embedded th,
+            body.embedded td {
+                padding: 5px 6px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            body.embedded col.col-sno    { width: 48px; }
+            body.embedded col.col-admno  { width: 100px; }
+            body.embedded col.col-name   { width: 220px; }
+            body.embedded col.col-sex    { width: 48px; }
+            body.embedded col.col-subj   { width: 54px; }
+            body.embedded col.col-passes { width: 70px; }
+            body.embedded col.col-remark { width: 90px; }
+
+            body.embedded th.rotated {
+                height: 145px;
+            }
+
+            body.embedded th.rotated > span {
+                width: 132px;
+                max-height: 44px;
+                font-size: 11px;
+                font-weight: 800;
+            }
+
+            body.embedded th.header-main,
+            body.embedded td.admission-cell,
+            body.embedded td.name-cell,
+            body.embedded td.score-cell {
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            body.embedded td.score-cell {
+                height: 30px;
+            }
+        }
+
         @media print {
             .no-print { display: none !important; }
             body { background: #fff; }
@@ -162,16 +245,33 @@
         }
     </style>
 </head>
-<body>
+<body @class(['embedded' => request()->boolean('embedded')])>
 
-<div class="no-print">
-    <button onclick="window.print()">&#128438; Print Broadsheet</button>
-    <button onclick="window.close()">Close</button>
-</div>
+@unless(request()->boolean('embedded'))
+    <div class="no-print">
+        <button onclick="window.print()">&#128438; Print Broadsheet</button>
+        <button onclick="window.close()">Close</button>
+    </div>
+@endunless
 
 <div class="page">
     <div class="school-header">
-        <h1>{{ strtoupper($school?->name ?? 'School Name') }}</h1>
+        @php
+            $schoolName = (string) ($school?->name ?? 'School Name');
+            $schoolLines = preg_split('/<br\s*\/?>/i', $schoolName) ?: [];
+            $schoolLines = array_values(array_filter(array_map('trim', $schoolLines), fn ($line) => $line !== ''));
+            if (empty($schoolLines)) {
+                $schoolLines = [$schoolName];
+            }
+        @endphp
+        <h1>
+            @foreach ($schoolLines as $index => $line)
+                @if ($index > 0)
+                    <br>
+                @endif
+                {{ strtoupper($line) }}
+            @endforeach
+        </h1>
         <h2>{{ strtoupper($term?->name ?? '') }} TERM BROADSHEET {{ $session?->name ?? '' }} ACADEMIC SESSION</h2>
         <div class="class-label">
             CLASS:&nbsp;
@@ -226,7 +326,7 @@
                 @endphp
                 <tr>
                     <td>{{ $row['sno'] }}</td>
-                    <td>{{ $student->admission_no ?? '' }}</td>
+                    <td class="admission-cell">{{ $student->admission_no ?? '' }}</td>
                     <td class="name-cell">{{ $fullName }}</td>
                     <td>{{ $sex }}</td>
                     @foreach ($row['scores'] as $score)

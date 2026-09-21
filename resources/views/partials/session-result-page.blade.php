@@ -101,7 +101,7 @@
                         <th>Lowest</th>
                     @endif
                     @if($showClassAverage)
-                        <th>Average</th>
+                        <th>Avg</th>
                     @endif
                     @if($showPosition)
                         <th>Position</th>
@@ -120,7 +120,12 @@
         <tbody>
             @forelse($resultsRows as $row)
                 <tr>
-                    <td class="subject-name">{{ $row['subject_name'] }}</td>
+                    <td class="subject-name">
+                        <span class="subject-label">
+                            <span class="subject-number">{{ $loop->iteration }}.</span>
+                            <span class="subject-text">{{ $row['subject_name'] }}</span>
+                        </span>
+                    </td>
                     @foreach($termSections as $section)
                         @php
                             $termNumber = $section['number'] ?? null;
@@ -172,33 +177,31 @@
     @endphp
 
     @if($hasSkillRatings)
-        <div class="session-summary-grid">
-            <div class="session-summary-card" style="width: 100%; max-width: none;">
-                <h2 style="margin-bottom: 12px;">Skills &amp; Behaviour (3rd Term)</h2>
-                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    @foreach($skillRatingsByCategory as $category)
-                        <div style="flex: 1; min-width: 250px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
-                            <div style="font-weight: 700; color: #1e293b; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
-                                {{ strtoupper($category['category']) }}
-                            </div>
-                            <table class="skill-table" style="width: 100%; border-collapse: collapse;">
-                                @foreach($category['skills'] as $skill)
-                                    <tr>
-                                        <td style="padding: 4px 0; font-size: 13px; color: #334155;">{{ $skill['skill'] }}</td>
-                                        <td style="padding: 4px 0; font-size: 13px; font-weight: 700; text-align: right; color: #0f172a;">
-                                            {{ $skill['rating'] !== null ? number_format($skill['rating'], 0) : '-' }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </table>
+        <div class="session-skills-section">
+            <h2>Skills &amp; Behaviour (3rd Term)</h2>
+            <div class="session-skills-grid">
+                @foreach($skillRatingsByCategory as $category)
+                    <div class="session-skill-category">
+                        <div class="session-skill-category-title">
+                            {{ strtoupper($category['category']) }}
                         </div>
-                    @endforeach
-                </div>
+                        <table class="skill-table">
+                            <tbody>
+                            @foreach($category['skills'] as $skill)
+                                <tr>
+                                    <td>{{ $skill['skill'] }}</td>
+                                    <td>{{ $skill['rating'] !== null ? number_format($skill['rating'], 0) : '-' }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endforeach
             </div>
         </div>
     @endif
 
-    <div class="session-summary-grid">
+    <div class="session-summary-grid session-final-summary">
         <div class="session-summary-card">
             <h2>Summary</h2>
             <p><strong>Subjects:</strong> {{ $aggregate['subject_count'] ?? 0 }}</p>

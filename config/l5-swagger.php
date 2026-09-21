@@ -1,7 +1,13 @@
 <?php
 
+use App\Http\Middleware\SwaggerBasicAuth;
+
 return [
     'default' => 'default',
+    'basic_auth' => [
+        'username' => env('L5_SWAGGER_USERNAME'),
+        'password' => env('L5_SWAGGER_PASSWORD'),
+    ],
     'documentations' => [
         'default' => [
             'api' => [
@@ -27,10 +33,10 @@ return [
             'docs' => 'docs',
             'oauth2_callback' => 'api/oauth2-callback',
             'middleware' => [
-                'api' => [],
-                'asset' => [],
-                'docs' => [],
-                'oauth2_callback' => [],
+                'api' => [SwaggerBasicAuth::class],
+                'asset' => [SwaggerBasicAuth::class],
+                'docs' => [SwaggerBasicAuth::class],
+                'oauth2_callback' => [SwaggerBasicAuth::class],
             ],
             'group_options' => [],
         ],

@@ -10,7 +10,6 @@ use App\Models\SubjectTeacherAssignment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AcademicAnalyticsController extends Controller
@@ -136,7 +135,6 @@ class AcademicAnalyticsController extends Controller
             ->where('staff.school_id', $schoolId)
             ->whereIn('subject_teacher_assignments.school_class_id', $classIds)
             ->when($filters['session_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.session_id', $value))
-            ->when($filters['term_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.term_id', $value))
             ->when($filters['subject_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_teacher_assignments.subject_id', $value))
             ->selectRaw('subject_teacher_assignments.school_class_id as class_id')
             ->selectRaw('COUNT(DISTINCT subject_teacher_assignments.staff_id) as teacher_count')
@@ -155,6 +153,7 @@ class AcademicAnalyticsController extends Controller
             ->join('subjects', 'subjects.id', '=', 'subject_school_class_assignments.subject_id')
             ->where('subjects.school_id', $schoolId)
             ->whereIn('subject_school_class_assignments.school_class_id', $classIds)
+            ->when($filters['session_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_school_class_assignments.session_id', $value))
             ->when($filters['subject_id'] ?? null, fn (Builder $query, string $value) => $query->where('subject_school_class_assignments.subject_id', $value))
             ->selectRaw('subject_school_class_assignments.school_class_id as class_id')
             ->selectRaw('COUNT(DISTINCT subject_school_class_assignments.subject_id) as subject_count')

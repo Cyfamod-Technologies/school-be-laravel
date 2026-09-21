@@ -36,6 +36,39 @@ use Throwable;
 class SchoolController extends Controller
 {
     /**
+     * @OA\Get(
+     *     path="/api/v1/schools",
+     *     summary="List all registered schools",
+     *     tags={"school-v1.0"},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Registered schools returned successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(
+     *                 property="schools",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     @OA\Property(property="name", type="string", example="My School"),
+     *                     @OA\Property(property="logo_url", type="string", nullable=true, example="https://example.com/storage/schools/logos/logo.png")
+     *                 )
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function index()
+    {
+        $schools = School::query()
+            ->select(['name', 'logo_url'])
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'schools' => $schools,
+        ]);
+    }
+
+    /**
      * @OA\Post(
      *      path="/api/v1/register-school",
      *      summary="Register a new school",
@@ -475,7 +508,7 @@ class SchoolController extends Controller
             'message' => 'School profile updated successfully',
             'school' => $school->fresh([
                 'currentSession:id,name,slug,start_date,end_date,status',
-                'currentTerm:id,name,session_id,start_date,end_date,status',
+                'currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
             ]),
         ]);
     }
@@ -559,7 +592,7 @@ class SchoolController extends Controller
 
         $user->loadMissing([
             'school.currentSession:id,name,slug,start_date,end_date,status',
-            'school.currentTerm:id,name,session_id,start_date,end_date,status',
+            'school.currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
             'parents' => function ($query) {
                 $query
                     ->select([
@@ -662,7 +695,7 @@ class SchoolController extends Controller
             return response()->json([
                 'school' => $school->loadMissing([
                     'currentSession:id,name,slug,start_date,end_date,status',
-                    'currentTerm:id,name,session_id,start_date,end_date,status',
+                    'currentTerm:id,name,session_id,start_date,end_date,status,attendance_entry_mode',
                 ]),
             ]);
         }

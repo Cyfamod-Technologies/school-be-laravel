@@ -2,6 +2,16 @@
 
 return [
 
+    'account_lookup' => [
+        'key' => env('ACCOUNT_LOOKUP_KEY'),
+    ],
+
+    'app_version' => [
+        // Shared secret the mobile release pipeline sends as X-App-Version-Key
+        // when publishing the build number of a release the store has accepted.
+        'publish_key' => env('APP_VERSION_PUBLISH_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -33,6 +43,13 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'firebase' => [
+        'enabled' => env('FIREBASE_NOTIFICATIONS_ENABLED', false),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'attendance_delay_minutes' => (int) env('ATTENDANCE_NOTIFICATION_DELAY_MINUTES', 30),
     ],
 
 ];

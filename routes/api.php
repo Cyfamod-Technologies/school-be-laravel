@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\StudentBulkUploadController;
 use App\Http\Controllers\Api\V1\AcademicAnalyticsController;
 use App\Http\Controllers\Api\V1\StaffAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
+use App\Http\Controllers\Api\V1\StudentPortalAttendanceController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\BankDetailController;
@@ -36,6 +37,8 @@ use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\StaffSelfController;
 use App\Http\Controllers\Api\V1\TeacherDashboardController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
+use App\Http\Controllers\Api\V1\StudentDeviceController;
+use App\Http\Controllers\Api\V1\StudentNotificationController;
 use App\Http\Controllers\ResultViewController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\QuizController;
@@ -47,6 +50,9 @@ use App\Http\Controllers\Api\V1\PermissionSeedController;
 use App\Http\Controllers\Api\V1\AssessmentComponentStructureController;
 use App\Http\Controllers\Api\V1\BroadsheetController;
 use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
+use App\Http\Controllers\Api\V1\AccountLookupController;
+use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\QueueWorkerController;
 
 $host = parse_url(config('app.url'), PHP_URL_HOST);
 
@@ -58,7 +64,23 @@ Route::domain('{subdomain}.' . $host)->group(function () {
 Route::get('/migrate', [\App\Http\Controllers\MigrateController::class, 'migrate']);
 
 Route::prefix('api/v1')->group(function () {
+    Route::post('/system/process-queue', QueueWorkerController::class)
+        ->middleware('throttle:6,1')
+        ->name('system.process-queue');
+
+    Route::post('/find-account', AccountLookupController::class)
+        ->middleware('throttle:20,1');
+
+    // Read is public and unthrottled on purpose -- see AppVersionController::show.
+    // The write is server-to-server, called by the mobile release pipeline.
+    Route::get('/get-app-version', [AppVersionController::class, 'show'])
+        ->name('app-version.show');
+    Route::post('/app-version', [AppVersionController::class, 'publish'])
+        ->middleware('throttle:30,1')
+        ->name('app-version.publish');
     Route::post('/register-school', [SchoolController::class, 'register']);
+    Route::get('/schools', [SchoolController::class, 'index'])
+        ->name('schools.index');
     Route::post('/login', [SchoolController::class, 'login']);
     Route::get('/email/verify', [EmailVerificationController::class, 'verify'])
         ->name('api.v1.email.verify');
@@ -74,8 +96,25 @@ Route::prefix('api/v1')->group(function () {
                 Route::post('logout', [StudentAuthController::class, 'logout']);
                 Route::get('profile', [StudentAuthController::class, 'profile']);
                 Route::post('profile/update', [StudentAuthController::class, 'updateProfile']);
+                Route::post('password/change', [StudentAuthController::class, 'changePassword']);
                 Route::get('sessions', [StudentAuthController::class, 'sessions']);
+                Route::get('attendance', [StudentPortalAttendanceController::class, 'index'])
+                    ->name('student.attendance.index');
+                Route::get('result-pins', [ResultPinController::class, 'studentDashboard'])
+                    ->name('student.result-pins.index');
+                Route::post('devices', [StudentDeviceController::class, 'store'])
+                    ->name('student.devices.store');
+                Route::delete('devices', [StudentDeviceController::class, 'destroy'])
+                    ->name('student.devices.destroy');
+                Route::get('notifications', [StudentNotificationController::class, 'index'])
+                    ->name('student.notifications.index');
+                Route::put('notifications/read-all', [StudentNotificationController::class, 'markAllRead'])
+                    ->name('student.notifications.read-all');
+                Route::put('notifications/{notification}/read', [StudentNotificationController::class, 'markRead'])
+                    ->whereUuid('notification')
+                    ->name('student.notifications.read');
                 Route::post('results/preview', [StudentAuthController::class, 'previewResult']);
+                Route::get('results/download.pdf', [StudentAuthController::class, 'downloadResultPdf']);
                 Route::get('parent', [StudentAuthController::class, 'getParent']);
                 Route::post('parent', [StudentAuthController::class, 'updateParent']);
 
@@ -183,6 +222,17 @@ Route::prefix('api/v1')->group(function () {
         Route::apiResource('parents', \App\Http\Controllers\Api\V1\ParentController::class);
 
         // Student Routes
+        Route::post('students/regenerate-admission-numbers', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'regenerateAdmissionNumbers',
+        ])
+            ->name('students.admission-numbers.regenerate');
+        Route::post('students/{student}/reset-password', [
+            \App\Http\Controllers\Api\V1\StudentController::class,
+            'resetPortalPassword',
+        ])
+            ->whereUuid('student')
+            ->name('students.password.reset');
         Route::apiResource('students', \App\Http\Controllers\Api\V1\StudentController::class);
         Route::get('student-term-summaries', [StudentTermSummaryController::class, 'batchIndex'])
             ->name('student-term-summaries.index');
@@ -237,6 +287,8 @@ Route::prefix('api/v1')->group(function () {
                 ->name('result-pins.index');
             Route::post('bulk', [ResultPinController::class, 'bulkGenerate'])
                 ->name('result-pins.bulk-generate');
+            Route::post('distribute', [ResultPinController::class, 'distribute'])
+                ->name('result-pins.distribute');
             Route::put('{resultPin}/invalidate', [ResultPinController::class, 'invalidate'])
                 ->whereUuid('resultPin')
                 ->name('result-pins.invalidate');
@@ -257,6 +309,10 @@ Route::prefix('api/v1')->group(function () {
             ->name('analytics.academics');
 
         Route::prefix('attendance')->group(function () {
+            Route::get('mode', [StudentAttendanceController::class, 'mode'])
+                ->name('attendance.mode.show');
+            Route::put('mode', [StudentAttendanceController::class, 'updateMode'])
+                ->name('attendance.mode.update');
             Route::get('students', [StudentAttendanceController::class, 'index'])
                 ->name('attendance.students.index');
             Route::post('students', [StudentAttendanceController::class, 'store'])
@@ -395,6 +451,8 @@ Route::prefix('api/v1')->group(function () {
             Route::apiResource('subject-assignments', SubjectAssignmentController::class)
                 ->parameters(['subject-assignments' => 'assignment'])
                 ->except(['create', 'edit']);
+            Route::post('subject-teacher-assignments/bulk-save', [SubjectTeacherAssignmentController::class, 'bulkSave'])
+                ->name('subject-teacher-assignments.bulk-save');
             Route::apiResource('subject-teacher-assignments', SubjectTeacherAssignmentController::class)
                 ->parameters(['subject-teacher-assignments' => 'assignment'])
                 ->except(['create', 'edit']);

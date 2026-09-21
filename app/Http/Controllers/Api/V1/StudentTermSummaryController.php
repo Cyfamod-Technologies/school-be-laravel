@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\CommentRange;
 use App\Models\GradingScale;
+use App\Models\Result;
 use App\Models\Student;
+use App\Models\Term;
 use App\Models\TermSummary;
 use App\Services\Teachers\TeacherAccessService;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +46,7 @@ class StudentTermSummaryController extends Controller
             'class_arm_id' => ['nullable', 'uuid'],
             'class_section_id' => ['nullable', 'uuid'],
         ]);
+        $term = $this->resolveTerm($user->school_id, $validated['session_id'], $validated['term_id']);
 
         $studentQuery = Student::query()
             ->where('school_id', $user->school_id)
@@ -78,6 +81,7 @@ class StudentTermSummaryController extends Controller
             ->keyBy('student_id');
 
         return response()->json([
+            'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
             'data' => $students
                 ->map(fn (Student $student) => $this->serializeBatchSummary(
                     $student,
@@ -108,6 +112,9 @@ class StudentTermSummaryController extends Controller
             'entries.*.days_present' => ['nullable', 'integer', 'min:0'],
             'entries.*.days_absent' => ['nullable', 'integer', 'min:0'],
         ]);
+        $this->ensureManualAttendanceMode(
+            $this->resolveTerm($user->school_id, $validated['session_id'], $validated['term_id'])
+        );
 
         $entries = collect($validated['entries'])
             ->map(fn (array $entry) => [
@@ -283,25 +290,27 @@ class StudentTermSummaryController extends Controller
             ->where('session_id', $sessionId)
             ->where('term_id', $termId)
             ->first();
+        $term = $this->resolveTerm($student->school_id, $sessionId, $termId);
 
         $useAutomaticComments = $this->usesAutomaticCommentMode($student);
+        $average = $this->resolveStudentAverage($student, $sessionId, $termId, $termSummary);
         $commentTemplates = $useAutomaticComments
             ? ['class_teacher_comment_options' => [], 'principal_comment_options' => []]
             : $this->resolveCommentTemplates($student, $sessionId);
 
         if ($useAutomaticComments) {
-            $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
-            $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+            $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
+            $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
         } else {
             $teacherComment = $termSummary?->overall_comment;
             $principalComment = $termSummary?->principal_comment;
 
             if ($teacherComment === null || trim((string) $teacherComment) === '') {
-                $teacherComment = $this->generateTeacherComment($termSummary, $student, $sessionId);
+                $teacherComment = $this->generateTeacherComment($average, $student, $sessionId);
             }
 
             if ($principalComment === null || trim((string) $principalComment) === '') {
-                $principalComment = $this->generatePrincipalComment($termSummary, $student, $sessionId);
+                $principalComment = $this->generatePrincipalComment($average, $student, $sessionId);
             }
         }
 
@@ -313,6 +322,7 @@ class StudentTermSummaryController extends Controller
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary?->days_present,
                 'days_absent' => $termSummary?->days_absent,
+                'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
             ],
         ]);
     }
@@ -366,6 +376,16 @@ class StudentTermSummaryController extends Controller
             'days_absent' => ['nullable', 'integer', 'min:0', 'required_with:days_present'],
         ]);
 
+        if (array_key_exists('days_present', $validated) || array_key_exists('days_absent', $validated)) {
+            $this->ensureManualAttendanceMode(
+                $this->resolveTerm(
+                    $student->school_id,
+                    $validated['session_id'],
+                    $validated['term_id']
+                )
+            );
+        }
+
         $termSummary = TermSummary::query()
             ->where('student_id', $student->id)
             ->where('session_id', $validated['session_id'])
@@ -413,11 +433,17 @@ class StudentTermSummaryController extends Controller
                 $validated['session_id'] ?? null
             );
 
+        $average = $this->resolveStudentAverage(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $termSummary
+        );
         $teacherComment = $useAutomaticComments
-            ? $this->generateTeacherComment($termSummary, $student, $validated['session_id'])
+            ? $this->generateTeacherComment($average, $student, $validated['session_id'])
             : $termSummary->overall_comment;
         $principalComment = $useAutomaticComments
-            ? $this->generatePrincipalComment($termSummary, $student, $validated['session_id'])
+            ? $this->generatePrincipalComment($average, $student, $validated['session_id'])
             : $termSummary->principal_comment;
 
         return response()->json([
@@ -429,6 +455,11 @@ class StudentTermSummaryController extends Controller
                 'principal_comment_options' => $commentTemplates['principal_comment_options'],
                 'days_present' => $termSummary->days_present,
                 'days_absent' => $termSummary->days_absent,
+                'attendance_entry_mode' => $this->resolveTerm(
+                    $student->school_id,
+                    $validated['session_id'],
+                    $validated['term_id']
+                )->attendance_entry_mode ?: 'daily',
             ],
         ]);
     }
@@ -447,18 +478,76 @@ class StudentTermSummaryController extends Controller
         }
     }
 
+    private function resolveTerm(string $schoolId, string $sessionId, string $termId): Term
+    {
+        return Term::query()
+            ->whereKey($termId)
+            ->where('school_id', $schoolId)
+            ->where('session_id', $sessionId)
+            ->firstOrFail();
+    }
+
+    private function ensureManualAttendanceMode(Term $term): void
+    {
+        if (($term->attendance_entry_mode ?: 'daily') !== 'manual') {
+            abort(422, 'Manual attendance is locked because Daily Register is selected for this term.');
+        }
+    }
+
     private function usesAutomaticCommentMode(Student $student): bool
     {
         return ($student->school?->result_comment_mode ?? 'manual') === 'range';
     }
 
-    private function generateTeacherComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
+    private function resolveStudentAverage(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        ?TermSummary $summary
+    ): ?float
     {
-        if (! $summary || $summary->average_score === null) {
-            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        $subjectTotals = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->where('term_id', $termId)
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function (Collection $entries) {
+                $overall = $entries->first(
+                    fn (Result $result) => $result->assessment_component_id === null
+                        && $result->total_score !== null
+                );
+
+                if ($overall) {
+                    return (float) $overall->total_score;
+                }
+
+                $componentScores = $entries
+                    ->filter(fn (Result $result) => $result->assessment_component_id !== null)
+                    ->pluck('total_score')
+                    ->filter(fn ($score) => $score !== null);
+
+                return $componentScores->isEmpty()
+                    ? null
+                    : (float) $componentScores->sum();
+            })
+            ->filter(fn ($total) => $total !== null)
+            ->values();
+
+        if ($subjectTotals->isNotEmpty()) {
+            return round((float) $subjectTotals->average(), 2);
         }
 
-        $average = (float) $summary->average_score;
+        return $summary?->average_score !== null
+            ? round((float) $summary->average_score, 2)
+            : null;
+    }
+
+    private function generateTeacherComment(?float $average, ?Student $student, ?string $sessionId): string
+    {
+        if ($average === null) {
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        }
 
         // Get comment ranges from database
         if ($student && $sessionId) {
@@ -469,6 +558,10 @@ class StudentTermSummaryController extends Controller
         }
 
         // Fallback to default hardcoded comments
+        if ($average >= 80) {
+            return 'An outstanding performance. The student demonstrates exceptional understanding, excellent participation, and remarkable consistency. Keep up the excellent work.';
+        }
+
         if ($average >= 70) {
             return 'An excellent performance. The student demonstrates strong understanding, active participation, and consistent effort in class. Keep striving for excellence.';
         }
@@ -489,16 +582,22 @@ class StudentTermSummaryController extends Controller
             return 'A weak pass. The student shows minimal understanding and must improve study habits and commitment.';
         }
 
-        return 'A poor performance. The student needs serious improvement, more practice, and closer academic guidance.';
-    }
-
-    private function generatePrincipalComment(?TermSummary $summary, ?Student $student, ?string $sessionId): string
-    {
-        if (! $summary || $summary->average_score === null) {
-            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        if ($average >= 35) {
+            return 'A below-average performance. The student shows limited understanding and needs greater concentration, regular practice, and additional academic support.';
         }
 
-        $average = (float) $summary->average_score;
+        if ($average >= 30) {
+            return 'A poor performance. The student is struggling with key concepts and needs consistent practice, closer supervision, and serious improvement.';
+        }
+
+        return 'A very poor performance. The student requires urgent academic support, regular revision, and close guidance to improve.';
+    }
+
+    private function generatePrincipalComment(?float $average, ?Student $student, ?string $sessionId): string
+    {
+        if ($average === null) {
+            return 'Automatic comment unavailable because the result average has not been computed yet.';
+        }
 
         // Get comment ranges from database
         if ($student && $sessionId) {
@@ -534,9 +633,18 @@ class StudentTermSummaryController extends Controller
 
     private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
     {
+        $boundedRange = fn ($query) => $query->where(
+            fn ($rangeQuery) => $rangeQuery
+                ->where('min_score', '>', 0)
+                ->orWhere('max_score', '<', 100)
+        );
+
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
-            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+            ->whereHas('comment_ranges', $boundedRange)
+            ->with([
+                'comment_ranges' => fn ($query) => $boundedRange($query)->orderBy('min_score'),
+            ]);
 
         $gradeScale = null;
 
@@ -573,6 +681,7 @@ class StudentTermSummaryController extends Controller
     {
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
+            ->whereHas('comment_ranges')
             ->with(['comment_ranges' => fn ($query) => $query->orderBy('created_at')]);
 
         $gradeScale = null;

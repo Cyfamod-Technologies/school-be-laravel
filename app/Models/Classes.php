@@ -20,52 +20,50 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $description
  * @property Carbon $created_at
  * @property Carbon $updated_at
- *
  * @property School $school
  * @property Collection|ClassArm[] $class_arms
  * @property Collection|Student[] $students
  * @property Collection|Subject[] $subjects
- *
- * @package App\Models
  */
 class Classes extends Model
 {
-	protected $table = 'classes';
-	public $incrementing = false;
+    protected $table = 'classes';
 
-	protected $keyType = 'string';
+    public $incrementing = false;
 
-	protected $fillable = [
-		'school_id',
-		'name',
-		'slug',
-		'description'
-	];
+    protected $keyType = 'string';
 
-	public function school()
-	{
-		return $this->belongsTo(School::class);
-	}
+    protected $fillable = [
+        'school_id',
+        'name',
+        'slug',
+        'description',
+    ];
 
-	public function class_arms()
-	{
-		return $this->hasMany(ClassArm::class);
-	}
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 
-	public function students()
-	{
-		return $this->hasMany(Student::class);
-	}
+    public function class_arms()
+    {
+        return $this->hasMany(ClassArm::class);
+    }
 
-	public function assignments()
-	{
-		return $this->hasMany(SubjectAssignment::class, 'school_class_id');
-	}
+    public function students()
+    {
+        return $this->hasMany(Student::class);
+    }
 
-	public function subjects()
-	{
-		return $this->belongsToMany(Subject::class, 'subject_school_class_assignments')
-					->withPivot(['id', 'class_arm_id', 'class_section_id'])
-					->withTimestamps();
-	}
+    public function assignments()
+    {
+        return $this->hasMany(SubjectAssignment::class, 'school_class_id');
+    }
+
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_school_class_assignments')
+            ->withPivot(['id', 'session_id', 'class_arm_id', 'class_section_id'])
+            ->withTimestamps();
+    }
 }

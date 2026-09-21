@@ -156,6 +156,27 @@
             font-weight: 600;
         }
 
+        .subject-label {
+            display: block;
+            position: relative;
+            min-height: 1em;
+        }
+
+        .subject-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 24px;
+            text-align: left;
+        }
+
+        .subject-text {
+            display: block;
+            padding-left: 28px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
         .table-three td {
             font-size: 13px;
         }

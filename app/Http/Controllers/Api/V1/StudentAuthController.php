@@ -3,18 +3,21 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ResultViewController;
+use App\Models\Result;
+use App\Models\ResultPin;
 use App\Models\Session;
 use App\Models\Student;
+use App\Models\SubjectAssignment;
 use App\Models\Term;
-use App\Models\ResultPin;
-use App\Models\Result;
-use App\Http\Controllers\ResultViewController;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * @OA\Tag(
@@ -29,14 +32,18 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/login",
      *     tags={"school-v2.6"},
      *     summary="Student login",
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\JsonContent(
      *             required={"admission_no","password"},
+     *
      *             @OA\Property(property="admission_no", type="string", example="NC001-2024/2025/1"),
      *             @OA\Property(property="password", type="string", format="password", example="secret")
      *         )
      *     ),
+     *
      *     @OA\Response(response=200, description="Logged in"),
      *     @OA\Response(response=422, description="Invalid credentials")
      * )
@@ -88,8 +95,6 @@ class StudentAuthController extends Controller
             }
         }
 
-        $student->loadMissing(['school_class.subjects:id,name']);
-
         $token = $student->createToken('student-portal', ['student'])->plainTextToken;
 
         return response()->json([
@@ -103,6 +108,7 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/logout",
      *     tags={"school-v2.6"},
      *     summary="Student logout",
+     *
      *     @OA\Response(response=200, description="Logged out")
      * )
      */
@@ -122,6 +128,7 @@ class StudentAuthController extends Controller
      *     path="/api/v1/student/profile",
      *     tags={"school-v2.6"},
      *     summary="Get student profile",
+     *
      *     @OA\Response(response=200, description="Profile returned"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
@@ -133,7 +140,6 @@ class StudentAuthController extends Controller
             'school.currentSession:id,name,slug',
             'school.currentTerm:id,name,session_id',
             'school_class:id,name,school_id',
-            'school_class.subjects:id,name',
             'class_arm:id,name',
             'session:id,name',
             'term:id,name',
@@ -149,7 +155,7 @@ class StudentAuthController extends Controller
 
     public function sessions(Request $request)
     {
-        $student = $this->resolveStudentUser($request);
+        $student = $this->resolveStudentUser($request)->loadMissing('school');
 
         $admissionDate = $student->admission_date;
 
@@ -163,7 +169,7 @@ class StudentAuthController extends Controller
                 ->where('session_id', $session->id)
                 ->where('school_id', $student->school_id)
                 ->orderBy('start_date')
-                ->get(['id', 'name', 'session_id']);
+                ->get(['id', 'name', 'session_id', 'start_date', 'end_date', 'attendance_entry_mode']);
 
             return [
                 'id' => $session->id,
@@ -172,50 +178,40 @@ class StudentAuthController extends Controller
                 'terms' => $terms->map(fn (Term $term) => [
                     'id' => $term->id,
                     'name' => $term->name,
+                    'start_date' => optional($term->start_date)->toDateString(),
+                    'end_date' => optional($term->end_date)->toDateString(),
+                    'attendance_entry_mode' => $term->attendance_entry_mode ?: 'daily',
                 ]),
             ];
         });
 
-        return response()->json(['data' => $sessionPayload]);
+        return response()->json([
+            'data' => $sessionPayload,
+            'meta' => [
+                'require_pin_for_pdf_download' => $student->school?->result_pdf_requires_pin ?? true,
+            ],
+        ]);
     }
 
     public function previewResult(Request $request)
     {
         $student = $this->resolveStudentUser($request)->loadMissing('school');
+        $requiresPin = $student->school?->result_pdf_requires_pin ?? true;
 
         $validated = $request->validate([
             'session_id' => ['required', 'uuid'],
             'term_id' => ['required', 'uuid'],
-            'pin_code' => ['required', 'string'],
+            'pin_code' => $requiresPin ? ['required', 'string'] : ['sometimes', 'nullable', 'string'],
         ]);
 
-        $normalizedPin = $this->normalizePinCode($validated['pin_code']);
-        $pin = $this->resolveAccessibleResultPin(
-            $student,
-            $validated['session_id'],
-            $validated['term_id'],
-            $normalizedPin,
-        );
-
-        if (! $pin) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['Invalid or inactive PIN for the selected session/term.'],
-            ]);
+        if ($requiresPin) {
+            $this->validateResultPinAccess(
+                $student,
+                $validated['session_id'],
+                $validated['term_id'],
+                $validated['pin_code'],
+            );
         }
-
-        if ($pin->expires_at && $pin->expires_at->isPast()) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['This PIN has expired.'],
-            ]);
-        }
-
-        if ($pin->max_usage && $pin->use_count >= $pin->max_usage) {
-            throw ValidationException::withMessages([
-                'pin_code' => ['PIN usage limit reached.'],
-            ]);
-        }
-
-        $pin->increment('use_count');
 
         $results = Result::query()
             ->where('student_id', $student->id)
@@ -238,6 +234,7 @@ class StudentAuthController extends Controller
                     ->map(function (Result $row) {
                         $component = $row->assessment_component;
                         $label = strtoupper($component->label ?? $component->name ?? 'Component');
+
                         return [
                             'id' => $component->id,
                             'label' => $label,
@@ -277,8 +274,10 @@ class StudentAuthController extends Controller
      *     tags={"school-v2.6"},
      *     summary="Download student result",
      *     description="Downloads the student's result for a given session and term.",
+     *
      *     @OA\Parameter(name="session_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
      *     @OA\Parameter(name="term_id", in="query", required=true, @OA\Schema(type="string", format="uuid")),
+     *
      *     @OA\Response(response=200, description="Result file or payload returned"),
      *     @OA\Response(response=401, description="Unauthenticated"),
      *     @OA\Response(response=422, description="Validation error")
@@ -341,6 +340,107 @@ class StudentAuthController extends Controller
             ->header('Content-Type', 'text/html; charset=utf-8');
     }
 
+    /**
+     * Download a student's result as a PDF for mobile clients.
+     */
+    public function downloadResultPdf(Request $request)
+    {
+        $student = $this->resolveStudentUser($request)->loadMissing('school');
+        $requiresPin = $student->school?->result_pdf_requires_pin ?? true;
+
+        $validated = $this->validateResultPdfDownloadRequest($request, $requiresPin);
+
+        $hasResults = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $validated['session_id'])
+            ->where('term_id', $validated['term_id'])
+            ->exists();
+
+        if (! $hasResults) {
+            abort(404, 'No results found for the selected session/term.');
+        }
+
+        $session = Session::query()
+            ->where('school_id', $student->school_id)
+            ->find($validated['session_id']);
+        $term = Term::query()
+            ->where('school_id', $student->school_id)
+            ->where('session_id', $validated['session_id'])
+            ->find($validated['term_id']);
+
+        if (! $session || ! $term) {
+            abort(404, 'Session or term not found.');
+        }
+
+        if ($requiresPin) {
+            $this->validateResultPinAccess(
+                $student,
+                $validated['session_id'],
+                $validated['term_id'],
+                $validated['pin_code'],
+            );
+        }
+
+        $page = app(ResultViewController::class)->buildResultPageData(
+            $student,
+            $validated['session_id'],
+            $validated['term_id'],
+            $student->school_id
+        );
+
+        $html = View::make('student-result-pdf', $page)->render();
+
+        $options = new Options;
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('defaultMediaType', 'print');
+        $options->set('isRemoteEnabled', true);
+
+        $pdf = new Dompdf($options);
+        $pdf->loadHtml($html, 'UTF-8');
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->render();
+
+        $studentName = trim(collect([
+            $student->first_name,
+            $student->middle_name,
+            $student->last_name,
+        ])->filter()->implode(' '));
+
+        $filename = collect([
+            Str::slug($studentName) ?: 'student',
+            Str::slug($session->name) ?: 'session',
+            Str::slug($term->name) ?: 'term',
+            'result',
+        ])->implode('-').'.pdf';
+
+        $content = $pdf->output();
+        $encodedFilename = rawurlencode($filename);
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"; filename*=UTF-8''{$encodedFilename}",
+            'X-Download-Filename' => $filename,
+            'Access-Control-Expose-Headers' => 'Content-Disposition, X-Download-Filename',
+            'Content-Length' => (string) strlen($content),
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
+    }
+
+    private function validateResultPdfDownloadRequest(Request $request, bool $requiresPin): array
+    {
+        if ($requiresPin) {
+            $request->merge([
+                'pin_code' => $request->header('X-Result-PIN', $request->input('pin_code')),
+            ]);
+        }
+
+        return $request->validate([
+            'session_id' => ['required', 'uuid'],
+            'term_id' => ['required', 'uuid'],
+            'pin_code' => $requiresPin ? ['required', 'string'] : ['sometimes', 'nullable', 'string'],
+        ]);
+    }
+
     private function resolveStudentUser(Request $request): Student
     {
         $user = $request->user('student');
@@ -390,6 +490,42 @@ class StudentAuthController extends Controller
         return hash_equals($this->normalizePinCode((string) $pin->pin_code), $normalizedPin)
             ? $pin
             : null;
+    }
+
+    private function validateResultPinAccess(
+        Student $student,
+        string $sessionId,
+        string $termId,
+        string $pinCode,
+    ): ResultPin {
+        $pin = $this->resolveAccessibleResultPin(
+            $student,
+            $sessionId,
+            $termId,
+            $this->normalizePinCode($pinCode),
+        );
+
+        if (! $pin) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['Invalid or inactive PIN for the selected session/term.'],
+            ]);
+        }
+
+        if ($pin->expires_at && $pin->expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['This PIN has expired.'],
+            ]);
+        }
+
+        if ($pin->max_usage && $pin->use_count >= $pin->max_usage) {
+            throw ValidationException::withMessages([
+                'pin_code' => ['PIN usage limit reached.'],
+            ]);
+        }
+
+        $pin->increment('use_count');
+
+        return $pin;
     }
 
     private function normalizePinCode(string $pinCode): string
@@ -471,11 +607,44 @@ class StudentAuthController extends Controller
             'current_term' => ($schoolCurrentTerm ?? $student->term)?->only(['id', 'name']),
             'school_class' => $student->school_class?->only(['id', 'name']),
             'class_arm' => $student->class_arm?->only(['id', 'name']),
-            'subjects' => $student->school_class?->subjects?->map(fn ($subject) => [
+            'subjects' => $this->resolveStudentSubjects($student)->map(fn ($subject) => [
                 'id' => $subject->id,
                 'name' => $subject->name,
             ])->values()->all() ?? [],
         ];
+    }
+
+    /**
+     * Return class-wide subjects and subjects assigned to the student's arm,
+     * excluding assignments that belong to another arm in the same class.
+     */
+    private function resolveStudentSubjects(Student $student)
+    {
+        if (! $student->school_class_id) {
+            return collect();
+        }
+
+        $assignments = SubjectAssignment::query()
+            ->with('subject:id,name')
+            ->where('session_id', $student->school?->current_session_id ?? $student->current_session_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when(
+                $student->class_arm_id,
+                fn ($query, $classArmId) => $query->where(
+                    fn ($armQuery) => $armQuery
+                        ->whereNull('class_arm_id')
+                        ->orWhere('class_arm_id', $classArmId)
+                ),
+                fn ($query) => $query->whereNull('class_arm_id')
+            )
+            ->get();
+
+        return $assignments
+            ->pluck('subject')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 
     /**
@@ -544,7 +713,7 @@ class StudentAuthController extends Controller
             // Create new parent and associated user
             $parentUser = \App\Models\User::create([
                 'id' => (string) Str::uuid(),
-                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'name' => $validated['first_name'].' '.$validated['last_name'],
                 'email' => $validated['email'],
                 'school_id' => $student->school_id,
                 'password' => Hash::make(Str::random(16)),
@@ -587,19 +756,19 @@ class StudentAuthController extends Controller
         $student = $this->resolveStudentUser($request);
 
         $validated = $request->validate([
-            'first_name'          => 'sometimes|string|max:255',
-            'middle_name'         => 'nullable|string|max:255',
-            'last_name'           => 'sometimes|string|max:255',
-            'gender'              => ['sometimes', \Illuminate\Validation\Rule::in(['male','female','other','others','Male','Female','Other','Others','m','f','o','M','F','O'])],
-            'date_of_birth'       => 'sometimes|date',
-            'nationality'         => 'nullable|string|max:255',
-            'state_of_origin'     => 'nullable|string|max:255',
-            'lga_of_origin'       => 'nullable|string|max:255',
-            'house'               => 'nullable|string|max:255',
-            'club'                => 'nullable|string|max:255',
-            'address'             => 'nullable|string|max:500',
+            'first_name' => 'sometimes|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'gender' => ['sometimes', \Illuminate\Validation\Rule::in(['male', 'female', 'other', 'others', 'Male', 'Female', 'Other', 'Others', 'm', 'f', 'o', 'M', 'F', 'O'])],
+            'date_of_birth' => 'sometimes|date',
+            'nationality' => 'nullable|string|max:255',
+            'state_of_origin' => 'nullable|string|max:255',
+            'lga_of_origin' => 'nullable|string|max:255',
+            'house' => 'nullable|string|max:255',
+            'club' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:500',
             'medical_information' => 'nullable|string',
-            'blood_group_id'      => 'sometimes|nullable|uuid|exists:blood_groups,id',
+            'blood_group_id' => 'sometimes|nullable|uuid|exists:blood_groups,id',
         ]);
 
         // Handle passport/photo file upload
@@ -638,6 +807,34 @@ class StudentAuthController extends Controller
         return response()->json([
             'student' => $this->transformStudent($student),
             'message' => 'Profile updated successfully',
+        ]);
+    }
+
+    /**
+     * Change the authenticated student's portal password.
+     */
+    public function changePassword(Request $request)
+    {
+        $student = $this->resolveStudentUser($request);
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        if (! $student->portal_password || ! Hash::check($validated['current_password'], $student->portal_password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is incorrect.'],
+            ]);
+        }
+
+        $student->update([
+            'portal_password' => $validated['password'],
+            'portal_password_changed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Password changed successfully.',
         ]);
     }
 
@@ -705,7 +902,7 @@ class StudentAuthController extends Controller
             // Create new parent and associated user
             $parentUser = \App\Models\User::create([
                 'id' => (string) Str::uuid(),
-                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
+                'name' => $validated['first_name'].' '.$validated['last_name'],
                 'email' => $validated['email'],
                 'school_id' => $student->school_id,
                 'password' => Hash::make(Str::random(16)),

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\AssessmentComponentStructure;
 use App\Models\Attendance;
 use App\Models\ClassArm;
@@ -17,8 +16,8 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Session;
 use App\Models\SkillRating;
-use App\Models\SubjectAssignment;
 use App\Models\Student;
+use App\Models\SubjectAssignment;
 use App\Models\Term;
 use App\Models\TermSummary;
 use App\Models\User;
@@ -37,27 +36,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's result",
      *     description="Renders the printable result sheet for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -87,27 +93,34 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Print a student's early years report",
      *     description="Renders the printable early years report for the selected student, session, and term.",
+     *
      *     @OA\Parameter(
      *         name="student",
      *         in="path",
      *         required=true,
      *         description="Student ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=false,
      *         description="Session ID to print (defaults to student's current session)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=false,
      *         description="Term ID to print (defaults to student's current term)",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view"),
      *     @OA\Response(response=403, description="Forbidden")
      * )
@@ -135,41 +148,52 @@ class ResultViewController extends Controller
      *     tags={"school-v1.4"},
      *     summary="Bulk print class results",
      *     description="Generates printable result sheets for a class (optionally filtered by arm/section).",
+     *
      *     @OA\Parameter(
      *         name="session_id",
      *         in="query",
      *         required=true,
      *         description="Session ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="term_id",
      *         in="query",
      *         required=true,
      *         description="Term ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="school_class_id",
      *         in="query",
      *         required=true,
      *         description="Class ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_arm_id",
      *         in="query",
      *         required=false,
      *         description="Arm ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="class_section_id",
      *         in="query",
      *         required=false,
      *         description="Section ID",
+     *
      *         @OA\Schema(type="string", format="uuid")
      *     ),
+     *
      *     @OA\Response(response=200, description="Printable HTML view or JSON error"),
      *     @OA\Response(response=422, description="Validation error")
      * )
@@ -201,6 +225,15 @@ class ResultViewController extends Controller
                 abort(403, 'You are not linked to any school.');
             }
 
+            $studentIds = Result::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('term_id', $validated['term_id'])
+                ->where('school_class_id', $validated['school_class_id'])
+                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->distinct()
+                ->pluck('student_id');
+
             $students = Student::query()
                 ->with([
                     'school',
@@ -210,9 +243,7 @@ class ResultViewController extends Controller
                     'parent',
                 ])
                 ->where('school_id', $schoolId)
-                ->where('school_class_id', $validated['school_class_id'])
-                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
-                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->whereIn('id', $studentIds)
                 ->whereNotIn('status', ['inactive', 'Inactive'])
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -231,7 +262,8 @@ class ResultViewController extends Controller
                     } catch (\Exception $e) {
                         // Skip students without results or with errors instead of failing entire bulk print
                         // Log the error for debugging but continue with other students
-                        \Log::info("Skipped student {$record->id} in bulk print: " . $e->getMessage());
+                        \Log::info("Skipped student {$record->id} in bulk print: ".$e->getMessage());
+
                         return null;
                     }
                 })
@@ -317,7 +349,7 @@ class ResultViewController extends Controller
 
             throw new HttpResponseException(
                 response()->json([
-                    'message' => 'Bulk result printing failed. Please contact support with code: ' . $errorRef,
+                    'message' => 'Bulk result printing failed. Please contact support with code: '.$errorRef,
                 ], 500)
             );
         }
@@ -351,6 +383,14 @@ class ResultViewController extends Controller
                 abort(403, 'Session result printing is not enabled for this school.');
             }
 
+            $studentIds = Result::query()
+                ->where('session_id', $validated['session_id'])
+                ->where('school_class_id', $validated['school_class_id'])
+                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
+                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->distinct()
+                ->pluck('student_id');
+
             $students = Student::query()
                 ->with([
                     'school',
@@ -360,9 +400,7 @@ class ResultViewController extends Controller
                     'parent',
                 ])
                 ->where('school_id', $schoolId)
-                ->where('school_class_id', $validated['school_class_id'])
-                ->when($validated['class_arm_id'] ?? null, fn ($query, $arm) => $query->where('class_arm_id', $arm))
-                ->when($validated['class_section_id'] ?? null, fn ($query, $section) => $query->where('class_section_id', $section))
+                ->whereIn('id', $studentIds)
                 ->whereNotIn('status', ['inactive', 'Inactive'])
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -378,7 +416,8 @@ class ResultViewController extends Controller
                             $schoolId
                         );
                     } catch (\Exception $e) {
-                        \Log::info("Skipped student {$record->id} in session result print: " . $e->getMessage());
+                        \Log::info("Skipped student {$record->id} in session result print: ".$e->getMessage());
+
                         return null;
                     }
                 })
@@ -455,7 +494,7 @@ class ResultViewController extends Controller
 
             throw new HttpResponseException(
                 response()->json([
-                    'message' => 'Session result printing failed. Please contact support with code: ' . $errorRef,
+                    'message' => 'Session result printing failed. Please contact support with code: '.$errorRef,
                 ], 500)
             );
         }
@@ -529,6 +568,8 @@ class ResultViewController extends Controller
             $term = $student->term()->where('school_id', $student->school_id)->first();
         }
 
+        $this->applyHistoricalResultPlacement($student, $session?->id, $term?->id);
+
         $results = Result::query()
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
@@ -569,15 +610,11 @@ class ResultViewController extends Controller
 
         $gradeScale = $this->resolveGradeScale($student->school_id, $session?->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
-        $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
+        $positionRanges = ($term?->use_position_ranges ?? false)
+            ? ($gradeScale?->position_ranges?->sortBy('position')->values() ?? collect())
+            : collect();
         $componentColumns = $this->buildComponentColumns($results, $student, $term);
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session?->id, $term?->id);
 
         $subjectStatisticsData = $this->computeSubjectStatistics(
             $student,
@@ -590,21 +627,31 @@ class ResultViewController extends Controller
         $subjectStats = $subjectStatisticsData['subjects'];
         $subjectRows = $this->buildSubjectRows($results, $componentColumns, $gradeRanges, $subjectStats);
 
+        $subjectCount = $this->resolveSubjectCount($student, $session?->id);
+        if ($subjectCount <= 0) {
+            $subjectCount = $subjectRows->count();
+        }
+
         $overallStats = $this->computeOverallStatistics(
             $subjectStats,
             $subjectStatisticsData['overall_totals'],
             $student,
             $classSize,
-            $positionRanges
+            $positionRanges,
+            $subjectCount
         );
-        $subjectCount = $this->resolveSubjectCount($student);
+
+        // Keep the summary in sync with the totals visible in the report table.
+        $displayedTotalObtained = $this->resolveDisplayedTotalObtained($subjectRows);
+        if ($displayedTotalObtained !== null) {
+            $overallStats['total_obtained'] = $displayedTotalObtained;
+        }
+
         if ($subjectCount > 0) {
-            if ($overallStats['total_possible'] === null) {
-                $overallStats['total_possible'] = $subjectCount * 100;
-            }
-            if ($overallStats['average'] === null && $overallStats['total_obtained'] !== null) {
-                $overallStats['average'] = round($overallStats['total_obtained'] / $subjectCount, 2);
-            }
+            $overallStats['total_possible'] = $subjectCount * 100;
+            $overallStats['average'] = $overallStats['total_obtained'] !== null
+                ? round($overallStats['total_obtained'] / $subjectCount, 2)
+                : null;
         }
 
         $termSummary = TermSummary::query()
@@ -614,8 +661,13 @@ class ResultViewController extends Controller
             ->first();
 
         $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
-        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? 0;
-        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? 0;
+        $usesManualAttendance = ($term?->attendance_entry_mode ?: 'daily') === 'manual';
+        $attendancePresent = $usesManualAttendance
+            ? ($termSummary?->days_present ?? 0)
+            : ($attendanceCounts['present'] ?? 0);
+        $attendanceAbsent = $usesManualAttendance
+            ? ($termSummary?->days_absent ?? 0)
+            : ($attendanceCounts['absent'] ?? 0);
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -660,15 +712,7 @@ class ResultViewController extends Controller
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
 
-        $nextTerm = null;
-        if ($term && $session) {
-            $nextTerm = Term::query()
-                ->where('school_id', $student->school_id)
-                ->where('session_id', $session->id)
-                ->when($term->end_date, fn ($query) => $query->where('start_date', '>', $term->end_date))
-                ->orderBy('start_date')
-                ->first();
-        }
+        $nextTerm = $term ? $this->resolveNextTerm($term) : null;
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
@@ -681,12 +725,12 @@ class ResultViewController extends Controller
         $useAutomaticComments = ($resultPageSettings['comment_mode'] ?? 'manual') === 'range';
         if ($useAutomaticComments) {
             $teacherComment = $this->generateTeacherComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $overallStats['average'] ?? $termSummary?->average_score,
                 $student,
                 $session?->id
             );
             $principalComment = $this->generatePrincipalComment(
-                $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                $overallStats['average'] ?? $termSummary?->average_score,
                 $student,
                 $session?->id
             );
@@ -696,7 +740,7 @@ class ResultViewController extends Controller
 
             if ($teacherComment === null || trim((string) $teacherComment) === '') {
                 $teacherComment = $this->generateTeacherComment(
-                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $overallStats['average'] ?? $termSummary?->average_score,
                     $student,
                     $session?->id
                 );
@@ -704,7 +748,7 @@ class ResultViewController extends Controller
 
             if ($principalComment === null || trim((string) $principalComment) === '') {
                 $principalComment = $this->generatePrincipalComment(
-                    $termSummary?->average_score ?? $overallStats['average'] ?? null,
+                    $overallStats['average'] ?? $termSummary?->average_score,
                     $student,
                     $session?->id
                 );
@@ -829,6 +873,8 @@ class ResultViewController extends Controller
             );
         }
 
+        $this->applyHistoricalResultPlacement($student, $session->id);
+
         $terms = Term::query()
             ->where('school_id', $student->school_id)
             ->where('session_id', $session->id)
@@ -870,13 +916,7 @@ class ResultViewController extends Controller
         $gradeScale = $this->resolveGradeScale($student->school_id, $session->id);
         $gradeRanges = $gradeScale?->grade_ranges?->sortByDesc('min_score')->values() ?? collect();
         $positionRanges = $gradeScale?->position_ranges?->sortBy('position')->values() ?? collect();
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session->id);
 
         $resultPageSettings = $this->resolveResultPageSettings($student->school);
         if ($student->school_class && $student->school_class->result_show_position !== null) {
@@ -889,16 +929,22 @@ class ResultViewController extends Controller
             $student,
             $gradeRanges,
             $positionRanges,
-            $classSize
+            $classSize,
+            $resultPageSettings['collapse_session_ca'] ?? false
         );
         $termRows = $this->buildSessionSubjectRows($termSections, $gradeRanges);
+
+        $positionRangeTerm = $terms->firstWhere('term_number', 3) ?? $terms->last();
+        $sessionPositionRanges = ($positionRangeTerm?->use_position_ranges ?? false)
+            ? $positionRanges
+            : collect();
 
         $overallStats = $this->computeSessionOverallStatistics(
             $student,
             $session->id,
             $terms,
             $classSize,
-            $positionRanges
+            $sessionPositionRanges
         );
 
         $teacherComment = $this->generateTeacherComment($overallStats['average'], $student, $session->id);
@@ -1056,6 +1102,8 @@ class ResultViewController extends Controller
             $term = $student->term()->where('school_id', $student->school_id)->first();
         }
 
+        $this->applyHistoricalResultPlacement($student, $session?->id, $term?->id);
+
         $termSummary = TermSummary::query()
             ->where('student_id', $student->id)
             ->when($session, fn ($query) => $query->where('session_id', $session->id))
@@ -1063,17 +1111,16 @@ class ResultViewController extends Controller
             ->first();
 
         $attendanceCounts = $this->computeAttendanceCounts($student, $session, $term);
-        $attendancePresent = $termSummary?->days_present ?? $attendanceCounts['present'] ?? null;
-        $attendanceAbsent = $termSummary?->days_absent ?? $attendanceCounts['absent'] ?? null;
+        $usesManualAttendance = ($term?->attendance_entry_mode ?: 'daily') === 'manual';
+        $attendancePresent = $usesManualAttendance
+            ? $termSummary?->days_present
+            : ($attendanceCounts['present'] ?? null);
+        $attendanceAbsent = $usesManualAttendance
+            ? $termSummary?->days_absent
+            : ($attendanceCounts['absent'] ?? null);
         $schoolOpenedDays = optional($student->school)->term_school_opened_days;
 
-        $classSize = Student::query()
-            ->where('school_id', $student->school_id)
-            ->where('school_class_id', $student->school_class_id)
-            ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
-            ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
-            ->whereNotIn('status', ['inactive', 'Inactive'])
-            ->count();
+        $classSize = $this->resolveHistoricalClassSize($student, $session?->id, $term?->id);
 
         $skillRatingsByCategory = SkillRating::query()
             ->where('student_id', $student->id)
@@ -1122,15 +1169,7 @@ class ResultViewController extends Controller
 
         $classTeacher = $this->resolveClassTeacher($student, $session?->id, $term?->id);
 
-        $nextTerm = null;
-        if ($term && $session) {
-            $nextTerm = Term::query()
-                ->where('school_id', $student->school_id)
-                ->where('session_id', $session->id)
-                ->when($term->end_date, fn ($query) => $query->where('start_date', '>', $term->end_date))
-                ->orderBy('start_date')
-                ->first();
-        }
+        $nextTerm = $term ? $this->resolveNextTerm($term) : null;
 
         $sessionName = $session?->name ?? optional($student->session)->name;
         $termName = $term?->name ?? optional($student->term)->name;
@@ -1222,6 +1261,10 @@ class ResultViewController extends Controller
         }
 
         // Fallback to default hardcoded comments
+        if ($average >= 80) {
+            return 'An outstanding performance. The student demonstrates exceptional understanding, excellent participation, and remarkable consistency. Keep up the excellent work.';
+        }
+
         if ($average >= 70) {
             return 'An excellent performance. The student demonstrates strong understanding, active participation, and consistent effort in class. Keep striving for excellence.';
         }
@@ -1242,7 +1285,15 @@ class ResultViewController extends Controller
             return 'A weak pass. The student shows minimal understanding and must improve study habits and commitment.';
         }
 
-        return 'A poor performance. The student needs serious improvement, more practice, and closer academic guidance.';
+        if ($average >= 35) {
+            return 'A below-average performance. The student shows limited understanding and needs greater concentration, regular practice, and additional academic support.';
+        }
+
+        if ($average >= 30) {
+            return 'A poor performance. The student is struggling with key concepts and needs consistent practice, closer supervision, and serious improvement.';
+        }
+
+        return 'A very poor performance. The student requires urgent academic support, regular revision, and close guidance to improve.';
     }
 
     private function generatePrincipalComment(?float $average, ?Student $student = null, ?string $sessionId = null): string
@@ -1285,9 +1336,18 @@ class ResultViewController extends Controller
 
     private function findMatchingCommentRange(Student $student, string $sessionId, float $score): ?CommentRange
     {
+        $boundedRange = fn ($query) => $query->where(
+            fn ($rangeQuery) => $rangeQuery
+                ->where('min_score', '>', 0)
+                ->orWhere('max_score', '<', 100)
+        );
+
         $defaultQuery = GradingScale::query()
             ->where('school_id', $student->school_id)
-            ->with(['comment_ranges' => fn ($query) => $query->orderBy('min_score')]);
+            ->whereHas('comment_ranges', $boundedRange)
+            ->with([
+                'comment_ranges' => fn ($query) => $boundedRange($query)->orderBy('min_score'),
+            ]);
 
         $gradeScale = null;
 
@@ -1362,7 +1422,7 @@ class ResultViewController extends Controller
             return null;
         }
 
-        return 'Q' . $number;
+        return 'Q'.$number;
     }
 
     private function buildComponentColumns(Collection $results, Student $student, ?Term $term): Collection
@@ -1381,6 +1441,7 @@ class ResultViewController extends Controller
 
                 return [
                     'id' => $component->id,
+                    'name' => (string) ($component->name ?? ''),
                     'label' => strtoupper($label),
                     'order' => $component->order ?? PHP_INT_MAX,
                 ];
@@ -1424,7 +1485,7 @@ class ResultViewController extends Controller
             ? (string) (int) $maxScore
             : rtrim(rtrim(number_format($maxScore, 2, '.', ''), '0'), '.');
 
-        return preg_replace('/(?<!\d)%/', $scoreLabel . '%', $trimmedLabel) ?? $trimmedLabel;
+        return preg_replace('/(?<!\d)%/', $scoreLabel.'%', $trimmedLabel) ?? $trimmedLabel;
     }
 
     private function buildSubjectRows(Collection $results, Collection $componentColumns, Collection $gradeRanges, Collection $subjectStats): Collection
@@ -1521,22 +1582,25 @@ class ResultViewController extends Controller
         Student $student,
         Collection $gradeRanges,
         Collection $positionRanges,
-        int $classSize
-    ): Collection
-    {
+        int $classSize,
+        bool $collapseCa
+    ): Collection {
         return $terms
-            ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize) {
+            ->map(function (Term $term) use ($results, $student, $gradeRanges, $positionRanges, $classSize, $collapseCa) {
                 $termResults = $results
                     ->filter(fn (Result $result) => (string) $result->term_id === (string) $term->id)
                     ->values();
 
                 $componentColumns = $this->buildComponentColumns($termResults, $student, $term);
+                $sessionComponentColumns = $collapseCa
+                    ? $this->buildSessionComponentColumns($componentColumns)
+                    : $componentColumns;
                 $subjectStatisticsData = $this->computeSubjectStatistics(
                     $student,
                     (string) $term->session_id,
                     (string) $term->id,
                     $termResults,
-                    $positionRanges,
+                    ($term->use_position_ranges ?? false) ? $positionRanges : collect(),
                     $classSize
                 );
                 $subjectRows = $this->buildSubjectRows(
@@ -1545,12 +1609,15 @@ class ResultViewController extends Controller
                     $gradeRanges,
                     $subjectStatisticsData['subjects']
                 );
+                if ($collapseCa) {
+                    $subjectRows = $this->collapseSessionComponentScores($subjectRows, $sessionComponentColumns);
+                }
 
                 return [
                     'id' => (string) $term->id,
                     'number' => (int) $term->term_number,
                     'label' => trim((string) $term->name) !== '' ? (string) $term->name : "{$term->term_number} Term",
-                    'columns' => $componentColumns
+                    'columns' => $sessionComponentColumns
                         ->map(fn (array $column) => [
                             'id' => $column['id'],
                             'label' => $column['label'],
@@ -1564,6 +1631,66 @@ class ResultViewController extends Controller
             })
             ->values()
             ->values();
+    }
+
+    private function buildSessionComponentColumns(Collection $componentColumns): Collection
+    {
+        $caColumns = $componentColumns
+            ->reject(fn (array $column) => $this->isExamComponent($column))
+            ->values();
+
+        if ($caColumns->isEmpty()) {
+            return $componentColumns
+                ->map(fn (array $column) => array_merge($column, ['source_ids' => [$column['id']]]))
+                ->values();
+        }
+
+        $columns = collect([[
+            'id' => 'combined_ca',
+            'label' => 'CA',
+            'order' => $caColumns->min('order') ?? 0,
+            'source_ids' => $caColumns->pluck('id')->all(),
+        ]]);
+
+        return $columns
+            ->concat(
+                $componentColumns
+                    ->filter(fn (array $column) => $this->isExamComponent($column))
+                    ->map(fn (array $column) => array_merge($column, ['source_ids' => [$column['id']]]))
+            )
+            ->sortBy('order')
+            ->values();
+    }
+
+    private function collapseSessionComponentScores(Collection $subjectRows, Collection $sessionComponentColumns): Collection
+    {
+        return $subjectRows
+            ->map(function (array $row) use ($sessionComponentColumns) {
+                $sourceValues = $row['component_values'] ?? [];
+                $componentValues = [];
+
+                foreach ($sessionComponentColumns as $column) {
+                    $values = collect($column['source_ids'] ?? [$column['id']])
+                        ->map(fn ($sourceId) => $sourceValues[$sourceId] ?? null)
+                        ->filter(fn ($value) => $value !== null);
+
+                    $componentValues[$column['id']] = $values->isEmpty()
+                        ? null
+                        : round((float) $values->sum(), 2);
+                }
+
+                $row['component_values'] = $componentValues;
+
+                return $row;
+            })
+            ->values();
+    }
+
+    private function isExamComponent(array $column): bool
+    {
+        $nameAndLabel = trim(($column['name'] ?? '').' '.($column['label'] ?? ''));
+
+        return preg_match('/\bexam(?:s|ination)?\b/i', $nameAndLabel) === 1;
     }
 
     private function buildSessionSubjectRows(Collection $termSections, Collection $gradeRanges): Collection
@@ -1666,7 +1793,7 @@ class ResultViewController extends Controller
             ->where('session_id', $sessionId)
             ->whereIn('term_id', $termIds)
             ->get()
-            ->groupBy(fn (Result $result) => $result->subject_id . ':' . $result->term_id)
+            ->groupBy(fn (Result $result) => $result->subject_id.':'.$result->term_id)
             ->map(fn (Collection $entries) => $this->resolveResultTotalForEntries($entries))
             ->filter(fn ($score) => $score !== null)
             ->values();
@@ -1678,13 +1805,11 @@ class ResultViewController extends Controller
         $classRows = Result::query()
             ->where('session_id', $sessionId)
             ->whereIn('term_id', $termIds)
-            ->whereHas('student', function ($query) use ($student) {
-                $query->where('school_class_id', $student->school_class_id)
-                    ->when($student->class_arm_id, fn ($builder) => $builder->where('class_arm_id', $student->class_arm_id))
-                    ->when($student->class_section_id, fn ($builder) => $builder->where('class_section_id', $student->class_section_id));
-            })
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $armId) => $query->where('class_arm_id', $armId))
+            ->when($student->class_section_id, fn ($query, $sectionId) => $query->where('class_section_id', $sectionId))
             ->get()
-            ->groupBy(fn (Result $result) => $result->student_id . ':' . $result->subject_id . ':' . $result->term_id)
+            ->groupBy(fn (Result $result) => $result->student_id.':'.$result->subject_id.':'.$result->term_id)
             ->map(fn (Collection $entries) => [
                 'student_id' => (string) optional($entries->first())->student_id,
                 'score' => $this->resolveResultTotalForEntries($entries),
@@ -1729,8 +1854,7 @@ class ResultViewController extends Controller
         Collection $results,
         Collection $positionRanges,
         int $classSize
-    ): array
-    {
+    ): array {
         if (! $sessionId || ! $termId || ! $student->school_class_id) {
             return [
                 'subjects' => collect(),
@@ -1739,11 +1863,17 @@ class ResultViewController extends Controller
             ];
         }
 
-        $subjectIds = $results
-            ->pluck('subject_id')
-            ->filter()
-            ->unique()
-            ->values();
+        // Every report for the same class context must use the same subject
+        // population when calculating class-wide totals and averages.
+        $subjectIds = $this->resolveSubjectIds($student, $sessionId);
+
+        if ($subjectIds->isEmpty()) {
+            $subjectIds = $results
+                ->pluck('subject_id')
+                ->filter()
+                ->unique()
+                ->values();
+        }
 
         if ($subjectIds->isEmpty()) {
             return [
@@ -1758,11 +1888,9 @@ class ResultViewController extends Controller
             ->whereIn('subject_id', $subjectIds)
             ->where('session_id', $sessionId)
             ->where('term_id', $termId)
-            ->whereHas('student', function ($query) use ($student) {
-                $query->where('school_class_id', $student->school_class_id)
-                    ->when($student->class_arm_id, fn ($builder) => $builder->where('class_arm_id', $student->class_arm_id))
-                    ->when($student->class_section_id, fn ($builder) => $builder->where('class_section_id', $student->class_section_id));
-            })
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $armId) => $query->where('class_arm_id', $armId))
+            ->when($student->class_section_id, fn ($query, $sectionId) => $query->where('class_section_id', $sectionId))
             ->get();
 
         if ($rows->isEmpty()) {
@@ -1841,24 +1969,19 @@ class ResultViewController extends Controller
         Collection $overallTotals,
         Student $student,
         int $existingClassSize,
-        Collection $positionRanges
-    ): array
-    {
-        $subjectCount = max(1, $subjectStats->count());
+        Collection $positionRanges,
+        int $offeredSubjectCount = 0
+    ): array {
+        $subjectCount = max(1, $offeredSubjectCount ?: $subjectStats->count());
 
         $studentTotal = $overallTotals->get($student->id);
 
-        $classAverage = $subjectStats
-            ->pluck('average')
-            ->filter(fn ($value) => $value !== null)
-            ->average();
-
-        $totalPossible = $subjectStats
-            ->pluck('total_possible')
-            ->filter(fn ($value) => $value !== null)
-            ->sum();
-
+        $studentAverages = $overallTotals
+            ->map(fn ($total) => (float) $total / $subjectCount);
         $classSize = $existingClassSize > 0 ? $existingClassSize : $overallTotals->count();
+        $classAverage = $studentAverages->isEmpty() || $classSize <= 0
+            ? null
+            : $studentAverages->sum() / $classSize;
 
         $scoreSource = $overallTotals->map(fn ($total) => (float) $total);
         $studentScore = $studentTotal !== null ? (float) $studentTotal : null;
@@ -1880,8 +2003,8 @@ class ResultViewController extends Controller
         );
 
         return [
-            'total_obtained' => $studentTotal ?: null,
-            'total_possible' => $totalPossible ?: null,
+            'total_obtained' => $studentTotal !== null ? (float) $studentTotal : null,
+            'total_possible' => $studentTotal !== null ? $subjectCount * 100 : null,
             'average' => ($studentTotal !== null && $subjectCount > 0) ? round($studentTotal / $subjectCount, 2) : null,
             'class_average' => $classAverage !== null ? round($classAverage, 2) : null,
             'position' => $position,
@@ -1889,34 +2012,119 @@ class ResultViewController extends Controller
         ];
     }
 
-    private function resolveSubjectCount(Student $student): int
-    {
-        if (! $student->school_class_id) {
-            return 0;
+    private function applyHistoricalResultPlacement(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId = null,
+    ): void {
+        if (! $sessionId) {
+            return;
         }
 
-        $query = SubjectAssignment::query()
+        $placement = Result::query()
+            ->where('student_id', $student->id)
+            ->where('session_id', $sessionId)
+            ->when($termId, fn ($query, $id) => $query->where('term_id', $id))
+            ->whereNotNull('school_class_id')
+            ->first(['school_class_id', 'class_arm_id', 'class_section_id']);
+
+        if (! $placement) {
+            return;
+        }
+
+        $student->school_class_id = $placement->school_class_id;
+        $student->class_arm_id = $placement->class_arm_id;
+        $student->class_section_id = $placement->class_section_id;
+        $student->unsetRelation('school_class');
+        $student->unsetRelation('class_arm');
+        $student->unsetRelation('class_section');
+        $student->loadMissing(['school_class', 'class_arm', 'class_section']);
+    }
+
+    private function resolveHistoricalClassSize(
+        Student $student,
+        ?string $sessionId,
+        ?string $termId = null,
+    ): int {
+        if ($sessionId && $student->school_class_id) {
+            $historicalSize = Result::query()
+                ->where('session_id', $sessionId)
+                ->when($termId, fn ($query, $id) => $query->where('term_id', $id))
+                ->where('school_class_id', $student->school_class_id)
+                ->when($student->class_arm_id, fn ($query, $id) => $query->where('class_arm_id', $id))
+                ->when($student->class_section_id, fn ($query, $id) => $query->where('class_section_id', $id))
+                ->distinct()
+                ->count('student_id');
+
+            if ($historicalSize > 0) {
+                return $historicalSize;
+            }
+        }
+
+        return Student::query()
+            ->where('school_id', $student->school_id)
+            ->where('school_class_id', $student->school_class_id)
+            ->when($student->class_arm_id, fn ($query, $id) => $query->where('class_arm_id', $id))
+            ->when($student->class_section_id, fn ($query, $id) => $query->where('class_section_id', $id))
+            ->whereNotIn('status', ['inactive', 'Inactive'])
+            ->count();
+    }
+
+    private function resolveDisplayedTotalObtained(Collection $subjectRows): ?float
+    {
+        $totals = $subjectRows
+            ->pluck('total')
+            ->filter(fn ($total) => $total !== null && is_numeric($total));
+
+        return $totals->isEmpty() ? null : round((float) $totals->sum(), 2);
+    }
+
+    private function resolveSubjectCount(Student $student, ?string $sessionId): int
+    {
+        return $this->resolveSubjectIds($student, $sessionId)->count();
+    }
+
+    private function resolveSubjectIds(Student $student, ?string $sessionId): Collection
+    {
+        if (! $student->school_class_id) {
+            return collect();
+        }
+
+        $baseQuery = SubjectAssignment::query()
+            ->where('session_id', $sessionId)
             ->where('school_class_id', $student->school_class_id);
 
         if ($student->class_arm_id) {
-            $query->where(function ($builder) use ($student) {
-                $builder->whereNull('class_arm_id')
-                    ->orWhere('class_arm_id', $student->class_arm_id);
-            });
+            $armQuery = (clone $baseQuery)
+                ->where('class_arm_id', $student->class_arm_id);
+
+            if ($armQuery->exists()) {
+                $baseQuery = $armQuery;
+            } else {
+                $baseQuery->whereNull('class_arm_id');
+            }
         } else {
-            $query->whereNull('class_arm_id');
+            $baseQuery->whereNull('class_arm_id');
         }
 
         if ($student->class_section_id) {
-            $query->where(function ($builder) use ($student) {
-                $builder->whereNull('class_section_id')
-                    ->orWhere('class_section_id', $student->class_section_id);
-            });
+            $sectionQuery = (clone $baseQuery)
+                ->where('class_section_id', $student->class_section_id);
+
+            if ($sectionQuery->exists()) {
+                $baseQuery = $sectionQuery;
+            } else {
+                $baseQuery->whereNull('class_section_id');
+            }
         } else {
-            $query->whereNull('class_section_id');
+            $baseQuery->whereNull('class_section_id');
         }
 
-        return (int) $query->distinct('subject_id')->count('subject_id');
+        return $baseQuery
+            ->distinct()
+            ->pluck('subject_id')
+            ->filter()
+            ->values();
     }
 
     private function resolveGradeRanges(string $schoolId, ?string $sessionId): Collection
@@ -2059,9 +2267,25 @@ class ResultViewController extends Controller
             'hide_student_identity' => $school?->result_hide_student_identity ?? false,
             'allow_shared_pin_access' => $school?->result_allow_shared_pin_access ?? false,
             'enable_session_result_print' => $school?->result_enable_session_print ?? false,
+            'collapse_session_ca' => $school?->result_collapse_session_ca ?? false,
             'comment_mode' => $school?->result_comment_mode ?? 'manual',
             'signatory_title' => $school?->result_signatory_title ?? 'principal',
         ];
+    }
+
+    private function resolveNextTerm(Term $term): ?Term
+    {
+        $currentTermBoundary = $term->end_date ?? $term->start_date;
+
+        return Term::query()
+            ->where('school_id', $term->school_id)
+            ->whereKeyNot($term->getKey())
+            ->when(
+                $currentTermBoundary,
+                fn ($query) => $query->where('start_date', '>', $currentTermBoundary)
+            )
+            ->orderBy('start_date')
+            ->first();
     }
 
     private function resolveClassTeacher(Student $student, ?string $sessionId, ?string $termId): ?ClassTeacher
@@ -2071,7 +2295,6 @@ class ResultViewController extends Controller
             ->when($student->class_arm_id, fn ($query) => $query->where('class_arm_id', $student->class_arm_id))
             ->when($student->class_section_id, fn ($query) => $query->where('class_section_id', $student->class_section_id))
             ->when($sessionId, fn ($query) => $query->where('session_id', $sessionId))
-            ->when($termId, fn ($query) => $query->where('term_id', $termId))
             ->whereHas('school_class', fn ($query) => $query->where('school_id', $student->school_id))
             ->with('staff:id,full_name')
             ->orderByDesc('created_at')
@@ -2094,6 +2317,6 @@ class ResultViewController extends Controller
             return asset($trimmed);
         }
 
-        return asset('storage/' . $trimmed);
+        return asset('storage/'.$trimmed);
     }
 }
