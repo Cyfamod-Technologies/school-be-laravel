@@ -768,6 +768,10 @@ class StudentController extends Controller
                 'results',
                 'attendances',
                 'fee_payments',
+                // Bills cascade into their items, and items into the payment
+                // allocations that reference them, so this order matters.
+                'student_bills',
+                'payments',
                 'performance_reports',
                 'result_pins',
                 'skill_ratings',
@@ -913,6 +917,8 @@ class StudentController extends Controller
             'results' => 'result records',
             'attendances' => 'attendance records',
             'fee_payments' => 'fee payment records',
+            'student_bills' => 'fee bill records',
+            'payments' => 'payment records',
             'performance_reports' => 'performance report records',
             'result_pins' => 'result pin records',
             'skill_ratings' => 'skill rating records',

@@ -233,6 +233,30 @@ class FrontendPermissionSeeder extends Seeder
         'finance.fee-structures.delete' => 'Delete fee structures',
         'finance.fee-structures.copy' => 'Copy fee structures',
 
+        // Finance - Fee Assignments (school / class / class-arm / student scopes)
+        'finance.assignments.view' => 'View fee assignments',
+        'finance.assignments.create' => 'Assign fees to a school, class, class arm or students',
+        'finance.assignments.update' => 'Update fee assignments',
+        'finance.assignments.delete' => 'Remove fee assignments',
+
+        // Finance - Student Bills
+        'finance.bills.view' => 'View student bills and outstanding balances',
+        'finance.bills.generate' => 'Generate or refresh student bills',
+        'finance.bill-items.adjust' => 'Apply discounts, surcharges or waivers to a bill',
+
+        // Finance - Payments
+        'finance.payments.view' => 'View payment submissions and verified payments',
+        'finance.payments.record' => 'Record a payment on a student\'s behalf',
+        'finance.payments.verify' => 'Approve submitted payments',
+        'finance.payments.reject' => 'Reject submitted payments',
+        'finance.payments.reverse' => 'Reverse a verified payment',
+        'finance.payments.allocate' => 'Allocate a payment across specific fees',
+
+        // Finance - Reporting
+        'finance.dashboard.view' => 'View the finance dashboard',
+        'finance.reports.view' => 'View finance reports and exports',
+        'finance.audit.view' => 'View the finance audit trail',
+
         // RBAC - Roles
         'roles.view' => 'View roles',
         'roles.create' => 'Create new roles',

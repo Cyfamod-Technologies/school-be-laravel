@@ -13,12 +13,16 @@ use App\Http\Controllers\Api\V1\CbtAssessmentLinkController;
 use App\Http\Controllers\Api\V1\ClassController;
 use App\Http\Controllers\Api\V1\ClassTeacherAssignmentController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\FeeAdjustmentController;
+use App\Http\Controllers\Api\V1\FinanceReportController;
+use App\Http\Controllers\Api\V1\FeeAssignmentController;
 use App\Http\Controllers\Api\V1\FeeItemController;
 use App\Http\Controllers\Api\V1\FeeStructureController;
 use App\Http\Controllers\Api\V1\GradeScaleController;
 use App\Http\Controllers\Api\V1\Internal\SchoolActivationController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\PermissionHierarchyController;
 use App\Http\Controllers\Api\V1\PermissionSeedController;
@@ -42,7 +46,9 @@ use App\Http\Controllers\Api\V1\StaffSelfController;
 use App\Http\Controllers\Api\V1\StudentAttendanceController;
 use App\Http\Controllers\Api\V1\StudentAuthController;
 use App\Http\Controllers\Api\V1\StudentBulkUploadController;
+use App\Http\Controllers\Api\V1\StudentBillController;
 use App\Http\Controllers\Api\V1\StudentDeviceController;
+use App\Http\Controllers\Api\V1\StudentFeeController;
 use App\Http\Controllers\Api\V1\StudentNotificationController;
 use App\Http\Controllers\Api\V1\StudentPortalAttendanceController;
 use App\Http\Controllers\Api\V1\StudentSkillRatingController;
@@ -108,6 +114,29 @@ Route::prefix('api/v1')->group(function () {
                     ->name('student.devices.store');
                 Route::delete('devices', [StudentDeviceController::class, 'destroy'])
                     ->name('student.devices.destroy');
+                Route::prefix('fees')->group(function () {
+                    Route::get('bill', [StudentFeeController::class, 'currentBill'])
+                        ->name('student.fees.bill');
+                    Route::get('bills', [StudentFeeController::class, 'billHistory'])
+                        ->name('student.fees.bills');
+                    Route::get('bills/{studentBill}', [StudentFeeController::class, 'showBill'])
+                        ->whereUuid('studentBill')
+                        ->name('student.fees.bills.show');
+                    Route::get('payments', [StudentFeeController::class, 'payments'])
+                        ->name('student.fees.payments');
+                    Route::get('payments/{payment}', [StudentFeeController::class, 'showPayment'])
+                        ->whereUuid('payment')
+                        ->name('student.fees.payments.show');
+                    // The most abusable endpoint in the module: unauthenticated
+                    // in spirit (a parent on a phone), multipart, and it writes.
+                    Route::post('payments', [StudentFeeController::class, 'submitPayment'])
+                        ->middleware('throttle:10,1')
+                        ->name('student.fees.payments.submit');
+                    Route::get('payments/{payment}/receipt.pdf', [StudentFeeController::class, 'receipt'])
+                        ->whereUuid('payment')
+                        ->name('student.fees.payments.receipt');
+                });
+
                 Route::get('notifications', [StudentNotificationController::class, 'index'])
                     ->name('student.notifications.index');
                 Route::put('notifications/read-all', [StudentNotificationController::class, 'markAllRead'])
@@ -382,6 +411,79 @@ Route::prefix('api/v1')->group(function () {
                 ->name('fee-structures.copy');
             Route::get('structures/total', [FeeStructureController::class, 'getTotal'])
                 ->name('fee-structures.total');
+
+            // Fee Assignments (school / class / class-arm / student scopes).
+            // Declared before the apiResource so /assignments/preview is not
+            // swallowed by the {feeAssignment} wildcard.
+            Route::post('assignments/preview', [FeeAssignmentController::class, 'preview'])
+                ->name('fee-assignments.preview');
+            Route::put('assignments/{feeAssignment}/students', [FeeAssignmentController::class, 'syncAssignmentStudents'])
+                ->whereUuid('feeAssignment')
+                ->name('fee-assignments.students.sync');
+            Route::apiResource('assignments', FeeAssignmentController::class)
+                ->parameters(['assignments' => 'feeAssignment'])
+                ->except(['create', 'edit'])
+                ->names('fee-assignments');
+
+            // Bill Item Adjustments (discounts / surcharges / waivers)
+            Route::post('bill-items/{studentBillItem}/adjustments', [FeeAdjustmentController::class, 'store'])
+                ->whereUuid('studentBillItem')
+                ->name('fee-bill-items.adjustments.store');
+            Route::delete('adjustments/{feeAdjustment}', [FeeAdjustmentController::class, 'destroy'])
+                ->whereUuid('feeAdjustment')
+                ->name('fee-adjustments.destroy');
+
+            // Student Bills
+            Route::post('bills/generate', [StudentBillController::class, 'generate'])
+                ->name('fee-bills.generate');
+            Route::get('bills', [StudentBillController::class, 'index'])
+                ->name('fee-bills.index');
+            Route::get('bills/{studentBill}', [StudentBillController::class, 'show'])
+                ->whereUuid('studentBill')
+                ->name('fee-bills.show');
+            Route::get('students/{student}/bill', [StudentBillController::class, 'forStudent'])
+                ->whereUuid('student')
+                ->name('fee-bills.for-student');
+
+            // Finance dashboard, reports and audit trail.
+            Route::get('overview', [FinanceReportController::class, 'overview'])
+                ->name('fee-overview.show');
+            Route::get('reports/collections', [FinanceReportController::class, 'collections'])
+                ->name('fee-reports.collections');
+            Route::get('reports/outstanding', [FinanceReportController::class, 'outstanding'])
+                ->name('fee-reports.outstanding');
+            Route::get('reports/outstanding.csv', [FinanceReportController::class, 'outstandingCsv'])
+                ->name('fee-reports.outstanding.csv');
+            Route::get('audit-logs', [FinanceReportController::class, 'auditLogs'])
+                ->name('fee-audit-logs.index');
+
+            // Payments: the verification queue and everything downstream.
+            Route::get('payments', [PaymentController::class, 'index'])
+                ->name('fee-payments.index');
+            Route::post('payments', [PaymentController::class, 'store'])
+                ->name('fee-payments.store');
+            Route::get('payments/{payment}', [PaymentController::class, 'show'])
+                ->whereUuid('payment')
+                ->name('fee-payments.show');
+            Route::post('payments/{payment}/approve', [PaymentController::class, 'approve'])
+                ->whereUuid('payment')
+                ->name('fee-payments.approve');
+            Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])
+                ->whereUuid('payment')
+                ->name('fee-payments.reject');
+            Route::post('payments/{payment}/reverse', [PaymentController::class, 'reverse'])
+                ->whereUuid('payment')
+                ->name('fee-payments.reverse');
+            Route::put('payments/{payment}/allocations', [PaymentController::class, 'allocate'])
+                ->whereUuid('payment')
+                ->name('fee-payments.allocate');
+            Route::get('payments/{payment}/evidence/{evidence}', [PaymentController::class, 'evidence'])
+                ->whereUuid('payment')
+                ->whereUuid('evidence')
+                ->name('fee-payments.evidence');
+            Route::get('payments/{payment}/receipt.pdf', [PaymentController::class, 'receipt'])
+                ->whereUuid('payment')
+                ->name('fee-payments.receipt');
 
             // Bank Details
             Route::apiResource('bank-details', BankDetailController::class)

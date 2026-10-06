@@ -27,6 +27,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property Student $student
  * @property Term $term
  */
+/**
+ * @deprecated Superseded by {@see Payment}, {@see StudentBill} and
+ * {@see StudentBillItem}, which separate what a student owes from what they
+ * have actually paid. Nothing writes to this table; it is kept only so the
+ * existing rows survive until a follow-up migration drops it.
+ */
 class FeePayment extends Model
 {
     protected $table = 'fee_payments';
