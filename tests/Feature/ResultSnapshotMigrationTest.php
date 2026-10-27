@@ -8,6 +8,7 @@ use App\Models\Session;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Term;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -94,10 +95,18 @@ it('resumes the result placement backfill without replacing existing snapshots',
     ]);
 
     $migration = require database_path('migrations/2026_08_01_000001_add_class_snapshot_to_results_table.php');
+
+    // Drop an existing column's index so up() must restore it (covers the
+    // column-exists-but-index-missing branch).
+    Schema::table('results', function (Blueprint $table) {
+        $table->dropIndex(['school_class_id']);
+    });
+
     $migration->up();
     $migration->up();
 
-    expect($missingSnapshot->fresh()->school_class_id)->toBe($currentClass->id)
+    expect(Schema::hasIndex('results', ['school_class_id']))->toBeTrue()
+        ->and($missingSnapshot->fresh()->school_class_id)->toBe($currentClass->id)
         ->and($missingSnapshot->fresh()->class_arm_id)->toBe($arm->id)
         ->and($missingSnapshot->fresh()->total_score)->toBe(72.0)
         ->and($existingSnapshot->fresh()->school_class_id)->toBe($previousClass->id)
