@@ -37,7 +37,13 @@ echo "🛠 Running migrations..."
 php artisan migrate --force
 
 echo "🌱 Running seeders..."
-php artisan db:seed --force
+# Seeders populate sample data for fresh environments.
+# Set RUN_SEEDERS=false where sample data should not be loaded.
+if [ "${RUN_SEEDERS:-true}" = "true" ]; then
+  php artisan db:seed --force
+else
+  echo "⏭  Skipping seeders (RUN_SEEDERS=${RUN_SEEDERS})"
+fi
 
 echo "📚 Generating Swagger docs..."
 php artisan l5-swagger:generate || echo "Swagger skipped"
