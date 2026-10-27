@@ -9,11 +9,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('results', function (Blueprint $table) {
-            $table->uuid('school_class_id')->nullable()->after('session_id')->index();
-            $table->uuid('class_arm_id')->nullable()->after('school_class_id')->index();
-            $table->uuid('class_section_id')->nullable()->after('class_arm_id')->index();
-        });
+        foreach ([
+            'school_class_id' => 'session_id',
+            'class_arm_id' => 'school_class_id',
+            'class_section_id' => 'class_arm_id',
+        ] as $column => $after) {
+            if (! Schema::hasColumn('results', $column)) {
+                Schema::table('results', function (Blueprint $table) use ($column, $after) {
+                    $table->uuid($column)->nullable()->after($after)->index();
+                });
+            } elseif (! Schema::hasIndex('results', [$column])) {
+                Schema::table('results', function (Blueprint $table) use ($column) {
+                    $table->index($column);
+                });
+            }
+        }
 
         DB::table('results')
             ->select(['id', 'student_id', 'session_id'])
@@ -41,12 +51,10 @@ return new class extends Migration
 
                 foreach ($results as $result) {
                     $student = $students->get($result->student_id);
-                    $fromLog = $logs->first(fn ($log) =>
-                        $log->student_id === $result->student_id
+                    $fromLog = $logs->first(fn ($log) => $log->student_id === $result->student_id
                         && $log->from_session_id === $result->session_id
                     );
-                    $toLog = $logs->first(fn ($log) =>
-                        $log->student_id === $result->student_id
+                    $toLog = $logs->first(fn ($log) => $log->student_id === $result->student_id
                         && $log->to_session_id === $result->session_id
                     );
 
@@ -70,8 +78,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('results', function (Blueprint $table) {
-            $table->dropColumn(['school_class_id', 'class_arm_id', 'class_section_id']);
-        });
+        // These columns may have existed before this migration was recorded.
+        // Their original ownership cannot be determined during a rollback, so
+        // preserve the historical result placement data rather than drop it.
     }
 };
